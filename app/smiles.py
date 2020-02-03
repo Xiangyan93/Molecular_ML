@@ -7,6 +7,14 @@ sys.path.append(Config.GRAPHDOT_DIR)
 from graphdot import Graph
 
 
+class GraphE(Graph):
+    def __eq__(self, other):
+        if self.__repr__() == other.__repr__():
+            return True
+        else:
+            return False
+
+
 def smiles2graph(smiles):
     mol = Chem.MolFromSmiles(smiles)
     if mol is not None:
@@ -31,6 +39,6 @@ def smiles2graph(smiles):
             g.edges[ij]['inring'] = bond.IsInRing()
 
         # return g
-        return Graph.from_networkx(g)
+        return GraphE.from_networkx(g)
     else:
         return None
