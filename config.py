@@ -11,10 +11,35 @@ class Config:
         ASSIGNED = False
 
         RANDOM = False  # random based on SMILES
+        RANDOM_Para = {
+            'ratio': 0.8
+        }
         ratio = 0.8  # ratio is also needed for active learning
 
         ACTIVE_LEARNING = True
-        learning_mode = 'supervised'  # 'unsupervised', 'supervised', 'random'
-        init_size = 100
-        add_size = 50
-        max_size = 1000
+        ACTIVE_LEARNING_Para = {
+            'learning_mode': 'supervised',  # 'unsupervised', 'supervised', 'random'
+            'init_size': 5,
+            'add_size': 2,
+            'max_size': 11
+        }
+
+    class VectorFingerprint:
+        '''
+        For MORGAN fingerprints set Para as:
+        MORGAN_Para = {
+            'radius': 2,
+            'nBits': None, #
+        }
+        For TOPOL fingerprints set Para as:
+        TOPOL_Para = {
+            'minPath': 1,
+            'maxPath': 3,
+            'nBits': None
+        }
+        '''
+        Para = {
+            'minPath': 1,
+            'maxPath': 5,
+            'nBits': 64
+        }

@@ -2,43 +2,70 @@
 
 import sys
 import argparse
-import pandas as pd
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 sys.path.append('..')
 from app.kernel import *
-from run.GPR import get_X_from_file
+from app.VectorFingerprint import *
 
 
 def main():
     parser = argparse.ArgumentParser(description='tSNE analysis')
     parser.add_argument('-i', '--input', type=str, help='Input data.')
     parser.add_argument('-p', '--property', type=str, help='Target property.')
-    parser.add_argument('-o', '--output', help='Generate tSNE.txt for the embeding result.', action='store_false')
+    parser.add_argument('-t', '--type', type=str, help='The type of molecular description.')
     opt = parser.parse_args()
 
-    kernel_config = KernelConfig(opt.property)
+    if opt.type == 'graph_kernel':
+        kernel_config = KernelConfig(opt.property)
+        descriptor = kernel_config.descriptor
+        embed_file = os.path.join('data', 'embed-%s.txt' % descriptor)
+        png_file = os.path.join('data', 'embed-%s.png' % descriptor)
+        if os.path.exists(embed_file):
+            print('reading existing data file: %s' % embed_file)
+            df = pd.read_pickle(embed_file)
+            embed = df[['embed_X', 'embed_Y']]
+            Y = df[opt.property]
+        else:
+            print('embedding')
+            from app.kernel import get_XY_from_file
+            # get graphs
+            X, Y = get_XY_from_file(opt.input, kernel_config)
+            R = kernel_config.kernel(X)
 
-    # get graphs
-    X, Y = get_X_from_file(opt.input, kernel_config)
-    R = kernel_config.kernel(X)
-
-    d = R.diagonal() ** -0.5
-    K = d[:, None] * R * d[None, :]
-    D = np.sqrt(np.maximum(0, 2 - 2 * K ** 100))
-    embed = TSNE(n_components=2).fit_transform(D)
-
+            d = R.diagonal() ** -0.5
+            K = d[:, None] * R * d[None, :]
+            D = np.sqrt(np.maximum(0, 2 - 2 * K ** 2))
+            embed = TSNE(n_components=2).fit_transform(D)
+            df = pd.DataFrame({'embed_X': embed[:, 0], 'embed_Y': embed[:, 1], opt.property: Y})
+            df.to_pickle(embed_file)
+    else:
+        vector_fp_config = VectorFPConfig(opt.type, Config.VectorFingerprint.Para, opt.property)
+        descriptor = vector_fp_config.descriptor
+        embed_file = os.path.join('data', 'embed-%s.txt' % descriptor)
+        png_file = os.path.join('data', 'embed-%s.png' % descriptor)
+        if os.path.exists(embed_file):
+            print('reading existing data file: %s' % embed_file)
+            df = pd.read_pickle(embed_file)
+            embed = np.array(df[['embed_X', 'embed_Y']])
+            Y = df[opt.property]
+        else:
+            print('embedding')
+            from app.VectorFingerprint import get_XY_from_file
+            X, Y = get_XY_from_file(opt.input, vector_fp_config)
+            embed = TSNE(n_components=2).fit_transform(X)
+            df = pd.DataFrame({'embed_X': embed[:, 0], 'embed_Y': embed[:, 1], opt.property: Y})
+            df.to_pickle(embed_file)
+    print('tSNE plot')
     cm = plt.cm.get_cmap('RdYlBu')
-    fig, axs = plt.subplots(1, 2, figsize=(12, 5))
-    style = dict(s=3, cmap='hsv')
-    sc = axs[0].scatter(embed[:, 0], embed[:, 1], c=Y, vmin=Y.min(), vmax=Y.max(), **style)
-    axs[0].set_title('residual')
+    fig, axs = plt.subplots(1, 1, figsize=(12, 10))
+    style = dict(s=2, cmap='hsv')
+    sc = axs.scatter(embed[:, 0], embed[:, 1], c=Y, vmin=Y.min(), vmax=Y.max(), **style)
+    axs.set_title('tSNE analysis of %s, %s' % (opt.property, descriptor))
     plt.colorbar(sc)
-
+    plt.savefig(png_file)
     plt.show()
-    if opt.output:
-        df = pd.DataFrame({'embed_X': embed[:, 0], 'embed_Y': embed[:, 1], 'value': Y})
-        df.to_csv('tSNE.txt', sep=' ', index=False, header=False)
+
 
 
 if __name__ == '__main__':

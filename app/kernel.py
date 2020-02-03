@@ -4,12 +4,14 @@ import numpy as np
 import pandas as pd
 import sklearn.gaussian_process as gp
 sys.path.append('..')
+from app.smiles import *
 from config import *
 sys.path.append(Config.GRAPHDOT_DIR)
 from graphdot.kernel.marginalized import MarginalizedGraphKernel
 from graphdot.kernel.basekernel import TensorProduct
 from graphdot.kernel.basekernel import SquareExponential
 from graphdot.kernel.basekernel import KroneckerDelta
+from app.property import *
 
 
 class NormalizedKernel(MarginalizedGraphKernel):
@@ -56,6 +58,15 @@ class MultipleKernel:
         return X[:, s:e]
 
     def __call__(self, X, Y=None, eval_gradient=False):
+        def get_unique_list_and_idx(X):
+            unique_list = []
+            idx = []
+            for x in enumerate(X):
+                if x not in unique_list:
+                    unique_list.append(x)
+                idx.append(unique_list.index(x))
+            return unique_list,
+
         if eval_gradient:
             covariance_matrix = 1
             gradient_matrix_list = list(map(int, np.ones(self.nkernel).tolist()))
@@ -65,6 +76,8 @@ class MultipleKernel:
                 if kernel.__class__ in [MarginalizedGraphKernel, NormalizedKernel]:
                     Xi = Xi.transpose().tolist()[0]
                     Yi = Yi.transpose().tolist()[0] if Y is not None else None
+                if type(Xi) == list:
+                    print(len(Xi), len(set(tuple(Xi))), Xi[0]==Xi[1])
                 output = kernel(Xi, Y=Yi, eval_gradient=True)
                 if self.combined_rule == 'product':
                     covariance_matrix *= output[0]
@@ -160,17 +173,11 @@ class MultipleKernel:
         )
 
 
-class KernelConfig:
-    def __init__(self, property):
-        self.property = property
-        if property in ['tc', 'dc']:
-            self.T, self.P = False, False
-        elif property in ['st']:
-            self.T, self.P = True, False
-        else:
-            self.T, self.P = True, True
+class KernelConfig(PropertyConfig):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-        if property in ['tc', 'cp']:
+        if self.property in ['tc', 'cp']:
             NORMALIZED = False
         else:
             NORMALIZED = True
@@ -203,3 +210,48 @@ class KernelConfig:
                     [MarginalizedGraphKernel(knode, kedge, q=0.05), gp.kernels.RBF(10.0, (1e-3, 1e3))], [1, 1])
             else:
                 self.kernel = MarginalizedGraphKernel(knode, kedge, q=0.05)
+
+    @property
+    def descriptor(self):
+        return '%s,graph_kernel' % self.property
+
+
+def datafilter(df, ratio=None, remove_smiles=None, get_smiles=False):
+    if ratio is not None:
+        unique_smiles_list = df.SMILES.unique().tolist()
+        random_smiles_list = np.random.choice(unique_smiles_list, int(len(unique_smiles_list) * ratio), replace=False)
+        df = df[df.SMILES.isin(random_smiles_list)]
+    elif remove_smiles is not None:
+        df = df[~df.SMILES.isin(remove_smiles)]
+    return df
+
+
+def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_smiles=False):
+    if not os.path.exists('data'):
+        os.mkdir('data')
+    pkl_file = os.path.join('data', '%s.pkl' % kernel_config.descriptor)
+    if os.path.exists(pkl_file):
+        print('reading existing data file: %s' % pkl_file)
+        df = pd.read_pickle(pkl_file)
+    else:
+        df = pd.read_csv(file, sep='\s+', header=0)
+        df['graph'] = df['SMILES'].apply(smiles2graph)
+        df.to_pickle(pkl_file)
+
+    df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles)
+
+    if kernel_config.P:
+        X = df[['graph', 'T', 'P']]
+    elif kernel_config.T:
+        X = df[['graph', 'T']]
+    else:
+        X = df['graph']
+
+    Y = df[kernel_config.property]
+
+    output = [X, Y]
+    if ratio is not None:
+        output.append(df.SMILES.unique())
+    if get_smiles:
+        output.append(df['SMILES'])
+    return output
