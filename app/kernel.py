@@ -3,9 +3,11 @@ import copy
 import numpy as np
 import pandas as pd
 import sklearn.gaussian_process as gp
+
 sys.path.append('..')
 from app.smiles import *
 from config import *
+
 sys.path.append(Config.GRAPHDOT_DIR)
 from graphdot.kernel.marginalized import MarginalizedGraphKernel
 from graphdot.kernel.basekernel import TensorProduct
@@ -15,6 +17,96 @@ from app.property import *
 
 
 class NormalizedKernel(MarginalizedGraphKernel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def __normalize(self, X, Y, R):
+        if type(R) is tuple:
+            d = np.diag(R[0]) ** -0.5
+            K = np.diag(d).dot(R[0]).dot(np.diag(d))
+            return K, R[1]
+        else:
+            if Y is None:
+                # square matrix
+                d = np.diag(R) ** -0.5
+                K = np.diag(d).dot(R).dot(np.diag(d))
+            else:
+                # rectangular matrix, must have X and Y
+                diag_X = super().diag(X) ** -0.5
+                diag_Y = super().diag(Y) ** -0.5
+                K = np.diag(diag_X).dot(R).dot(np.diag(diag_Y))
+            return K
+
+    def __call__(self, X, Y=None, *args, **kwargs):
+        R = super().__call__(X, Y, *args, **kwargs)
+        return self.__normalize(X, Y, R)
+
+
+class ContractMarginalizedGraphKernel(MarginalizedGraphKernel):
+    def __init__(self, train_X=None, train_idx=[], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.train_X = train_X
+        self.train_idx = train_idx
+
+    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
+        if Y is None:
+            if len(self.train_idx) != len(X):
+                X, Xidx = self.contract(X)
+                self.train_X = X
+                self.train_idx = Xidx
+            else:
+                X = self.train_X
+            output = super().__call__(X, Y, eval_gradient=eval_gradient, *args, **kwargs)
+            if eval_gradient:
+                return self.extract(X, self.train_idx, output[0]), self.extract(X, self.train_idx, output[1])
+            else:
+                return self.extract(X, self.train_idx, output)
+        else:
+            return super().__call__(X, Y, *args, **kwargs)
+
+    def get_params(self, deep=False):
+        return dict(
+            node_kernel=self.node_kernel,
+            edge_kernel=self.edge_kernel,
+            p=self.p,
+            q=self.q,
+            q_bounds=self.q_bounds,
+            backend=self.backend,
+            train_X=self.train_X,
+            train_idx=self.train_idx
+        )
+
+    @staticmethod
+    def contract(X, fast=True):
+        print('contract input graphs start.')
+        X_ = []
+        idx = []
+        for x in X:
+            if X_ == [] or (fast and x != X_[-1]):
+                X_.append(x)
+                idx.append(len(X_) - 1)
+            elif not fast and x not in X_:
+                X_.append(x)
+                idx.append(len(X_) - 1)
+            else:
+                idx.append(X_.index(x))
+        print('contract input graphs end.')
+        return X_, idx
+
+    @staticmethod
+    def extract(_X, Xidx, output):
+        n = len(Xidx)
+        if len(output.shape) == 3:
+            _output = np.zeros((n, n, output.shape[2]))
+        else:
+            _output = np.zeros((n, n))
+        for i, idx1 in enumerate(Xidx):
+            for j, idx2 in enumerate(Xidx):
+                _output[i][j] = output[idx1][idx2]
+        return _output
+
+
+class ContractNormalizedKernel(ContractMarginalizedGraphKernel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -52,32 +144,23 @@ class MultipleKernel:
 
     def get_X_for_ith_kernel(self, X, i):
         s = sum(self.composition[0:i])
-        e = sum(self.composition[0:i+1])
+        e = sum(self.composition[0:i + 1])
         if X.__class__ == pd.DataFrame:
             X = X.to_numpy()
-        return X[:, s:e]
+        X = X[:, s:e]
+        if self.kernel_list[i].__class__ in [ContractMarginalizedGraphKernel, ContractNormalizedKernel,
+                                             MarginalizedGraphKernel, NormalizedKernel]:
+            X = X.transpose().tolist()[0]
+        return X
 
     def __call__(self, X, Y=None, eval_gradient=False):
-        def get_unique_list_and_idx(X):
-            unique_list = []
-            idx = []
-            for x in enumerate(X):
-                if x not in unique_list:
-                    unique_list.append(x)
-                idx.append(unique_list.index(x))
-            return unique_list,
-
         if eval_gradient:
+            print('start a new optimization step')
             covariance_matrix = 1
             gradient_matrix_list = list(map(int, np.ones(self.nkernel).tolist()))
             for i, kernel in enumerate(self.kernel_list):
                 Xi = self.get_X_for_ith_kernel(X, i)
                 Yi = self.get_X_for_ith_kernel(Y, i) if Y is not None else None
-                if kernel.__class__ in [MarginalizedGraphKernel, NormalizedKernel]:
-                    Xi = Xi.transpose().tolist()[0]
-                    Yi = Yi.transpose().tolist()[0] if Y is not None else None
-                if type(Xi) == list:
-                    print(len(Xi), len(set(tuple(Xi))), Xi[0]==Xi[1])
                 output = kernel(Xi, Y=Yi, eval_gradient=True)
                 if self.combined_rule == 'product':
                     covariance_matrix *= output[0]
@@ -97,9 +180,6 @@ class MultipleKernel:
             for i, kernel in enumerate(self.kernel_list):
                 Xi = self.get_X_for_ith_kernel(X, i)
                 Yi = self.get_X_for_ith_kernel(Y, i) if Y is not None else None
-                if kernel.__class__ in [MarginalizedGraphKernel, NormalizedKernel]:
-                    Xi = Xi.transpose().tolist()[0]
-                    Yi = Yi.transpose().tolist()[0] if Y is not None else None
                 output = kernel(Xi, Y=Yi, eval_gradient=False)
                 if self.combined_rule == 'product':
                     covariance_matrix *= output
@@ -108,8 +188,6 @@ class MultipleKernel:
     def diag(self, X):
         for i, kernel in enumerate(self.kernel_list):
             Xi = self.get_X_for_ith_kernel(X, i)
-            if kernel.__class__ in [MarginalizedGraphKernel, NormalizedKernel]:
-                Xi = Xi.transpose().tolist()[0]
             if i == 0:
                 diag = kernel.diag(Xi)
             else:
@@ -174,9 +252,8 @@ class MultipleKernel:
 
 
 class KernelConfig(PropertyConfig):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, save_mem=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         if self.property in ['tc', 'cp']:
             NORMALIZED = False
         else:
@@ -191,25 +268,26 @@ class KernelConfig(PropertyConfig):
         kedge = TensorProduct(order=KroneckerDelta(0.5),
                               stereo=KroneckerDelta(0.5)
                               )
+
         if NORMALIZED:
-            if self.P:
-                self.kernel = MultipleKernel([NormalizedKernel(knode, kedge, q=0.05), gp.kernels.RBF(10.0, (1e-3, 1e3))
-                                              * gp.kernels.RBF(10.0, (1e-3, 1e3))], [1, 2])
-            elif self.T:
-                self.kernel = MultipleKernel([NormalizedKernel(knode, kedge, q=0.05), gp.kernels.RBF(10.0, (1e-3, 1e3))]
-                                             , [1, 1])
+            if save_mem:
+                graph_kernel = ContractNormalizedKernel(None, [], knode, kedge, q=0.05)
             else:
-                self.kernel = NormalizedKernel(knode, kedge, q=0.05)
+                graph_kernel = NormalizedKernel(knode, kedge, q=0.05)
         else:
-            if self.P:
-                self.kernel = MultipleKernel(
-                    [MarginalizedGraphKernel(knode, kedge, q=0.05), gp.kernels.RBF(10.0, (1e-3, 1e3)) *
-                     gp.kernels.RBF(10.0, (1e-3, 1e3))], [1, 2])
-            elif self.T:
-                self.kernel = MultipleKernel(
-                    [MarginalizedGraphKernel(knode, kedge, q=0.05), gp.kernels.RBF(10.0, (1e-3, 1e3))], [1, 1])
+            if save_mem:
+                graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=0.05)
             else:
-                self.kernel = MarginalizedGraphKernel(knode, kedge, q=0.05)
+                graph_kernel = MarginalizedGraphKernel(knode, kedge, q=0.05)
+
+        if self.P:
+            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(10.0, (1e-3, 1e3))
+                                          * gp.kernels.RBF(10.0, (1e-3, 1e3))], [1, 2], 'product')
+        elif self.T:
+            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(10.0, (1e-3, 1e3))]
+                                         , [1, 1], 'product')
+        else:
+            self.kernel = graph_kernel
 
     @property
     def descriptor(self):

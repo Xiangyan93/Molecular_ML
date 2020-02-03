@@ -10,18 +10,18 @@ class Config:
     class TrainingSetSelectRule:
         ASSIGNED = False
 
-        RANDOM = False  # random based on SMILES
+        RANDOM = True  # random based on SMILES
         RANDOM_Para = {
             'ratio': 0.8
         }
-        ratio = 0.8  # ratio is also needed for active learning
 
-        ACTIVE_LEARNING = True
+        ACTIVE_LEARNING = False
         ACTIVE_LEARNING_Para = {
             'learning_mode': 'supervised',  # 'unsupervised', 'supervised', 'random'
             'init_size': 5,
             'add_size': 2,
-            'max_size': 11
+            'max_size': 11,
+            'ratio': 0.8
         }
 
     class VectorFingerprint:
@@ -40,6 +40,7 @@ class Config:
         '''
         Para = {
             'minPath': 1,
-            'maxPath': 5,
-            'nBits': 64
+            'maxPath': 7,
+            'nBits': 128,
+            'radius': 2,
         }
