@@ -76,20 +76,24 @@ class ContractMarginalizedGraphKernel(MarginalizedGraphKernel):
             train_idx=self.train_idx
         )
 
+    # fast=True, the graphs is X must be arranged in blocks.
     @staticmethod
     def contract(X, fast=True):
         print('contract input graphs start.')
         X_ = []
         idx = []
         for x in X:
-            if X_ == [] or (fast and x != X_[-1]):
-                X_.append(x)
-                idx.append(len(X_) - 1)
-            elif not fast and x not in X_:
-                X_.append(x)
+            sys.stdout.write('\r%.2f %s' % (len(idx) / len(X) * 100, "%"))
+            if fast:
+                if not X_ or x != X_[-1]:
+                    X_.append(x)
                 idx.append(len(X_) - 1)
             else:
-                idx.append(X_.index(x))
+                if x not in X_:
+                    X_.append(x)
+                    idx.append(len(X_) - 1)
+                else:
+                    idx.append(X_.index(x))
         print('contract input graphs end.')
         return X_, idx
 

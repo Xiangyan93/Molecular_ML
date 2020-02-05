@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import argparse
-import pandas as pd
+from sklearn.kernel_approximation import Nystroem
 
 sys.path.append('..')
 from app.kernel import *
@@ -16,6 +16,7 @@ def main():
                         default=None)
     parser.add_argument('-p', '--property', type=str, help='Target property.')
     parser.add_argument('--alpha', type=float, help='Initial alpha value.', default=0.5)
+    parser.add_argument('--nystroem', help='Nystroem approximation.', action='store_true')
     parser.add_argument('--save_mem', help='Save memory for graph kernel calculation.', action='store_true')
     opt = parser.parse_args()
     kernel_config = KernelConfig(save_mem=opt.save_mem, property=opt.property)
