@@ -14,11 +14,14 @@ def main():
     parser.add_argument('-i', '--input', type=str, help='Input data.')
     parser.add_argument('-p', '--property', type=str, help='Target property.')
     parser.add_argument('-t', '--type', type=str, help='The type of molecular description.')
+    parser.add_argument('--log', help='Using log value of proeprty value.', action='store_true')
     opt = parser.parse_args()
 
     if opt.type == 'graph_kernel':
-        kernel_config = KernelConfig(opt.property)
+        kernel_config = KernelConfig(False, opt.property)
         descriptor = kernel_config.descriptor
+        if opt.log:
+            descriptor += 'logy'
         embed_file = os.path.join('data', 'embed-%s.txt' % descriptor)
         png_file = os.path.join('data', 'embed-%s.png' % descriptor)
         if os.path.exists(embed_file):
@@ -42,6 +45,8 @@ def main():
     else:
         vector_fp_config = VectorFPConfig(opt.type, Config.VectorFingerprint.Para, opt.property)
         descriptor = vector_fp_config.descriptor
+        if opt.log:
+            descriptor += 'logy'
         embed_file = os.path.join('data', 'embed-%s.txt' % descriptor)
         png_file = os.path.join('data', 'embed-%s.png' % descriptor)
         if os.path.exists(embed_file):
@@ -56,6 +61,8 @@ def main():
             embed = TSNE(n_components=2).fit_transform(X)
             df = pd.DataFrame({'embed_X': embed[:, 0], 'embed_Y': embed[:, 1], opt.property: Y})
             df.to_pickle(embed_file)
+    if opt.log:
+        Y = np.log(Y)
     print('tSNE plot')
     cm = plt.cm.get_cmap('RdYlBu')
     fig, axs = plt.subplots(1, 1, figsize=(12, 10))
@@ -65,7 +72,6 @@ def main():
     plt.colorbar(sc)
     plt.savefig(png_file)
     plt.show()
-
 
 
 if __name__ == '__main__':
