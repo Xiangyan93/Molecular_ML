@@ -10,12 +10,12 @@ class Config:
     class TrainingSetSelectRule:
         ASSIGNED = False
 
-        RANDOM = True  # random based on SMILES
+        RANDOM = False  # random based on SMILES
         RANDOM_Para = {
             'ratio': 0.8
         }
 
-        ACTIVE_LEARNING = False
+        ACTIVE_LEARNING = True
         ACTIVE_LEARNING_Para = {
             'learning_mode': 'supervised',  # 'unsupervised', 'supervised', 'random'
             'init_size': 5,

@@ -28,6 +28,8 @@ class ActiveLearner:
         self.logger.write('Start Training, training size = %i:\n' % len(self.train_smiles))
         self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x = self.train_X[self.train_SMILES.SMILES.isin(self.train_smiles)]
+        if not self.kernel_config.T:
+            train_x = train_x['graph']
         train_y = self.train_Y[self.train_SMILES.SMILES.isin(self.train_smiles)]
         while alpha <= 10:
             try:
@@ -44,6 +46,8 @@ class ActiveLearner:
         if add_size is None:
             add_size = self.add_size
         untrain_x = self.train_X[~self.train_SMILES.SMILES.isin(self.train_smiles)]
+        if not self.kernel_config.T:
+            untrain_x = untrain_x['graph']
         untrain_y = self.train_Y[~self.train_SMILES.SMILES.isin(self.train_smiles)]
         untrain_smiles = self.train_SMILES[~self.train_SMILES.SMILES.isin(self.train_smiles)]
         if self.learning_mode == 'supervised':
