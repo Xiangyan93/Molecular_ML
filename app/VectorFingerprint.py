@@ -1,9 +1,11 @@
 import sys
 import numpy as np
 import pandas as pd
+
 sys.path.append('..')
 from config import *
 from app.property import *
+
 sys.path.append(Config.MS_TOOLS_DIR)
 from mstools.smiles.fingerprint import *
 
@@ -122,7 +124,10 @@ class VectorFPConfig(PropertyConfig):
         return '%s,%s' % (self.property, self.fp.descriptor)
 
 
-def get_XY_from_file(file, vector_fp_config, ratio=None, remove_smiles=None, get_smiles=False):
+from .kernel import get_TP_extreme
+
+
+def get_XY_from_file(file, vector_fp_config, ratio=None, remove_smiles=None, get_smiles=False, TPextreme=False):
     if not os.path.exists('data'):
         os.mkdir('data')
     pkl_file = os.path.join('data', '%s.pkl' % vector_fp_config.descriptor)
@@ -137,6 +142,10 @@ def get_XY_from_file(file, vector_fp_config, ratio=None, remove_smiles=None, get
 
         from .kernel import datafilter
         df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles)
+        # only select the data with extreme temperature and pressure
+        if TPextreme:
+            df = get_TP_extreme(df, T=vector_fp_config.T, P=vector_fp_config.P)
+
         print('Transform SMILES into vector')
         X = vector_fp_config.fp.get_fp_list(df.SMILES)
         df_fp = pd.DataFrame({'fp': [x for x in X]})
