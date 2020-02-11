@@ -15,25 +15,26 @@ def main():
     parser.add_argument('-p', '--property', type=str, help='Target property.')
     parser.add_argument('-t', '--type', type=str, help='The type of molecular description.')
     parser.add_argument('--log', help='Using log value of proeprty value.', action='store_true')
+    parser.add_argument('--TPextreme', help='Only use the data with extreme T P.', action='store_true')
     opt = parser.parse_args()
 
     if opt.type == 'graph_kernel':
         kernel_config = KernelConfig(False, opt.property)
         descriptor = kernel_config.descriptor
         if opt.log:
-            descriptor += 'logy'
+            descriptor += '-logy'
         embed_file = os.path.join('data', 'embed-%s.txt' % descriptor)
         png_file = os.path.join('data', 'embed-%s.png' % descriptor)
         if os.path.exists(embed_file):
             print('reading existing data file: %s' % embed_file)
             df = pd.read_pickle(embed_file)
-            embed = df[['embed_X', 'embed_Y']]
+            embed = np.array(df[['embed_X', 'embed_Y']])
             Y = df[opt.property]
         else:
             print('embedding')
             from app.kernel import get_XY_from_file
             # get graphs
-            X, Y = get_XY_from_file(opt.input, kernel_config)
+            X, Y = get_XY_from_file(opt.input, kernel_config, TPextreme=opt.TPextreme)
             R = kernel_config.kernel(X)
 
             d = R.diagonal() ** -0.5
@@ -57,7 +58,7 @@ def main():
         else:
             print('embedding')
             from app.VectorFingerprint import get_XY_from_file
-            X, Y = get_XY_from_file(opt.input, vector_fp_config)
+            X, Y = get_XY_from_file(opt.input, vector_fp_config, TPextreme=opt.TPextreme)
             embed = TSNE(n_components=2).fit_transform(X)
             df = pd.DataFrame({'embed_X': embed[:, 0], 'embed_Y': embed[:, 1], opt.property: Y})
             df.to_pickle(embed_file)

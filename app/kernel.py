@@ -308,7 +308,27 @@ def datafilter(df, ratio=None, remove_smiles=None, get_smiles=False):
     return df
 
 
-def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_smiles=False):
+def get_TP_extreme(df, P=True, T=True):
+    if not T:
+        return df
+    group = df.groupby('SMILES')
+    df_ = None
+    for x in group:
+        data_ = x[1]
+        Tex = [data_['T'].min(), data_['T'].max()]
+        if P:
+            Pex = [data_['P'].min(), data_['P'].max()]
+            finaldata = data_[(data_['T'].isin(Tex)) & (data_['P'].isin(Pex))]
+        else:
+            finaldata = data_[data_['T'].isin(Tex)]
+        if df_ is None:
+            df_ = finaldata
+        else:
+            df_ = df_.append(finaldata)
+    return df_
+
+
+def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_smiles=False, TPextreme=False):
     if not os.path.exists('data'):
         os.mkdir('data')
     pkl_file = os.path.join('data', '%s.pkl' % kernel_config.descriptor)
@@ -321,6 +341,9 @@ def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_sm
         df.to_pickle(pkl_file)
 
     df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles)
+    # only select the data with extreme temperature and pressure
+    if TPextreme:
+        df = get_TP_extreme(df, T=kernel_config.T, P=kernel_config.P)
 
     if kernel_config.P:
         X = df[['graph', 'T', 'P']]
