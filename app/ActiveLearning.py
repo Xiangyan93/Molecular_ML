@@ -3,11 +3,11 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import explained_variance_score
 import sklearn.gaussian_process as gp
-
+from sklearn.cluster import SpectralClustering
 
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
-    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, train_SMILES):
+    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, train_SMILES, search_size=50):
         ''' df must have the 'graph' column '''
         self.train_X = train_X.reset_index().drop(columns='index')
         self.train_Y = train_Y.reset_index().drop(columns='index')
@@ -15,6 +15,7 @@ class ActiveLearner:
         self.test_Y = test_Y
         self.current_size = initial_size
         self.add_size = add_size
+        self.search_size = search_size
         self.kernel_config = kernel_config
         self.learning_mode = learning_mode
         self.logger = open('active_learning.log', 'w')
@@ -42,7 +43,7 @@ class ActiveLearner:
         self.alpha = alpha
         self.logger.write('training complete, alpha=%3g\n' % alpha)
 
-    def add_samples(self, add_size=None):
+    def add_samples(self, add_size=None, search_size=None):
         if add_size is None:
             add_size = self.add_size
         untrain_x = self.train_X[~self.train_SMILES.SMILES.isin(self.train_smiles)]
@@ -66,11 +67,18 @@ class ActiveLearner:
             y_pred, y_std = self.model.predict(untrain_x, return_std=True)
             untrain_smiles['std'] = y_std
             group = untrain_smiles.groupby('SMILES')
-            smiles_std = pd.DataFrame({'SMILES': [], 'std': []})
+            smiles_std = pd.DataFrame({'SMILES': [], 'std': [],'graph':[] })
             for i, x in enumerate(group):
-                smiles_std.loc[i] = x[0], x[1]['std'].max()
-            index = smiles_std['std'].nlargest(add_size).index
-            self.train_smiles = np.r_[self.train_smiles, smiles_std[smiles_std.index.isin(index)].SMILES]
+                smiles_std.loc[i] = x[0], x[1]['std'].max(), self.train_X[self.train_SMILES.SMILES == x[0]]['graph'].tolist()[0]
+            #index = smiles_std['std'].nlargest(add_size).index
+            if search_size is None:
+                    search_size = self.search_size
+            if len(smiles_std) < search_size:
+                search_size = len(smiles_std)
+            search_idx = sorted(smiles_std['std'].nlargest(search_size).index)
+            search_graphs = smiles_std[smiles_std.index.isin(search_idx)]['graph']
+            add_idx = self._find_add_idx(search_graphs, add_size)
+            self.train_smiles = np.r_[self.train_smiles, smiles_std[smiles_std.index.isin(add_idx)].SMILES]
         elif self.learning_mode == 'random':
             group = untrain_smiles.groupby('SMILES')
             smiles = pd.DataFrame({'SMILES': []})
@@ -81,6 +89,26 @@ class ActiveLearner:
             raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
         self.current_size = len(self.train_smiles)
         self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
+
+    def _find_add_idx(self, X, add_sample_size):
+        ''' find representative samples from a pool using clustering method
+        :X: a list of graphs
+        :add_sample_size: add sample size
+        '''
+        # train SpectralClustering on X
+        if len(X) < add_sample_size:
+            return [ i for i in range( len(X))]
+        gram_matrix = self.kernel_config.kernel(X)
+        result = SpectralClustering(n_clusters=add_sample_size, affinity='precomputed').fit_predict(gram_matrix) # cluster result
+        # choose the one with least in cluster distance sum in each cluster
+        for i in range(len(X)): # edit self distance to be zero
+            gram_matrix[i][i] = np.inf
+        total_distance = {0:{}, 1:{}, 2:{}, 3:{}, 4:{}} # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
+        for i in range(50): # get all in-class distance sum of each item
+            cluster_class = result[i]
+            total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * 1/gram_matrix[i])] = i
+        add_idx = [total_distance[i][min(total_distance[i].keys())] for i in range(5)] # find min-in-cluster-distance associated idx
+        return add_idx
 
     def evaluate(self):
         y_pred = self.model.predict(self.test_X)
