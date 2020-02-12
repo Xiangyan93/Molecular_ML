@@ -3,11 +3,11 @@ import sys
 import argparse
 from sklearn.kernel_approximation import Nystroem
 
+sys.path.append('.')
 sys.path.append('..')
 from app.kernel import *
 from app.smiles import *
 from app.ActiveLearning import *
-
 
 def main():
     parser = argparse.ArgumentParser(description='Gaussian process regression')
@@ -38,8 +38,8 @@ def main():
     if Config.TrainingSetSelectRule.ACTIVE_LEARNING:
         activelearner = ActiveLearner(train_X, train_Y, test_X, test_Y, Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['init_size'],
                                       Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['add_size'], kernel_config,
-                                      Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['learning_mode'], train_SMILES)
-        while activelearner.current_size <= Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['max_size']:
+                                      Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['learning_mode'], train_SMILES,  Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['search_size'])
+        while not activelearner.stop_sign(Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['max_size']):
             print('active learning, current size = %i' % activelearner.current_size)
             activelearner.train(alpha=opt.alpha)
             activelearner.evaluate()

@@ -4,7 +4,7 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics import explained_variance_score
 import sklearn.gaussian_process as gp
 from sklearn.cluster import SpectralClustering
-
+import os
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
     def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, train_SMILES, search_size=50):
@@ -23,6 +23,14 @@ class ActiveLearner:
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
         self.train_smiles = np.random.choice(self.unique_smiles, initial_size, replace=False)
+
+    def stop_sign(self, max_size):
+        if self.current_size > max_size:
+            return True
+        elif self.current_size == len(self.train_X):
+            return True
+        else:
+            return False
 
     def train(self, alpha=0.5):
         # continue needs to be added soon
@@ -122,5 +130,7 @@ class ActiveLearner:
         self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha
 
     def get_training_plot(self):
+        if not os.path.exists(os.path.join(os.getcwd(),'result' )):
+                os.makedirs(os.path.join(os.getcwd(), 'result'))
         self.plotout.reset_index().drop(columns='index').\
-            to_csv('%s-%s.log' % (self.kernel_config.property, self.learning_mode), sep=' ', index=False)
+            to_csv('result/%s-%s-%d-%d.log' % (self.kernel_config.property, self.learning_mode, self.search_size, self.add_size), sep=' ', index=False)
