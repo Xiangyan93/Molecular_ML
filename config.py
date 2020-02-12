@@ -17,10 +17,11 @@ class Config:
 
         ACTIVE_LEARNING = True
         ACTIVE_LEARNING_Para = {
-            'learning_mode': 'supervised',  # 'unsupervised', 'supervised', 'random'
-            'init_size': 5,
-            'add_size': 2,
-            'max_size': 11,
+            'learning_mode': 'unsupervised',  # 'unsupervised', 'supervised', 'random'
+            'init_size': 100,
+            'add_size': 5,
+            'search_size':50,
+            'max_size': 1000,
             'ratio': 0.8
         }
 
