@@ -17,7 +17,9 @@ def main():
     parser.add_argument('-p', '--property', type=str, help='Target property.')
     parser.add_argument('--alpha', type=float, help='Initial alpha value.', default=0.5)
     parser.add_argument('--nystroem', help='Nystroem approximation.', action='store_true')
-    parser.add_argument('--save_mem', help='Save memory for graph kernel calculation.', action='store_true')
+    parser.add_argument('--save_mem',  help='Save memory for graph kernel calculation.', action='store_true')
+    parser.add_argument('--add_size', type=int, help='Add size for unsupervised active learning', default=5)
+    parser.add_argument('--search_size', type=int, help='Search size for unsupervised active learning', default=50)
     opt = parser.parse_args()
     kernel_config = KernelConfig(save_mem=opt.save_mem, property=opt.property)
     if Config.TrainingSetSelectRule.ASSIGNED and opt.train is not None:
@@ -37,8 +39,8 @@ def main():
 
     if Config.TrainingSetSelectRule.ACTIVE_LEARNING:
         activelearner = ActiveLearner(train_X, train_Y, test_X, test_Y, Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['init_size'],
-                                      Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['add_size'], kernel_config,
-                                      Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['learning_mode'], train_SMILES,  Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['search_size'])
+                                      opt.add_size, kernel_config,
+                                      Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['learning_mode'], train_SMILES,  opt.search_size)
         while not activelearner.stop_sign(Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['max_size']):
             print('active learning, current size = %i' % activelearner.current_size)
             activelearner.train(alpha=opt.alpha)

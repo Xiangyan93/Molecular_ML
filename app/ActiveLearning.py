@@ -111,11 +111,11 @@ class ActiveLearner:
         # choose the one with least in cluster distance sum in each cluster
         for i in range(len(X)): # edit self distance to be zero
             gram_matrix[i][i] = np.inf
-        total_distance = {0:{}, 1:{}, 2:{}, 3:{}, 4:{}} # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
-        for i in range(50): # get all in-class distance sum of each item
+        total_distance = {i:{} for i in range(add_sample_size)} # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
+        for i in range(len(X)): # get all in-class distance sum of each item
             cluster_class = result[i]
             total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * 1/gram_matrix[i])] = i
-        add_idx = [total_distance[i][min(total_distance[i].keys())] for i in range(5)] # find min-in-cluster-distance associated idx
+        add_idx = [total_distance[i][min(total_distance[i].keys())] for i in range(add_sample_size)] # find min-in-cluster-distance associated idx
         return add_idx
 
     def evaluate(self):
