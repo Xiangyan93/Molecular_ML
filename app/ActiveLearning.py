@@ -20,14 +20,14 @@ class ActiveLearner:
         self.kernel_config = kernel_config
         self.learning_mode = learning_mode
         self.add_mode = add_mode
-        if not os.path.exists(os.path.join(os.getcwd(),'result' )):
-            os.makedirs(os.path.join(os.getcwd(), 'result'))
-        self.logger = open( 'result/%s-%s-%s-%d-%d.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size) , 'w')
+        if not os.path.exists(os.path.join(os.getcwd(),'log' )):
+            os.makedirs(os.path.join(os.getcwd(), 'log'))
+        self.logger = open( 'log/%s-%s-%s-%d-%d.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size) , 'w')
         self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
         self.train_smiles = np.random.choice(self.unique_smiles, initial_size, replace=False)
-        
+
     def stop_sign(self, max_size):
         if self.current_size > max_size:
             return True
