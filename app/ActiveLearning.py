@@ -20,12 +20,14 @@ class ActiveLearner:
         self.kernel_config = kernel_config
         self.learning_mode = learning_mode
         self.add_mode = add_mode
-        self.logger = open('active_learning.log', 'w')
+        if not os.path.exists(os.path.join(os.getcwd(),'result' )):
+            os.makedirs(os.path.join(os.getcwd(), 'result'))
+        self.logger = open( 'result/%s-%s-%s-%d-%d.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size) , 'w')
         self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
         self.train_smiles = np.random.choice(self.unique_smiles, initial_size, replace=False)
-
+        
     def stop_sign(self, max_size):
         if self.current_size > max_size:
             return True
@@ -36,7 +38,7 @@ class ActiveLearner:
 
     def train(self, alpha=0.5):
         # continue needs to be added soon
-        self.logger.write(time.asctime( time.localtime(time.time())))
+        self.logger.write('%s\n' % (time.asctime( time.localtime(time.time()))) )
         self.logger.write('Start Training, training size = %i:\n' % len(self.train_smiles))
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x = self.train_X[self.train_SMILES.SMILES.isin(self.train_smiles)]
@@ -62,14 +64,14 @@ class ActiveLearner:
         untrain_smiles = self.train_SMILES[~self.train_SMILES.SMILES.isin(self.train_smiles)]
         if self.learning_mode == 'supervised':
             y_pred = self.model.predict(untrain_x)
-            try:
-                untrain_smiles.loc[:, 'mse'] = abs(y_pred - np.array(untrain_y))
-                group = untrain_smiles.groupby('SMILES')
-                smiles_mse = pd.DataFrame({'SMILES': [], 'mse': []})
-                for i, x in enumerate(group):
-                    smiles_mse.loc[i] = x[0], x[1].mse.max(), self.train_X[self.train_SMILES.SMILES == x[0]]['graph'].tolist()[0]
-            except:
-                raise ValueError('Missing value for supervised training')
+            #try:
+            untrain_smiles.loc[:, 'mse'] = abs(y_pred - np.array(untrain_y))
+            group = untrain_smiles.groupby('SMILES')
+            smiles_mse = pd.DataFrame({'SMILES': [], 'mse': [],'graph':[]})
+            for i, x in enumerate(group):
+                smiles_mse.loc[i] = x[0], x[1].mse.max(), self.train_X[self.train_SMILES.SMILES == x[0]]['graph'].tolist()[0]
+            #except:
+            #    raise ValueError('Missing value for supervised training')
             add_idx = self._get_samples_idx(smiles_mse, 'mse')
             self.train_smiles = np.r_[self.train_smiles, smiles_mse[smiles_mse.index.isin(add_idx)].SMILES]
         elif self.learning_mode == 'unsupervised':
@@ -144,11 +146,11 @@ class ActiveLearner:
         mse = mean_squared_error(y_pred, self.test_Y)
         # variance explained
         ex_var = explained_variance_score(y_pred, self.test_Y)
-        self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n\n" % (r2, mse, ex_var))
+        self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha
 
     def get_training_plot(self):
         if not os.path.exists(os.path.join(os.getcwd(),'result' )):
                 os.makedirs(os.path.join(os.getcwd(), 'result'))
         self.plotout.reset_index().drop(columns='index').\
-            to_csv('result/%s-%s-%s-%d-%d.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size), sep=' ', index=False)
+            to_csv('result/%s-%s-%s-%d-%d.out' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size), sep=' ', index=False)
