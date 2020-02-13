@@ -265,7 +265,7 @@ class KernelConfig(PropertyConfig):
 
         # define node and edge kernelets
         knode = TensorProduct(aromatic=KroneckerDelta(0.8),
-                              charge=SquareExponential(1.0),
+                              #charge=SquareExponential(1.0),
                               element=KroneckerDelta(0.5),
                               hcount=SquareExponential(1.0)
                               )
