@@ -6,6 +6,7 @@ import sklearn.gaussian_process as gp
 from sklearn.cluster import SpectralClustering
 import os
 import time
+import random
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
     def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size=50):
@@ -92,6 +93,7 @@ class ActiveLearner:
             self.train_smiles = np.r_[self.train_smiles, np.random.choice(smiles.SMILES, self.add_size, replace=False)]
         else:
             raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
+        self.train_smiles = list(set(self.train_smiles))
         self.current_size = len(self.train_smiles)
         self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
 
@@ -102,7 +104,7 @@ class ActiveLearner:
         :return: list of idx
         '''
         if self.add_mode=='random':
-            return np.random.randint(0, len(df), self.add_size)
+            return np.array( random.sample(range(len(df)), self.add_size ) )
         elif self.add_mode == 'cluster':
             if self.search_size==0 or len(df) < self.search_size: # from all remaining samples 
                 search_size = len(df)
