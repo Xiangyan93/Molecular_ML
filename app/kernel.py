@@ -21,21 +21,30 @@ class NormalizedKernel(MarginalizedGraphKernel):
         super().__init__(*args, **kwargs)
 
     def __normalize(self, X, Y, R):
-        if type(R) is tuple:
-            d = np.diag(R[0]) ** -0.5
-            K = np.diag(d).dot(R[0]).dot(np.diag(d))
-            return K, R[1]
-        else:
-            if Y is None:
-                # square matrix
+        if Y is None:
+            # square matrix
+            if type(R) is tuple:
+                d = np.diag(R[0]) ** -0.5
+                K = np.diag(d).dot(R[0]).dot(np.diag(d))
+                K_gradient = np.einsum("ijk,i,j->ijk", R[1], d, d)
+                return K, K_gradient
+            else:
                 d = np.diag(R) ** -0.5
                 K = np.diag(d).dot(R).dot(np.diag(d))
+                return K
+        else:
+            # rectangular matrix, must have X and Y
+            if type(R) is tuple:
+                diag_X = super().diag(X) ** -0.5
+                diag_Y = super().diag(Y) ** -0.5
+                K = np.diag(diag_X).dot(R[0]).dot(np.diag(diag_Y))
+                K_gradient = np.einsum("ijk,i,j->ijk", R[1], diag_X, diag_Y)
+                return K, K_gradient
             else:
-                # rectangular matrix, must have X and Y
                 diag_X = super().diag(X) ** -0.5
                 diag_Y = super().diag(Y) ** -0.5
                 K = np.diag(diag_X).dot(R).dot(np.diag(diag_Y))
-            return K
+                return K
 
     def __call__(self, X, Y=None, *args, **kwargs):
         R = super().__call__(X, Y, *args, **kwargs)
