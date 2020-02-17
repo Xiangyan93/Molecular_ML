@@ -9,7 +9,7 @@ import time
 import random
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
-    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size=50):
+    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name):
         ''' df must have the 'graph' column '''
         self.train_X = train_X.reset_index().drop(columns='index')
         self.train_Y = train_Y.reset_index().drop(columns='index')
@@ -21,9 +21,10 @@ class ActiveLearner:
         self.kernel_config = kernel_config
         self.learning_mode = learning_mode
         self.add_mode = add_mode
+        self.name = name
         if not os.path.exists(os.path.join(os.getcwd(),'log' )):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
-        self.logger = open( 'log/%s-%s-%s-%d-%d.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size) , 'w')
+        self.logger = open( 'log/%s-%s-%s-%d-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size, self.name) , 'w')
         self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
@@ -134,7 +135,7 @@ class ActiveLearner:
         distance_mat = np.empty_like(gram_matrix)
         for i in range(len(X)):
             for j in range(len(X)):
-                distance_mat[i][j] = np.sqrt(gram_matrix[i][i] + gram_matrix[j][j] - 2 * gram_matrix[i][j])
+                distance_mat[i][j] = np.sqrt(abs(gram_matrix[i][i] + gram_matrix[j][j] - 2 * gram_matrix[i][j]))
         # choose the one with least in cluster distance sum in each cluster
         total_distance = {i:{} for i in range(self.add_size)} # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
         for i in range(len(X)): # get all in-class distance sum of each item
@@ -158,4 +159,4 @@ class ActiveLearner:
         if not os.path.exists(os.path.join(os.getcwd(),'result' )):
                 os.makedirs(os.path.join(os.getcwd(), 'result'))
         self.plotout.reset_index().drop(columns='index').\
-            to_csv('result/%s-%s-%s-%d-%d.out' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size), sep=' ', index=False)
+            to_csv('result/%s-%s-%s-%d-%d-%s.out' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size, self.name), sep=' ', index=False)
