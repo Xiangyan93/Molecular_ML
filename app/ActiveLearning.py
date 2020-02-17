@@ -130,13 +130,16 @@ class ActiveLearner:
             return [ i for i in range( len(X))]
         gram_matrix = self.kernel_config.kernel(X)
         result = SpectralClustering(n_clusters=self.add_size, affinity='precomputed').fit_predict(gram_matrix) # cluster result
+        # distance matrix
+        distance_mat = np.empty_like(gram_matrix)
+        for i in range(len(X)):
+            for j in range(len(X)):
+                distance_mat[i][j] = np.sqrt(gram_matrix[i][i] + gram_matrix[j][j] - 2 * gram_matrix[i][j])
         # choose the one with least in cluster distance sum in each cluster
-        for i in range(len(X)): # edit self distance to be zero
-            gram_matrix[i][i] = np.inf
         total_distance = {i:{} for i in range(self.add_size)} # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
         for i in range(len(X)): # get all in-class distance sum of each item
             cluster_class = result[i]
-            total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * 1/gram_matrix[i])] = i
+            total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * distance_mat[i])] = i
         add_idx = [total_distance[i][min(total_distance[i].keys())] for i in range(self.add_size)] # find min-in-cluster-distance associated idx
         return add_idx
 
