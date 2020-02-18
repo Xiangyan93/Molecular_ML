@@ -45,6 +45,7 @@ class ActiveLearner:
 
     def train(self, alpha=0.5):
         # continue needs to be added soon
+        np.random.seed(234)
         self.logger.write('%s\n' % (time.asctime( time.localtime(time.time()))) )
         self.logger.write('Start Training, training size = %i:\n' % len(self.train_smiles))
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
