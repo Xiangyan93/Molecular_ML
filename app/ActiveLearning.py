@@ -22,6 +22,7 @@ class ActiveLearner:
         self.learning_mode = learning_mode
         self.add_mode = add_mode
         self.name = name
+        self.full_size = 0
         if not os.path.exists(os.path.join(os.getcwd(),'log' )):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
         self.logger = open( 'log/%s-%s-%s-%d-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size, self.name) , 'w')
@@ -34,7 +35,11 @@ class ActiveLearner:
         if self.current_size > max_size:
             return True
         elif self.current_size == len(self.train_X):
-            return True
+            if self.full_size==1:
+                return True
+            else: 
+                self.full_size  = 1
+                return False
         else:
             return False
 
@@ -59,6 +64,8 @@ class ActiveLearner:
         self.logger.write('training complete, alpha=%3g\n' % alpha)
 
     def add_samples(self):
+        if self.full_size==1:
+            return
         untrain_x = self.train_X[~self.train_SMILES.SMILES.isin(self.train_smiles)]
         if not self.kernel_config.T:
             untrain_x = untrain_x['graph']
@@ -87,11 +94,11 @@ class ActiveLearner:
             add_idx = self._get_samples_idx(smiles_std, 'std')
             self.train_smiles = np.r_[self.train_smiles, smiles_std[smiles_std.index.isin(add_idx)].SMILES]
         elif self.learning_mode == 'random':
-            group = untrain_smiles.groupby('SMILES')
-            smiles = pd.DataFrame({'SMILES': []})
-            for i, x in enumerate(group):
-                smiles.loc[i] = x[0]
-            self.train_smiles = np.r_[self.train_smiles, np.random.choice(smiles.SMILES, self.add_size, replace=False)]
+            unique_untrain_smiles = untrain_smiles.SMILES.unique()
+            if len(untrain_smiles) < self.add_size:
+                self.train_smiles = np.r_[self.train_smiles, unique_untrain_smiles]
+            else:
+                self.train_smiles = np.r_[self.train_smiles, np.random.choice(unique_untrain_smiles, self.add_size, replace=False)]
         else:
             raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
         self.train_smiles = list(set(self.train_smiles))
@@ -104,6 +111,8 @@ class ActiveLearner:
         :target: should be one of mse/std
         :return: list of idx
         '''
+        if len(df) < self.add_size: # add all if end of the training set
+            return df.index
         if self.add_mode=='random':
             return np.array( random.sample(range(len(df)), self.add_size ) )
         elif self.add_mode == 'cluster':
