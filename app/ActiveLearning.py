@@ -4,9 +4,11 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics import explained_variance_score
 import sklearn.gaussian_process as gp
 from sklearn.cluster import SpectralClustering
+from sklearn.manifold import SpectralEmbedding
 import os
 import time
 import random
+from sklearn.cluster import KMeans
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
     def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name):
@@ -23,6 +25,7 @@ class ActiveLearner:
         self.add_mode = add_mode
         self.name = name
         self.full_size = 0
+        self.std_logging = True # for debugging
         if not os.path.exists(os.path.join(os.getcwd(),'log' )):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
         self.logger = open( 'log/%s-%s-%s-%d-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size, self.name) , 'w')
@@ -112,6 +115,10 @@ class ActiveLearner:
         :target: should be one of mse/std
         :return: list of idx
         '''
+        if self.std_logging: # for debugging
+            if not os.path.exists(os.path.join(os.getcwd(),'log','std_log' )):
+                os.makedirs(os.path.join(os.getcwd(), 'log', 'std_log'))
+            df[['SMILES','std']].to_csv('log/std_log/%d-%d.csv' % (len(df), len(self.train_X)-len(df)))
         if len(df) < self.add_size: # add all if end of the training set
             return df.index
         if self.add_mode=='random':
@@ -130,7 +137,7 @@ class ActiveLearner:
         else:
             raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest').")
 
-    def _find_add_idx_cluster(self, X):
+    def _find_add_idx_cluster_old(self, X):
         ''' find representative samples from a pool using clustering method
         :X: a list of graphs
         :add_sample_size: add sample size
@@ -142,15 +149,38 @@ class ActiveLearner:
         gram_matrix = self.kernel_config.kernel(X)
         result = SpectralClustering(n_clusters=self.add_size, affinity='precomputed').fit_predict(gram_matrix) # cluster result
         # distance matrix
-        distance_mat = np.empty_like(gram_matrix)
-        for i in range(len(X)):
-            for j in range(len(X)):
-                distance_mat[i][j] = np.sqrt(abs(gram_matrix[i][i] + gram_matrix[j][j] - 2 * gram_matrix[i][j]))
+        #distance_mat = np.empty_like(gram_matrix)
+        #for i in range(len(X)):
+        #    for j in range(len(X)):
+        #        distance_mat[i][j] = np.sqrt(abs(gram_matrix[i][i] + gram_matrix[j][j] - 2 * gram_matrix[i][j]))
         # choose the one with least in cluster distance sum in each cluster
         total_distance = {i:{} for i in range(self.add_size)} # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
         for i in range(len(X)): # get all in-class distance sum of each item
             cluster_class = result[i]
-            total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * distance_mat[i])] = i
+            #total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * distance_mat[i])] = i
+            total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * 1/gram_matrix[i])] = i
+        add_idx = [total_distance[i][min(total_distance[i].keys())] for i in range(self.add_size)] # find min-in-cluster-distance associated idx
+        return add_idx
+
+    def _find_add_idx_cluster(self, X):
+        ''' find representative samples from a pool using clustering method
+        :X: a list of graphs
+        :add_sample_size: add sample size
+        :return: list of idx
+        '''
+        # train SpectralClustering on X
+        if len(X) < self.add_size:
+            return [ i for i in range( len(X))]
+        gram_matrix = self.kernel_config.kernel(X)
+        embedding = SpectralEmbedding(n_components=self.add_size, affinity='precomputed').fit_transform(gram_matrix)
+        cluster_result = KMeans(n_clusters=self.add_size, random_state=0).fit_predict(embedding)
+        # find all center of clustering
+        center = np.array([ embedding[cluster_result == i].mean(axis=0) for i in range(self.add_size) ])
+        from collections import defaultdict
+        total_distance = defaultdict(dict) # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
+        for i in range(len(cluster_result)):
+            cluster_class = cluster_result[i]
+            total_distance[cluster_class][((np.square(embedding[i] - np.delete(center, cluster_class,axis=0))).sum(axis=1)**-0.5).sum()] = i
         add_idx = [total_distance[i][min(total_distance[i].keys())] for i in range(self.add_size)] # find min-in-cluster-distance associated idx
         return add_idx
 
