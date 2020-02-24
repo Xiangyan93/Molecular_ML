@@ -26,9 +26,10 @@ class ActiveLearner:
         self.name = name
         self.full_size = 0
         self.std_logging = True # for debugging
+        self.threshold = 11
         if not os.path.exists(os.path.join(os.getcwd(),'log' )):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
-        self.logger = open( 'log/%s-%s-%s-%d-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size, self.name) , 'w')
+        self.logger = open( 'log/%s-%s-%s-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name) , 'w')
         self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
@@ -134,8 +135,15 @@ class ActiveLearner:
             return np.array(search_idx)[add_idx]
         elif self.add_mode == 'nlargest':
             return df[target].nlargest(self.add_size).index
+        elif self.add_mode == 'threshold':
+            # threshold is predetermined by inspection, set in the initialization stage
+            search_idx = sorted(df[df[target]>self.threshold].index)
+            search_graphs_list = df[df.index.isin(search_idx)]['graph']
+            add_idx = self._find_add_idx_cluster(search_graphs_list)
+            self.logger.write('train_size:%d,search_size:%d' % (self.current_size, len(search_idx)) )
+            return np.array(search_idx)[add_idx]
         else:
-            raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest').")
+            raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
 
     def _find_add_idx_cluster_old(self, X):
         ''' find representative samples from a pool using clustering method
