@@ -26,7 +26,7 @@ class ActiveLearner:
         self.name = name
         self.full_size = 0
         self.std_logging = True # for debugging
-        self.threshold = 11
+        self.threshold = 9
         if not os.path.exists(os.path.join(os.getcwd(),'log' )):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
         self.logger = open( 'log/%s-%s-%s-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name) , 'w')
@@ -141,6 +141,15 @@ class ActiveLearner:
             # threshold is predetermined by inspection, set in the initialization stage
             search_idx = sorted(df[df[target]>self.threshold].index)
             search_graphs_list = df[df.index.isin(search_idx)]['graph']
+            if len(search_graphs_list) < self.search_size: # use traditional cluster
+                if self.search_size==0 or len(df) < self.search_size: # from all remaining samples 
+                    search_size = len(df)
+                else:
+                    search_size = self.search_size
+                search_idx = sorted(df[target].nlargest(search_size).index)
+                search_graphs_list = df[df.index.isin(search_idx)]['graph']
+                add_idx = self._find_add_idx_cluster(search_graphs_list)
+                return np.array(search_idx)[add_idx]
             add_idx = self._find_add_idx_cluster(search_graphs_list)
             self.logger.write('train_size:%d,search_size:%d\n' % (self.current_size, len(search_idx)) )
             return np.array(search_idx)[add_idx]
