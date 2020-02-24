@@ -190,7 +190,7 @@ class ActiveLearner:
         # train SpectralClustering on X
         if len(X) < self.add_size:
             return [ i for i in range( len(X))]
-        if hasattr(elf.kernel_config.kernel, 'kernel_list'):
+        if hasattr(self.kernel_config.kernel, 'kernel_list'):
             gram_matrix = self.kernel_config.kernel.kernel_list[0](X)
         else:
             gram_matrix = self.kernel_config.kernel(X)
