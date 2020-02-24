@@ -179,7 +179,10 @@ class ActiveLearner:
         # train SpectralClustering on X
         if len(X) < self.add_size:
             return [ i for i in range( len(X))]
-        gram_matrix = self.kernel_config.kernel(X)
+        if hasattr(elf.kernel_config.kernel, 'kernel_list'):
+            gram_matrix = self.kernel_config.kernel.kernel_list[0](X)
+        else:
+            gram_matrix = self.kernel_config.kernel(X)
         embedding = SpectralEmbedding(n_components=self.add_size, affinity='precomputed').fit_transform(gram_matrix)
         cluster_result = KMeans(n_clusters=self.add_size, random_state=0).fit_predict(embedding)
         # find all center of clustering
