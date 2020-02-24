@@ -65,6 +65,8 @@ class ActiveLearner:
                 alpha *= 1.5
             else:
                 break
+        if alpha > 10:
+            raise ValueError('Attempted alpha larger than 10. The training is terminated for unstable numerical issues may occur.')
         self.alpha = alpha
         self.logger.write('training complete, alpha=%3g\n' % alpha)
 
@@ -140,7 +142,7 @@ class ActiveLearner:
             search_idx = sorted(df[df[target]>self.threshold].index)
             search_graphs_list = df[df.index.isin(search_idx)]['graph']
             add_idx = self._find_add_idx_cluster(search_graphs_list)
-            self.logger.write('train_size:%d,search_size:%d' % (self.current_size, len(search_idx)) )
+            self.logger.write('train_size:%d,search_size:%d\n' % (self.current_size, len(search_idx)) )
             return np.array(search_idx)[add_idx]
         else:
             raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
