@@ -298,8 +298,8 @@ class KernelConfig(PropertyConfig):
         return '%s,graph_kernel' % self.property
 
 
-def datafilter(df, ratio=None, remove_smiles=None, get_smiles=False):
-    np.random.seed(244)
+def datafilter(df, ratio=None, remove_smiles=None, get_smiles=False, seed=233):
+    np.random.seed(seed)
     if ratio is not None:
         unique_smiles_list = df.SMILES.unique().tolist()
         random_smiles_list = np.random.choice(unique_smiles_list, int(len(unique_smiles_list) * ratio), replace=False)
@@ -329,7 +329,7 @@ def get_TP_extreme(df, P=True, T=True):
     return df_
 
 
-def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_smiles=False, TPextreme=False):
+def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_smiles=False, TPextreme=False, seed=233):
     if not os.path.exists('data'):
         os.mkdir('data')
     #pkl_file = os.path.join('data', '%s.pkl' % kernel_config.descriptor)
@@ -341,7 +341,7 @@ def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_sm
     df['graph'] = df['SMILES'].apply(smiles2graph)
     #df.to_pickle(pkl_file)
 
-    df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles)
+    df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles, seed=seed)
     # only select the data with extreme temperature and pressure
     if TPextreme:
         df = get_TP_extreme(df, T=kernel_config.T, P=kernel_config.P)

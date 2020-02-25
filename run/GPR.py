@@ -24,29 +24,30 @@ def main():
     parser.add_argument('--learning_mode', type=str, help='supervised/unsupervised/random active', default='unsupervised')
     parser.add_argument('--add_mode', type=str, help='random/cluster/nlargest/threshold', default='cluster')
     parser.add_argument('--name', type=str,help='name for easy logging', default='')
+    parser.add_argument('--seed', type=int,help='random seed', default=233)
     opt = parser.parse_args()
     kernel_config = KernelConfig(save_mem=opt.save_mem, property=opt.property)
     if Config.TrainingSetSelectRule.ASSIGNED and opt.train is not None:
         df = pd.read_csv(opt.train, sep='\s+', header=0)
         train_smiles_list = df.SMILES.unique().tolist()
-        train_X, train_Y = get_XY_from_file(opt.train, kernel_config)
-        test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list)
+        train_X, train_Y = get_XY_from_file(opt.train, kernel_config, seed=opt.seed)
+        test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list, seed=opt.seed)
     elif Config.TrainingSetSelectRule.RANDOM:
         train_X, train_Y, train_smiles_list = get_XY_from_file(opt.input, kernel_config,
-                                                              ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'])
+                                                              ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'], seed=opt.seed)
         test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list)
     else:
         train_X, train_Y, train_smiles_list, train_SMILES = \
             get_XY_from_file(opt.input, kernel_config, ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'],
-                             get_smiles=True)
-        test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list)
+                             get_smiles=True, seed=opt.seed)
+        test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list, seed=opt.seed)
 
     if Config.TrainingSetSelectRule.ACTIVE_LEARNING:
         activelearner = ActiveLearner(train_X, train_Y, test_X, test_Y, Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['init_size'],
                                       opt.add_size, kernel_config, opt.learning_mode, opt.add_mode, train_SMILES,  opt.search_size, opt.name)
         while not activelearner.stop_sign(opt.max_size):
             print('active learning, current size = %i' % activelearner.current_size)
-            activelearner.train(alpha=opt.alpha)
+            activelearner.train(alpha=opt.alpha, seed=opt.seed)
             activelearner.evaluate()
             activelearner.add_samples()
         activelearner.get_training_plot()

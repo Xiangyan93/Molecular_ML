@@ -27,7 +27,7 @@ class ActiveLearner:
         self.name = name
         self.full_size = 0
         self.std_logging = True # for debugging
-        self.threshold = 9
+        self.threshold = 11
         if not os.path.exists(os.path.join(os.getcwd(),'log' )):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
         self.logger = open( 'log/%s-%s-%s-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name) , 'w')
@@ -48,9 +48,9 @@ class ActiveLearner:
         else:
             return False
 
-    def train(self, alpha=0.5):
+    def train(self, alpha=0.5, seed=233):
         # continue needs to be added soon
-        np.random.seed(234)
+        np.random.seed(seed)
         self.logger.write('%s\n' % (time.asctime( time.localtime(time.time()))) )
         self.logger.write('Start Training, training size = %i:\n' % len(self.train_smiles))
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
