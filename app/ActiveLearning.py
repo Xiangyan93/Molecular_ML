@@ -9,6 +9,7 @@ import os
 import time
 import random
 from sklearn.cluster import KMeans
+import warnings
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
     def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name):
@@ -66,7 +67,7 @@ class ActiveLearner:
             else:
                 break
         if alpha > 10:
-            raise ValueError('Attempted alpha larger than 10. The training is terminated for unstable numerical issues may occur.')
+            warnings.warn('Attempted alpha larger than 10. The training is terminated for unstable numerical issues may occur.')
         self.alpha = alpha
         self.logger.write('training complete, alpha=%3g\n' % alpha)
 
@@ -221,4 +222,4 @@ class ActiveLearner:
         if not os.path.exists(os.path.join(os.getcwd(),'result' )):
                 os.makedirs(os.path.join(os.getcwd(), 'result'))
         self.plotout.reset_index().drop(columns='index').\
-            to_csv('result/%s-%s-%s-%d-%d-%s.out' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size, self.name), sep=' ', index=False)
+            to_csv('result/%s-%s-%s-%d-%s.out' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name), sep=' ', index=False)
