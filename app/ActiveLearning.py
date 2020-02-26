@@ -9,9 +9,13 @@ import os
 import time
 import random
 from sklearn.cluster import KMeans
+
+
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
-    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name):
+
+    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode,
+                 train_SMILES, search_size, name):
         ''' df must have the 'graph' column '''
         self.train_X = train_X.reset_index().drop(columns='index')
         self.train_Y = train_Y.reset_index().drop(columns='index')
@@ -25,11 +29,12 @@ class ActiveLearner:
         self.add_mode = add_mode
         self.name = name
         self.full_size = 0
-        self.std_logging = True # for debugging
+        self.std_logging = True  # for debugging
         self.threshold = 11
-        if not os.path.exists(os.path.join(os.getcwd(),'log' )):
+        if not os.path.exists(os.path.join(os.getcwd(), 'log')):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
-        self.logger = open( 'log/%s-%s-%s-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name) , 'w')
+        self.logger = open('log/%s-%s-%s-%d-%s.log' % (
+        self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name), 'w')
         self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
@@ -39,10 +44,10 @@ class ActiveLearner:
         if self.current_size > max_size:
             return True
         elif self.current_size == len(self.train_X):
-            if self.full_size==1:
+            if self.full_size == 1:
                 return True
-            else: 
-                self.full_size  = 1
+            else:
+                self.full_size = 1
                 return False
         else:
             return False
@@ -50,7 +55,7 @@ class ActiveLearner:
     def train(self, alpha=0.5):
         # continue needs to be added soon
         np.random.seed(234)
-        self.logger.write('%s\n' % (time.asctime( time.localtime(time.time()))) )
+        self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('Start Training, training size = %i:\n' % len(self.train_smiles))
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x = self.train_X[self.train_SMILES.SMILES.isin(self.train_smiles)]
@@ -66,12 +71,13 @@ class ActiveLearner:
             else:
                 break
         if alpha > 10:
-            raise ValueError('Attempted alpha larger than 10. The training is terminated for unstable numerical issues may occur.')
+            raise ValueError(
+                'Attempted alpha larger than 10. The training is terminated for unstable numerical issues may occur.')
         self.alpha = alpha
         self.logger.write('training complete, alpha=%3g\n' % alpha)
 
     def add_samples(self):
-        if self.full_size==1:
+        if self.full_size == 1:
             return
         untrain_x = self.train_X[~self.train_SMILES.SMILES.isin(self.train_smiles)]
         if not self.kernel_config.T:
@@ -80,24 +86,26 @@ class ActiveLearner:
         untrain_smiles = self.train_SMILES[~self.train_SMILES.SMILES.isin(self.train_smiles)]
         if self.learning_mode == 'supervised':
             y_pred = self.model.predict(untrain_x)
-            #try:
+            # try:
             untrain_smiles.loc[:, 'mse'] = abs(y_pred - np.array(untrain_y))
             group = untrain_smiles.groupby('SMILES')
-            smiles_mse = pd.DataFrame({'SMILES': [], 'mse': [],'graph':[]})
+            smiles_mse = pd.DataFrame({'SMILES': [], 'mse': [], 'graph': []})
             for i, x in enumerate(group):
-                smiles_mse.loc[i] = x[0], x[1].mse.max(), self.train_X[self.train_SMILES.SMILES == x[0]]['graph'].tolist()[0]
-            #except:
+                smiles_mse.loc[i] = x[0], x[1].mse.max(), \
+                                    self.train_X[self.train_SMILES.SMILES == x[0]]['graph'].tolist()[0]
+            # except:
             #    raise ValueError('Missing value for supervised training')
             add_idx = self._get_samples_idx(smiles_mse, 'mse')
             self.train_smiles = np.r_[self.train_smiles, smiles_mse[smiles_mse.index.isin(add_idx)].SMILES]
         elif self.learning_mode == 'unsupervised':
             y_pred, y_std = self.model.predict(untrain_x, return_std=True)
-            untrain_smiles.loc[:,'std'] = y_std
+            untrain_smiles.loc[:, 'std'] = y_std
             group = untrain_smiles.groupby('SMILES')
-            smiles_std = pd.DataFrame({'SMILES': [], 'std': [],'graph':[] })
+            smiles_std = pd.DataFrame({'SMILES': [], 'std': [], 'graph': []})
             for i, x in enumerate(group):
-                smiles_std.loc[i] = x[0], x[1]['std'].max(), self.train_X[self.train_SMILES.SMILES == x[0]]['graph'].tolist()[0]
-            #index = smiles_std['std'].nlargest(add_size).index
+                smiles_std.loc[i] = x[0], x[1]['std'].max(), \
+                                    self.train_X[self.train_SMILES.SMILES == x[0]]['graph'].tolist()[0]
+            # index = smiles_std['std'].nlargest(add_size).index
             add_idx = self._get_samples_idx(smiles_std, 'std')
             self.train_smiles = np.r_[self.train_smiles, smiles_std[smiles_std.index.isin(add_idx)].SMILES]
         elif self.learning_mode == 'random':
@@ -105,7 +113,8 @@ class ActiveLearner:
             if len(untrain_smiles) < self.add_size:
                 self.train_smiles = np.r_[self.train_smiles, unique_untrain_smiles]
             else:
-                self.train_smiles = np.r_[self.train_smiles, np.random.choice(unique_untrain_smiles, self.add_size, replace=False)]
+                self.train_smiles = np.r_[
+                    self.train_smiles, np.random.choice(unique_untrain_smiles, self.add_size, replace=False)]
         else:
             raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
         self.train_smiles = list(set(self.train_smiles))
@@ -118,16 +127,16 @@ class ActiveLearner:
         :target: should be one of mse/std
         :return: list of idx
         '''
-        if self.std_logging: # for debugging
-            if not os.path.exists(os.path.join(os.getcwd(),'log','std_log' )):
+        if self.std_logging:  # for debugging
+            if not os.path.exists(os.path.join(os.getcwd(), 'log', 'std_log')):
                 os.makedirs(os.path.join(os.getcwd(), 'log', 'std_log'))
-            df[['SMILES','std']].to_csv('log/std_log/%d-%d.csv' % (len(df), len(self.train_X)-len(df)))
-        if len(df) < self.add_size: # add all if end of the training set
+            df[['SMILES', 'std']].to_csv('log/std_log/%d-%d.csv' % (len(df), len(self.train_X) - len(df)))
+        if len(df) < self.add_size:  # add all if end of the training set
             return df.index
-        if self.add_mode=='random':
-            return np.array( random.sample(range(len(df)), self.add_size ) )
+        if self.add_mode == 'random':
+            return np.array(random.sample(range(len(df)), self.add_size))
         elif self.add_mode == 'cluster':
-            if self.search_size==0 or len(df) < self.search_size: # from all remaining samples 
+            if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
                 search_size = len(df)
             else:
                 search_size = self.search_size
@@ -139,10 +148,10 @@ class ActiveLearner:
             return df[target].nlargest(self.add_size).index
         elif self.add_mode == 'threshold':
             # threshold is predetermined by inspection, set in the initialization stage
-            search_idx = sorted(df[df[target]>self.threshold].index)
+            search_idx = sorted(df[df[target] > self.threshold].index)
             search_graphs_list = df[df.index.isin(search_idx)]['graph']
             add_idx = self._find_add_idx_cluster(search_graphs_list)
-            self.logger.write('train_size:%d,search_size:%d\n' % (self.current_size, len(search_idx)) )
+            self.logger.write('train_size:%d,search_size:%d\n' % (self.current_size, len(search_idx)))
             return np.array(search_idx)[add_idx]
         else:
             raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
@@ -155,21 +164,24 @@ class ActiveLearner:
         '''
         # train SpectralClustering on X
         if len(X) < self.add_size:
-            return [ i for i in range( len(X))]
+            return [i for i in range(len(X))]
         gram_matrix = self.kernel_config.kernel(X)
-        result = SpectralClustering(n_clusters=self.add_size, affinity='precomputed').fit_predict(gram_matrix) # cluster result
+        result = SpectralClustering(n_clusters=self.add_size, affinity='precomputed').fit_predict(
+            gram_matrix)  # cluster result
         # distance matrix
-        #distance_mat = np.empty_like(gram_matrix)
-        #for i in range(len(X)):
+        # distance_mat = np.empty_like(gram_matrix)
+        # for i in range(len(X)):
         #    for j in range(len(X)):
         #        distance_mat[i][j] = np.sqrt(abs(gram_matrix[i][i] + gram_matrix[j][j] - 2 * gram_matrix[i][j]))
         # choose the one with least in cluster distance sum in each cluster
-        total_distance = {i:{} for i in range(self.add_size)} # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
-        for i in range(len(X)): # get all in-class distance sum of each item
+        total_distance = {i: {} for i in
+                          range(self.add_size)}  # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
+        for i in range(len(X)):  # get all in-class distance sum of each item
             cluster_class = result[i]
-            #total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * distance_mat[i])] = i
-            total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * 1/gram_matrix[i])] = i
-        add_idx = [total_distance[i][min(total_distance[i].keys())] for i in range(self.add_size)] # find min-in-cluster-distance associated idx
+            # total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * distance_mat[i])] = i
+            total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * 1 / gram_matrix[i])] = i
+        add_idx = [total_distance[i][min(total_distance[i].keys())] for i in
+                   range(self.add_size)]  # find min-in-cluster-distance associated idx
         return add_idx
 
     def _find_add_idx_cluster(self, X):
@@ -180,21 +192,23 @@ class ActiveLearner:
         '''
         # train SpectralClustering on X
         if len(X) < self.add_size:
-            return [ i for i in range( len(X))]
-        if hasattr(elf.kernel_config.kernel, 'kernel_list'):
+            return [i for i in range(len(X))]
+        if hasattr(self.kernel_config.kernel, 'kernel_list'):
             gram_matrix = self.kernel_config.kernel.kernel_list[0](X)
         else:
             gram_matrix = self.kernel_config.kernel(X)
         embedding = SpectralEmbedding(n_components=self.add_size, affinity='precomputed').fit_transform(gram_matrix)
         cluster_result = KMeans(n_clusters=self.add_size, random_state=0).fit_predict(embedding)
         # find all center of clustering
-        center = np.array([ embedding[cluster_result == i].mean(axis=0) for i in range(self.add_size) ])
+        center = np.array([embedding[cluster_result == i].mean(axis=0) for i in range(self.add_size)])
         from collections import defaultdict
-        total_distance = defaultdict(dict) # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
+        total_distance = defaultdict(dict)  # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
         for i in range(len(cluster_result)):
             cluster_class = cluster_result[i]
-            total_distance[cluster_class][((np.square(embedding[i] - np.delete(center, cluster_class,axis=0))).sum(axis=1)**-0.5).sum()] = i
-        add_idx = [total_distance[i][min(total_distance[i].keys())] for i in range(self.add_size)] # find min-in-cluster-distance associated idx
+            total_distance[cluster_class][
+                ((np.square(embedding[i] - np.delete(center, cluster_class, axis=0))).sum(axis=1) ** -0.5).sum()] = i
+        add_idx = [total_distance[i][min(total_distance[i].keys())] for i in
+                   range(self.add_size)]  # find min-in-cluster-distance associated idx
         return add_idx
 
     def evaluate(self):
@@ -209,7 +223,9 @@ class ActiveLearner:
         self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha
 
     def get_training_plot(self):
-        if not os.path.exists(os.path.join(os.getcwd(),'result' )):
-                os.makedirs(os.path.join(os.getcwd(), 'result'))
-        self.plotout.reset_index().drop(columns='index').\
-            to_csv('result/%s-%s-%s-%d-%d-%s.out' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size, self.name), sep=' ', index=False)
+        if not os.path.exists(os.path.join(os.getcwd(), 'result')):
+            os.makedirs(os.path.join(os.getcwd(), 'result'))
+        self.plotout.reset_index().drop(columns='index'). \
+            to_csv('result/%s-%s-%s-%d-%d-%s.out' % (
+        self.kernel_config.property, self.learning_mode, self.add_mode, self.search_size, self.add_size, self.name),
+                   sep=' ', index=False)
