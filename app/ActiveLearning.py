@@ -12,7 +12,7 @@ from sklearn.cluster import KMeans
 import warnings
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
-    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name):
+    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name, threshold):
         ''' df must have the 'graph' column '''
         self.train_X = train_X.reset_index().drop(columns='index')
         self.train_Y = train_Y.reset_index().drop(columns='index')
@@ -26,8 +26,8 @@ class ActiveLearner:
         self.add_mode = add_mode
         self.name = name
         self.full_size = 0
-        self.std_logging = True # for debugging
-        self.threshold = 11
+        self.std_logging = False # for debugging
+        self.threshold = threshold
         if not os.path.exists(os.path.join(os.getcwd(),'log' )):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
         self.logger = open( 'log/%s-%s-%s-%d-%s.log' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name) , 'w')

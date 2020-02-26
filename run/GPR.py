@@ -25,6 +25,7 @@ def main():
     parser.add_argument('--add_mode', type=str, help='random/cluster/nlargest/threshold', default='cluster')
     parser.add_argument('--name', type=str,help='name for easy logging', default='')
     parser.add_argument('--seed', type=int,help='random seed', default=233)
+    parser.add_argument('--threshold', type=float,help='std threshold', default=11)
     opt = parser.parse_args()
     kernel_config = KernelConfig(save_mem=opt.save_mem, property=opt.property)
     if Config.TrainingSetSelectRule.ASSIGNED and opt.train is not None:
@@ -44,7 +45,7 @@ def main():
 
     if Config.TrainingSetSelectRule.ACTIVE_LEARNING:
         activelearner = ActiveLearner(train_X, train_Y, test_X, test_Y, Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['init_size'],
-                                      opt.add_size, kernel_config, opt.learning_mode, opt.add_mode, train_SMILES,  opt.search_size, opt.name)
+                                      opt.add_size, kernel_config, opt.learning_mode, opt.add_mode, train_SMILES,  opt.search_size, opt.name, opt.threshold)
         while not activelearner.stop_sign(opt.max_size):
             print('active learning, current size = %i' % activelearner.current_size)
             activelearner.train(alpha=opt.alpha, seed=opt.seed)
