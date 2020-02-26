@@ -166,9 +166,10 @@ class MultipleKernel:
             X = X.transpose().tolist()[0]
         return X
 
-    def __call__(self, X, Y=None, eval_gradient=False):
+    def __call__(self, X, Y=None, eval_gradient=False, more_info=False):
         if eval_gradient:
-            print('start a new optimization step')
+            if more_info:
+                print('start a new optimization step')
             covariance_matrix = 1
             gradient_matrix_list = list(map(int, np.ones(self.nkernel).tolist()))
             for i, kernel in enumerate(self.kernel_list):
@@ -278,8 +279,10 @@ class KernelConfig(PropertyConfig):
                               element=KroneckerDelta(0.5),
                               hcount=SquareExponential(1.0)
                               )
-        kedge = TensorProduct(order=KroneckerDelta(0.5),
-                              stereo=KroneckerDelta(0.5)
+        kedge = TensorProduct(order=SquareExponential(1.0),
+                              stereo=KroneckerDelta(0.8),
+                              conjugated=KroneckerDelta(0.8),
+                              inring=KroneckerDelta(0.8)
                               )
 
         if NORMALIZED:
@@ -315,7 +318,7 @@ def datafilter(df, ratio=None, remove_smiles=None, get_smiles=False):
         df = df[df.SMILES.isin(random_smiles_list)]
     elif remove_smiles is not None:
         df = df[~df.SMILES.isin(remove_smiles)]
-    return df
+    return df.reset_index().drop(columns='index')
 
 
 def get_TP_extreme(df, P=True, T=True):
@@ -341,14 +344,14 @@ def get_TP_extreme(df, P=True, T=True):
 def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_smiles=False, TPextreme=False):
     if not os.path.exists('data'):
         os.mkdir('data')
-    #pkl_file = os.path.join('data', '%s.pkl' % kernel_config.descriptor)
-    #if os.path.exists(pkl_file):
-    #    print('reading existing data file: %s' % pkl_file)
-    #    df = pd.read_pickle(pkl_file)
-    #else:
-    df = pd.read_csv(file, sep='\s+', header=0)
-    df['graph'] = df['SMILES'].apply(smiles2graph)
-    #df.to_pickle(pkl_file)
+    pkl_file = os.path.join('data', '%s.pkl' % kernel_config.descriptor)
+    if os.path.exists(pkl_file):
+        print('reading existing data file: %s' % pkl_file)
+        df = pd.read_pickle(pkl_file)
+    else:
+        df = pd.read_csv(file, sep='\s+', header=0)
+        df['graph'] = df['SMILES'].apply(smiles2graph)
+        df.to_pickle(pkl_file)
 
     df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles)
     # only select the data with extreme temperature and pressure
