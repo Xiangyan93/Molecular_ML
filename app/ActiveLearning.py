@@ -14,9 +14,12 @@ import warnings
 from app.Nystrom import RobustFitGaussianProcessRegressor, NystromGaussianProcessRegressor
 from config import Config
 
+
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
-    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name, threshold):
+
+    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode,
+                 train_SMILES, search_size, name, threshold):
         ''' df must have the 'graph' column '''
         self.train_X = train_X.reset_index().drop(columns='index')
         self.train_Y = train_Y.reset_index().drop(columns='index')
@@ -29,13 +32,17 @@ class ActiveLearner:
         self.learning_mode = learning_mode
         self.add_mode = add_mode
         self.name = name
+        self.result_dir = 'result-%s' % name
+        if not os.path.exists(self.result_dir):
+            os.mkdir(self.result_dir)
         self.full_size = 0
-        self.std_logging = False # for debugging
+        self.std_logging = False  # for debugging
         self.threshold = threshold
-        if not os.path.exists(os.path.join(os.getcwd(),'log' )):
-            os.makedirs(os.path.join(os.getcwd(), 'log'))
-        self.logger = open('log/%s-%s-%s-%d-%s.log' % (
-        self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name), 'w')
+        if not os.path.exists(os.path.join(self.result_dir, 'log')):
+            os.mkdir(os.path.join(self.result_dir, 'log'))
+        self.logger = open(os.path.join(self.result_dir, 'log', '%s-%s-%s-%d-%s.log' % (
+            self.kernel_config.property, self.learning_mode,
+            self.add_mode, self.add_size, self.name)), 'w')
         self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
@@ -56,7 +63,7 @@ class ActiveLearner:
     def train(self, alpha=0.5, seed=233):
         # continue needs to be added soon
         np.random.seed(seed)
-        self.logger.write('%s\n' % (time.asctime( time.localtime(time.time()))) )
+        self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('Start Training, training size = %i:\n' % len(self.train_smiles))
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x = self.train_X[self.train_SMILES.SMILES.isin(self.train_smiles)]
@@ -157,8 +164,8 @@ class ActiveLearner:
             # threshold is predetermined by inspection, set in the initialization stage
             search_idx = sorted(df[df[target] > self.threshold].index)
             search_graphs_list = df[df.index.isin(search_idx)]['graph']
-            if len(search_graphs_list) < self.search_size: # use traditional cluster
-                if self.search_size==0 or len(df) < self.search_size: # from all remaining samples 
+            if len(search_graphs_list) < self.search_size:  # use traditional cluster
+                if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
                     search_size = len(df)
                 else:
                     search_size = self.search_size
@@ -237,9 +244,10 @@ class ActiveLearner:
         ex_var = explained_variance_score(y_pred, self.test_Y)
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha
+        out = pd.DataFrame({'y_pred': y_pred, 'y_sim': self.test_Y})
+        out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
 
     def get_training_plot(self):
-        if not os.path.exists(os.path.join(os.getcwd(),'result' )):
-                os.makedirs(os.path.join(os.getcwd(), 'result'))
-        self.plotout.reset_index().drop(columns='index').\
-            to_csv('result/%s-%s-%s-%d-%s.out' % (self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name), sep=' ', index=False)
+        self.plotout.reset_index().drop(columns='index'). \
+            to_csv('%s/%s-%s-%s-%d.out' % (self.result_dir, self.kernel_config.property, self.learning_mode,
+                                                  self.add_mode, self.add_size), sep=' ', index=False)

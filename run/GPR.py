@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--max_size', type=int, help='Max size for unsupervised active learning', default=800)
     parser.add_argument('--learning_mode', type=str, help='supervised/unsupervised/random active', default='unsupervised')
     parser.add_argument('--add_mode', type=str, help='random/cluster/nlargest/threshold', default='cluster')
-    parser.add_argument('--name', type=str,help='name for easy logging', default='')
+    parser.add_argument('--name', type=str,help='name for easy logging', default='default')
     parser.add_argument('--seed', type=int,help='random seed', default=233)
     parser.add_argument('--threshold', type=float,help='std threshold', default=11)
     parser.add_argument('--nystrom', help='Nystrom approximation.', action='store_true')
@@ -56,7 +56,7 @@ def main():
             print('**\tstart add samples\t**\n')
             activelearner.add_samples()
         activelearner.get_training_plot()
-        print('\n***\tEnd: active learning, current size = %i\t***\n')
+        print('\n***\tEnd: active learning\t***\n')
     else:
         print('***\tStart: hyperparameters optimization.\t***\n')
         log = open('GPR.log', 'w')
