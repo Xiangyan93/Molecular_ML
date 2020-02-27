@@ -15,7 +15,8 @@ For critical density prediction, it is not converged.
 
 Examples:
 ************************************************************************************************************************
-for i in range(3):
+N = 3  # N=1 for critical density.
+for i in range(N):
     model = NystromGaussianProcessRegressor(kernel=kernel, random_state=0,
                                             kernel_cutoff=0.95, normalize_y=True,
                                             alpha=alpha).fit_robust(X, y)
@@ -49,8 +50,14 @@ def get_subset_by_clustering(X, kernel, ncluster):
 
 def Nystrom_solve(K_core, K_cross):
     Wcc, Ucc = np.linalg.eigh(K_core)
+    mask = Wcc > 0  # !!!
+    Wcc = Wcc[mask]  # !!!
+    Ucc = Ucc[:, mask]  # !!!
     Kccinv = (Ucc / Wcc).dot(Ucc.T)
     Uxx, Sxx, Vxx = np.linalg.svd(K_cross.T.dot((Ucc / Wcc ** 0.5).dot(Ucc.T)), full_matrices=False)
+    mask = Sxx > 1e-10  # !!!
+    Uxx = Uxx[:, mask]  # !!!
+    Sxx = Sxx[mask]  # !!!
     Kxx_ihalf = Uxx / Sxx
     return Kccinv, Kxx_ihalf
 
@@ -86,7 +93,8 @@ class NystromGaussianProcessRegressor(GaussianProcessRegressor):
             else:
                 break
         if self.alpha > 100:
-            raise ValueError('Attempted alpha larger than 100. The training is terminated for unstable numerical issues may occur.')
+            raise ValueError(
+                'Attempted alpha larger than 100. The training is terminated for unstable numerical issues may occur.')
         else:
             y = self.__y_normalise(y)
             self.X_train = np.copy(X) if self.copy_X_train else X
@@ -182,50 +190,48 @@ class NystromGaussianProcessRegressor(GaussianProcessRegressor):
             return K_core, K_cross
 
     @staticmethod
-    def get_core_X(X, kernel, kernel_cutoff=0.9, y=None, N_max=2000, method='full'):
-        if method == 'clustering':
-            """
-            Not suggest. 
-            The clustering method is slow. No performance comparison has done. 
-            """
-            _C_idx = get_subset_by_clustering(X, kernel, ncluster=500)
-            N = len(_C_idx)
-            print('%i / %i data are chosen by clustering as core in Nystrom approximation' % (len(_C_idx), X.shape[0]))
-            K = kernel(X[_C_idx])
+    def get_core_X(X, kernel, kernel_cutoff=0.9, y=None, N_max=1000, method='suggest'):
+        N = X.shape[0]
+        randN = np.array(list(range(N)))
+        np.random.shuffle(randN)
+
+        def get_C_idx(K, skip=0):
             K_diag = np.einsum("ii->i", K)
-            C_idx = [0]
-            for i in range(N):
+            C_idx_ = [0] if skip == 0 else list(range(skip))
+            for m in range(K.shape[0]):
                 # sys.stdout.write('\r %i / %i' % (i, N))
-                if (K[i][C_idx] / np.sqrt(K_diag[i] * K_diag[C_idx])).max() < kernel_cutoff:
-                    C_idx.append(i)
-                if len(C_idx) > N_max:
+                if m >= skip and (K[m][C_idx_] / np.sqrt(K_diag[m] * K_diag[C_idx_])).max() < kernel_cutoff:
+                    C_idx_.append(m)
+                if len(C_idx_) > N_max:
                     break
-            print('%i / %i data are furthur selected to avoid numerical explosion' % (len(C_idx), N))
-            if y is not None:
-                return X[_C_idx[C_idx]], y[_C_idx[C_idx]]
-            else:
-                return X[_C_idx[C_idx]]
+            return C_idx_[skip:]
+        if method == 'suggest':
+            """
+            O(m2) complexity. Suggested.
+            Best method now.
+            This is a trade-off between full and memory_save. Fast and do not need much memory.
+            """
+            import math
+            C_idx = np.array([], dtype=int)
+            n = 200
+            for i in range(math.ceil(N / n)):
+                idx1 = np.r_[C_idx, randN[i*n:(i+1)*n]]
+                idx2 = get_C_idx(kernel(X[idx1]), skip=len(C_idx))
+                C_idx = np.r_[C_idx, idx1[idx2]]
+                if len(C_idx) > N_max:
+                    C_idx = C_idx[:N_max]
+                    break
+            print('%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N))
         elif method == 'full':
             """
             O(n2) complexity. Suggest when X is not too large. 
             need to calculate the whole kernel matrix.
             Fastest in small sample cases. 
             """
-            K = kernel(X)
-            K_diag = np.einsum("ii->i", K)
-            C_idx = [0]
-            N = X.shape[0]
-            for i in range(N):
-                # sys.stdout.write('\r %i / %i' % (i, N))
-                if (K[i][C_idx] / np.sqrt(K_diag[i] * K_diag[C_idx])).max() < kernel_cutoff:
-                    C_idx.append(i)
-                if len(C_idx) > N_max:
-                    break
+            idx1 = randN
+            idx2 = get_C_idx(kernel(X[idx1]))
+            C_idx = idx1[idx2]
             print('%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N))
-            if y is not None:
-                return X[C_idx], y[C_idx]
-            else:
-                return X[C_idx]
         elif method == 'memory_save':
             """
             O(m2) complexity. Suggest when X is large.
@@ -235,8 +241,7 @@ class NystromGaussianProcessRegressor(GaussianProcessRegressor):
             C = X[:1]
             C_diag = kernel.diag(C)
             C_idx = []
-            N = X.shape[0]
-            for i in range(N):
+            for i in randN:
                 sys.stdout.write('\r %i / %i' % (i, N))
                 diag = kernel.diag(X[i:i + 1])
                 if (kernel(X[i:i + 1], C) / np.sqrt(diag * C_diag)).max() < kernel_cutoff:
@@ -246,9 +251,21 @@ class NystromGaussianProcessRegressor(GaussianProcessRegressor):
                 if len(C_idx) > N_max:
                     break
             print('\n%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N))
-            if y is not None:
-                return X[C_idx], y[C_idx]
-            else:
-                return X[C_idx]
-
-
+        elif method == 'clustering':
+            """
+            Not suggest. 
+            The clustering method is slow. No performance comparison has done. 
+            """
+            _C_idx = get_subset_by_clustering(X, kernel, ncluster=500)
+            N = len(_C_idx)
+            print('%i / %i data are chosen by clustering as core in Nystrom approximation' % (len(_C_idx), X.shape[0]))
+            C_idx = get_C_idx(kernel(X[_C_idx]))
+            print('%i / %i data are furthur selected to avoid numerical explosion' % (len(C_idx), N))
+        elif method == 'random':
+            C_idx = randN[:N_max]
+        else:
+            raise Exception('unknown method')
+        if y is not None:
+            return X[C_idx], y[C_idx]
+        else:
+            return X[C_idx]
