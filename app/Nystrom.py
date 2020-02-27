@@ -203,6 +203,8 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
 
     @staticmethod
     def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='suggest'):
+        if X.__class__ == pd.DataFrame:
+            X = X.to_numpy()
         N = X.shape[0]
         randN = np.array(list(range(N)))
         np.random.shuffle(randN)
