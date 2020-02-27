@@ -2,13 +2,15 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import explained_variance_score
-import sklearn.gaussian_process as gp
+from sklearn.metrics import r2_score
 from sklearn.cluster import SpectralClustering
 from sklearn.manifold import SpectralEmbedding
 import os
 import time
 import random
 from sklearn.cluster import KMeans
+from app.Nystrom import RobustFitGaussianProcessRegressor, NystromGaussianProcessRegressor
+from config import Config
 
 
 class ActiveLearner:
@@ -59,24 +61,27 @@ class ActiveLearner:
         self.logger.write('Start Training, training size = %i:\n' % len(self.train_smiles))
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x = self.train_X[self.train_SMILES.SMILES.isin(self.train_smiles)]
+        train_x = train_x.reset_index().drop(columns='index')
         if not self.kernel_config.T:
             train_x = train_x['graph']
         train_y = self.train_Y[self.train_SMILES.SMILES.isin(self.train_smiles)]
-        while alpha <= 10:
-            try:
-                self.model = gp.GaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
-                                                         normalize_y=True, alpha=alpha).fit(train_x, train_y)
-            except ValueError as e:
-                alpha *= 1.5
-            else:
-                break
-        if alpha > 10:
-            raise ValueError(
-                'Attempted alpha larger than 10. The training is terminated for unstable numerical issues may occur.')
-        self.alpha = alpha
-        self.logger.write('training complete, alpha=%3g\n' % alpha)
+        train_y = train_y.reset_index().drop(columns='index')[self.kernel_config.property]
+        if train_x.shape[0] <= 1000:
+            self.model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
+                                                           normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
+        else:
+            for i in range(Config.NystromPara.loop):
+                self.model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
+                                                             normalize_y=True, alpha=alpha,
+                                                             off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
+                                                             core_max=Config.NystromPara.core_max
+                                                             ).fit_robust(train_x, train_y)
+        self.alpha = self.model.alpha
+        self.logger.write('training complete, alpha=%3g\n' % self.alpha)
 
     def add_samples(self):
+        import warnings
+        warnings.filterwarnings("ignore")
         if self.full_size == 1:
             return
         untrain_x = self.train_X[~self.train_SMILES.SMILES.isin(self.train_smiles)]
@@ -102,11 +107,14 @@ class ActiveLearner:
             untrain_smiles.loc[:, 'std'] = y_std
             group = untrain_smiles.groupby('SMILES')
             smiles_std = pd.DataFrame({'SMILES': [], 'std': [], 'graph': []})
+
             for i, x in enumerate(group):
                 smiles_std.loc[i] = x[0], x[1]['std'].max(), \
                                     self.train_X[self.train_SMILES.SMILES == x[0]]['graph'].tolist()[0]
             # index = smiles_std['std'].nlargest(add_size).index
+
             add_idx = self._get_samples_idx(smiles_std, 'std')
+
             self.train_smiles = np.r_[self.train_smiles, smiles_std[smiles_std.index.isin(add_idx)].SMILES]
         elif self.learning_mode == 'random':
             unique_untrain_smiles = untrain_smiles.SMILES.unique()
@@ -214,7 +222,7 @@ class ActiveLearner:
     def evaluate(self):
         y_pred = self.model.predict(self.test_X)
         # R2
-        r2 = self.model.score(self.test_X, self.test_Y)
+        r2 = r2_score(y_pred, self.test_Y)
         # MSE
         mse = mean_squared_error(y_pred, self.test_Y)
         # variance explained
