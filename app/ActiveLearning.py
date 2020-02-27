@@ -94,6 +94,7 @@ class ActiveLearner:
         if not self.kernel_config.T:
             untrain_x = untrain_x['graph']
         untrain_y = self.train_Y[~self.train_SMILES.SMILES.isin(self.train_smiles)]
+        untrain_y = untrain_y.reset_index().drop(columns='index')[self.kernel_config.property]
         untrain_smiles = self.train_SMILES[~self.train_SMILES.SMILES.isin(self.train_smiles)]
         if self.learning_mode == 'supervised':
             y_pred = self.model.predict(untrain_x)
