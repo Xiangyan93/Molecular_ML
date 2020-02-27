@@ -26,6 +26,7 @@ for i in range(N):
 from sklearn.gaussian_process._gpr import *
 from sklearn.cluster import SpectralClustering
 from numpy.linalg import eigh
+import pandas as pd
 
 
 def get_subset_by_clustering(X, kernel, ncluster):
@@ -191,6 +192,8 @@ class NystromGaussianProcessRegressor(GaussianProcessRegressor):
 
     @staticmethod
     def get_core_X(X, kernel, kernel_cutoff=0.9, y=None, N_max=1000, method='suggest'):
+        if X.__class__ == pd.core.frame.DataFrame:
+            X = X.to_numpy()
         N = X.shape[0]
         randN = np.array(list(range(N)))
         np.random.shuffle(randN)
