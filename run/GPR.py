@@ -17,15 +17,18 @@ def main():
                         default=None)
     parser.add_argument('-p', '--property', type=str, help='Target property.')
     parser.add_argument('--alpha', type=float, help='Initial alpha value.', default=0.5)
-    parser.add_argument('--save_mem',  help='Save memory for graph kernel calculation.', action='store_true')
+    parser.add_argument('--save_mem', help='Save memory for graph kernel calculation.', action='store_true')
     parser.add_argument('--add_size', type=int, help='Add size for unsupervised active learning', default=10)
-    parser.add_argument('--search_size', type=int, help='Search size for unsupervised active learning, 0 for pooling from all remaining samples', default=200)
+    parser.add_argument('--search_size', type=int,
+                        help='Search size for unsupervised active learning, 0 for pooling from all remaining samples',
+                        default=200)
     parser.add_argument('--max_size', type=int, help='Max size for unsupervised active learning', default=800)
-    parser.add_argument('--learning_mode', type=str, help='supervised/unsupervised/random active', default='unsupervised')
+    parser.add_argument('--learning_mode', type=str, help='supervised/unsupervised/random active',
+                        default='unsupervised')
     parser.add_argument('--add_mode', type=str, help='random/cluster/nlargest/threshold', default='cluster')
-    parser.add_argument('--name', type=str,help='name for easy logging', default='default')
-    parser.add_argument('--seed', type=int,help='random seed', default=233)
-    parser.add_argument('--threshold', type=float,help='std threshold', default=11)
+    parser.add_argument('--name', type=str, help='name for easy logging', default='default')
+    parser.add_argument('--seed', type=int, help='random seed', default=233)
+    parser.add_argument('--threshold', type=float, help='std threshold', default=11)
     parser.add_argument('--nystrom', help='Nystrom approximation.', action='store_true')
     opt = parser.parse_args()
     print('***\tStart: Reading input.\t***\n')
@@ -36,7 +39,9 @@ def main():
         train_X, train_Y = get_XY_from_file(opt.train, kernel_config, seed=opt.seed)
         test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list, seed=opt.seed)
     elif Config.TrainingSetSelectRule.RANDOM:
-        train_X, train_Y, train_smiles_list = get_XY_from_file(opt.input, kernel_config, ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'], seed=opt.seed)
+        train_X, train_Y, train_smiles_list = get_XY_from_file(opt.input, kernel_config,
+                                                               ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
+                                                               seed=opt.seed)
         test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list)
     else:
         train_X, train_Y, train_smiles_list, train_SMILES = \
@@ -45,14 +50,18 @@ def main():
         test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list, seed=opt.seed)
 
     if Config.TrainingSetSelectRule.ACTIVE_LEARNING:
-        activelearner = ActiveLearner(train_X, train_Y, test_X, test_Y, Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['init_size'],
-                                      opt.add_size, kernel_config, opt.learning_mode, opt.add_mode, train_SMILES,  opt.search_size, opt.name, opt.threshold)
+        activelearner = ActiveLearner(train_X, train_Y, test_X, test_Y,
+                                      Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['init_size'],
+                                      opt.add_size, kernel_config, opt.learning_mode, opt.add_mode, train_SMILES,
+                                      opt.search_size, opt.name, opt.threshold)
         while not activelearner.stop_sign(opt.max_size):
             print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
-            print('**\tstart train\t**\n')
-            activelearner.train(alpha=opt.alpha, seed=opt.seed)
-            print('**\tstart evaluate\t**\n')
-            activelearner.evaluate()
+            print('**\tStart train\t**\n')
+            if activelearner.train(alpha=opt.alpha, seed=opt.seed):
+                print('**\tstart evaluate\t**\n')
+                activelearner.evaluate()
+            else:
+                print('Training failed for all alpha')
             print('**\tstart add samples\t**\n')
             activelearner.add_samples()
         activelearner.get_training_plot()

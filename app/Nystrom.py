@@ -76,9 +76,10 @@ class RobustFitGaussianProcessRegressor(GaussianProcessRegressor):
             else:
                 break
         if self.alpha > 100:
-            raise ValueError(
-                'Attempted alpha larger than 100. The training is terminated for unstable numerical issues may occur.')
-        return self
+            print('Attempted alpha larger than 100. The training is terminated for unstable numerical issues may occur.')
+            return None
+        else:
+            return self
 
 
 class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
@@ -105,7 +106,8 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         else:
             X_, y_ = self.get_core_X(X, self.kernel, off_diagonal_cutoff=self.off_diagonal_cutoff, y=y,
                                      core_max=self.core_max)
-        super().fit_robust(X_, y_)
+        if super().fit_robust(X_, y_) is None:
+            return None
         y = self.__y_normalise(y)
         self.X_train = np.copy(X) if self.copy_X_train else X
         self.y_train = np.copy(y) if self.copy_X_train else y

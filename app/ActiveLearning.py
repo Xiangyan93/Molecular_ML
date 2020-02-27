@@ -10,7 +10,6 @@ import time
 import random
 from sklearn.cluster import KMeans
 
-import warnings
 from app.Nystrom import RobustFitGaussianProcessRegressor, NystromGaussianProcessRegressor
 from config import Config
 
@@ -73,17 +72,24 @@ class ActiveLearner:
         train_y = self.train_Y[self.train_SMILES.SMILES.isin(self.train_smiles)]
         train_y = train_y.reset_index().drop(columns='index')[self.kernel_config.property]
         if train_x.shape[0] <= 1000:
-            self.model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
+            model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
                                                            normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
+            self.kernel_config.kernel = model.kernel_
         else:
             for i in range(Config.NystromPara.loop):
-                self.model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
-                                                             normalize_y=True, alpha=alpha,
-                                                             off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
-                                                             core_max=Config.NystromPara.core_max
-                                                             ).fit_robust(train_x, train_y)
-        self.alpha = self.model.alpha
-        self.logger.write('training complete, alpha=%3g\n' % self.alpha)
+                model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
+                                                        normalize_y=True, alpha=alpha,
+                                                        off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
+                                                        core_max=Config.NystromPara.core_max
+                                                        ).fit_robust(train_x, train_y)
+                self.kernel_config.kernel = model.kernel_
+        if model is not None:
+            self.model = model
+            self.alpha = self.model.alpha
+            self.logger.write('training complete, alpha=%3g\n' % self.alpha)
+            return True
+        else:
+            return False
 
     def add_samples(self):
         import warnings
