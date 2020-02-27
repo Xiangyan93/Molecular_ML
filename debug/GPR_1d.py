@@ -2,6 +2,7 @@
 import sys
 
 sys.path.append('..')
+from config import Config
 from app.ActiveLearning import *
 from app.Nystrom import NystromGaussianProcessRegressor
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -17,8 +18,6 @@ def main():
     parser.add_argument('--noise', type=float, help='Random noise.', default=0.1)
     parser.add_argument('--alpha', type=float, help='alpha in GPR.', default=0.1)
     parser.add_argument('--nystrom', help='Nystrom approximation.', action='store_true')
-    parser.add_argument('--kernel_cutoff', type=float, help='kernel cutoff used in core matrix selection of Nystrom '
-                                                            'approximation.', default=0.9)
     opt = parser.parse_args()
 
     # function form
@@ -40,8 +39,10 @@ def main():
     kernel = ConstantKernel(1.0, (1e-1, 1e3)) * RBF(10.0, (1e-3, 1e3))
     if opt.nystrom:
         for i in range(5):
-            model = NystromGaussianProcessRegressor(kernel=kernel, random_state=0, kernel_cutoff=opt.kernel_cutoff,
-                                                    normalize_y=True, alpha=alpha).fit_robust(train_X, train_Y)
+            model = NystromGaussianProcessRegressor(kernel=kernel, random_state=0, normalize_y=True, alpha=alpha,
+                                                    off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
+                                                    core_max=Config.NystromPara.core_max,
+                                                    ).fit_robust(train_X, train_Y)
             kernel = model.kernel_
     else:
         model = GaussianProcessRegressor(kernel=kernel, random_state=0, normalize_y=True, alpha=alpha).\
