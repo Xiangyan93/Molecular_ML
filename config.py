@@ -7,6 +7,11 @@ class Config:
     GRAPHDOT_DIR = os.path.join(CWD, '..', 'GraphDot')
     MS_TOOLS_DIR = os.path.join(CWD, '..', 'AIMS_Tools')
 
+    class NystromPara:
+        off_diagonal_cutoff = 0.98
+        core_max = 1000
+        loop = 1
+
     class TrainingSetSelectRule:
         ASSIGNED = False
 
@@ -19,9 +24,6 @@ class Config:
         ACTIVE_LEARNING_Para = {
             'learning_mode': 'unsupervised',  # 'unsupervised', 'supervised', 'random'
             'init_size': 100,
-            'add_size': 5,
-            'search_size':50,
-            'max_size': 1000,
             'ratio': 0.8
         }
 
