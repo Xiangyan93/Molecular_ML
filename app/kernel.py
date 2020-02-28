@@ -43,7 +43,7 @@ class NormalizedKernel(MarginalizedGraphKernel):
             else:
                 diag_X = super().diag(X) ** -0.5
                 diag_Y = super().diag(Y) ** -0.5
-                K = np.diag(diag_X).dot(R).dot(np.diag(diag_Y))
+                K = np.einsum("ij,i,j->ij", R, diag_X, diag_Y)
                 return K
 
     def __call__(self, X, Y=None, *args, **kwargs):
