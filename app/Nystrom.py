@@ -70,7 +70,7 @@ class RobustFitGaussianProcessRegressor(GaussianProcessRegressor):
                 print('Try to fit the data with alpha = %f' % self.alpha)
                 self.fit(X, y)
                 print('Success fit the data with alpha = %f\n' % self.alpha)
-            except ValueError as e:
+            except Exception as e:
                 print('error info: ', e)
                 self.alpha *= 1.1
             else:
