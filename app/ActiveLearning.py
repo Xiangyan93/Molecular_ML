@@ -74,7 +74,6 @@ class ActiveLearner:
         if train_x.shape[0] <= 1000:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
                                                            normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
-            self.kernel_config.kernel = model.kernel_
         else:
             for i in range(Config.NystromPara.loop):
                 model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
@@ -82,8 +81,11 @@ class ActiveLearner:
                                                         off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                         core_max=Config.NystromPara.core_max
                                                         ).fit_robust(train_x, train_y)
+                if model is None:
+                    break
                 self.kernel_config.kernel = model.kernel_
         if model is not None:
+            self.kernel_config.kernel = model.kernel_
             self.model = model
             self.alpha = self.model.alpha
             self.logger.write('training complete, alpha=%3g\n' % self.alpha)
