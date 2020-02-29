@@ -141,6 +141,7 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
                 return y_mean
         else:  # Predict based on GP posterior
             K_core, K_cross = self.get_Nystrom_K(self.X_train, self.kernel_)
+            # K_core[np.diag_indices_from(K_core)] += 0.000001
             Kccinv, Kxx_ihalf = Nystrom_solve(K_core, K_cross)
             Kyc = self.kernel_(X, self.core_X)
             left = Kyc.dot(Kccinv).dot(K_cross.dot(Kxx_ihalf))  # y*c

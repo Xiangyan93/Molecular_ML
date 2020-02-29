@@ -38,7 +38,7 @@ def main():
     alpha = opt.alpha
     kernel = ConstantKernel(1.0, (1e-1, 1e3)) * RBF(10.0, (1e-3, 1e3))
     if opt.nystrom:
-        for i in range(5):
+        for i in range(Config.NystromPara.loop):
             model = NystromGaussianProcessRegressor(kernel=kernel, random_state=0, normalize_y=True, alpha=alpha,
                                                     off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                     core_max=Config.NystromPara.core_max,
@@ -48,17 +48,22 @@ def main():
         model = GaussianProcessRegressor(kernel=kernel, random_state=0, normalize_y=True, alpha=alpha).\
             fit(train_X, train_Y)
     pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
-    pred_value_list_core, pred_std_list_core = model.core_predict(test_X, return_std=True)
-    df_test = pd.DataFrame({'Sim': test_Y, 'predict': pred_value_list, 'predict_core': pred_value_list_core})
+    df_test = pd.DataFrame({'Sim': test_Y, 'predict': pred_value_list})
     df_test.to_csv('out-%.3f.txt' % alpha, index=False, sep=' ')
 
     plt.figure(figsize=(12, 3))
     plt.scatter(train_X, train_Y, s=16, color='r', alpha=0.5, label='train')
-    plt.plot(test_X, pred_value_list, label='predict')
-    plt.plot(test_X, pred_value_list_core, label='predict_core')
     plt.fill_between(test_X.reshape(test_X.size), pred_value_list-pred_std_list, pred_value_list + pred_std_list,
                      color='gray', alpha=0.2)
     plt.title('alpha = %.3f' % alpha)
+    if opt.nystrom:
+        pred_value_list_core, pred_std_list_core = model.core_predict(test_X, return_std=True)
+        df_test['predict_core'] = pred_value_list_core
+        plt.plot(test_X, pred_value_list_core, label='predict_core')
+        plt.plot(test_X, pred_value_list, label='predict_nystrom')
+    else:
+        plt.plot(test_X, pred_value_list, label='predict')
+
     plt.legend()
     plt.show()
 
