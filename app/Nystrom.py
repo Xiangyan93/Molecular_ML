@@ -57,7 +57,7 @@ def Nystrom_solve(K_core, K_cross):
     Ucc = Ucc[:, mask]  # !!!
     Kccinv = (Ucc / Wcc).dot(Ucc.T)
     Uxx, Sxx, Vxx = np.linalg.svd(K_cross.T.dot((Ucc / Wcc ** 0.5).dot(Ucc.T)), full_matrices=False)
-    mask = Sxx > 1e-7 # !!!
+    mask = Sxx > 1e-7  # !!!
     Uxx = Uxx[:, mask]  # !!!
     Sxx = Sxx[mask]  # !!!
     Kxx_ihalf = Uxx / Sxx
@@ -273,7 +273,7 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
         self.core_y = np.copy(y_)
         self.full_X = np.copy(X) if self.copy_X_train else X
         self.full_y = np.copy(y) if self.copy_X_train else y
-        print('hyperparameters in log scale\n', self.kernel.theta, '\n')
+        print('hyperparameter: ', self.kernel_.hyperparameters, '\n')
         return self
 
     def core_predict(self, X, return_std=False, return_cov=False):

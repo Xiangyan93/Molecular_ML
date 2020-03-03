@@ -337,19 +337,19 @@ class KernelConfig(PropertyConfig):
         kedge = TensorProduct(order=SquareExponential(1.0),
                               stereo=KroneckerDelta(0.8),
                               conjugated=KroneckerDelta(0.8),
-                              inring=KroneckerDelta(0.8)
+                              inring=KroneckerDelta(0.8),
                               )
-
+        stop_p = 0.05
         if NORMALIZED:
             if save_mem:
-                graph_kernel = ContractNormalizedKernel(None, [], knode, kedge, q=0.05)
+                graph_kernel = ContractNormalizedKernel(None, [], knode, kedge, q=stop_p)
             else:
-                graph_kernel = NormalizedKernel(knode, kedge, q=0.05)
+                graph_kernel = NormalizedKernel(knode, kedge, q=stop_p)
         else:
             if save_mem:
-                graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=0.05)
+                graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=stop_p)
             else:
-                graph_kernel = MarginalizedGraphKernel(knode, kedge, q=0.05)
+                graph_kernel = MarginalizedGraphKernel(knode, kedge, q=stop_p)
 
         if self.P:
             self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(10.0, (1e-3, 1e3))
