@@ -134,7 +134,7 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
                 return y_mean
         else:  # Predict based on GP posterior
             K_core, K_cross = self.get_Nystrom_K(self.full_X, self.kernel_)
-            # K_core[np.diag_indices_from(K_core)] += 0.000001
+            K_core[np.diag_indices_from(K_core)] += self.alpha
             Kccinv, Kxx_ihalf = Nystrom_solve(K_core, K_cross)
             Kyc = self.kernel_(X, self.core_X)
             left = Kyc.dot(Kccinv).dot(K_cross.dot(Kxx_ihalf))  # y*c
@@ -279,6 +279,7 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
     def core_predict(self, X, return_std=False, return_cov=False):
         # Precompute quantities required for predictions which are independent
         # of actual query points
+        """
         K = self.kernel_(self.X_train_)
         K[np.diag_indices_from(K)] += self.alpha
         try:
@@ -293,7 +294,11 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
                         % self.kernel_,) + exc.args
             raise
         self.alpha_ = cho_solve((self.L_, True), self.y_train_)  # Line 3
+        """
         return super().predict(X, return_std, return_cov)
+
+    def predict(self, X, return_std=False, return_cov=False):
+        return super().nystrom_predict(X, return_std, return_cov)
 
 
 """
