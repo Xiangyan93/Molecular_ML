@@ -3,6 +3,8 @@ import copy
 import numpy as np
 import pandas as pd
 import sklearn.gaussian_process as gp
+from sklearn.gaussian_process.kernels import *
+from sklearn.gaussian_process.kernels import _check_length_scale, _num_samples
 
 sys.path.append('..')
 from app.smiles import *
@@ -14,6 +16,59 @@ from graphdot.kernel.basekernel import TensorProduct
 from graphdot.kernel.basekernel import SquareExponential
 from graphdot.kernel.basekernel import KroneckerDelta
 from app.property import *
+
+
+# Original RBF only supported when Y is None.
+class NEWRBF(RBF):
+    def __call__(self, X, Y=None, eval_gradient=False):
+        X = np.atleast_2d(X)
+        length_scale = _check_length_scale(X, self.length_scale)
+        if Y is None:
+            dists = pdist(X / length_scale, metric='sqeuclidean')
+            K = np.exp(-.5 * dists)
+            # convert from upper-triangular matrix to square matrix
+            K = squareform(K)
+            np.fill_diagonal(K, 1)
+            dists = squareform(dists)
+            Y = X
+        else:
+            dists = cdist(X / length_scale, Y / length_scale,
+                          metric='sqeuclidean')
+            K = np.exp(-.5 * dists)
+        if eval_gradient:
+            if self.hyperparameter_length_scale.fixed:
+                # Hyperparameter l kept fixed
+                return K, np.empty((X.shape[0], Y.shape[0], 0))
+            elif not self.anisotropic or length_scale.shape[0] == 1:
+                K_gradient = \
+                    (K * dists)[:, :, np.newaxis]
+                return K, K_gradient
+            elif self.anisotropic:
+                # We need to recompute the pairwise dimension-wise distances
+                K_gradient = (X[:, np.newaxis, :] - Y[np.newaxis, :, :]) ** 2 \
+                             / (length_scale ** 2)
+                K_gradient *= K[..., np.newaxis]
+                return K, K_gradient
+        else:
+            return K
+
+
+class NEWConstantKernel(ConstantKernel):
+    def __call__(self, X, Y=None, eval_gradient=False):
+        if Y is None:
+            Y = X
+
+        K = np.full((_num_samples(X), _num_samples(Y)), self.constant_value,
+                    dtype=np.array(self.constant_value).dtype)
+        if eval_gradient:
+            if not self.hyperparameter_constant_value.fixed:
+                return (K, np.full((_num_samples(X), _num_samples(Y), 1),
+                                   self.constant_value,
+                                   dtype=np.array(self.constant_value).dtype))
+            else:
+                return K, np.empty((_num_samples(X), _num_samples(Y), 0))
+        else:
+            return K
 
 
 class NormalizedKernel(MarginalizedGraphKernel):

@@ -71,7 +71,7 @@ class ActiveLearner:
             train_x = train_x['graph']
         train_y = self.train_Y[self.train_SMILES.SMILES.isin(self.train_smiles)]
         train_y = train_y.reset_index().drop(columns='index')[self.kernel_config.property]
-        if train_x.shape[0] <= 1000:
+        if train_x.shape[0] <= Config.NystromPara.core_max:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
                                                            normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
         else:
