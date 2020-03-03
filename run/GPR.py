@@ -56,7 +56,7 @@ def main():
             print('**\tstart add samples\t**\n')
             activelearner.add_samples()
         activelearner.get_training_plot()
-        print('\n***\tEnd: active learning, current size = %i\t***\n')
+        print('\n***\tEnd: active learning, current size = %i\t***\n' % (activelearner.current_size))
     else:
         print('***\tStart: hyperparameters optimization.\t***\n')
         log = open('GPR.log', 'w')
