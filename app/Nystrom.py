@@ -27,7 +27,7 @@ from sklearn.gaussian_process._gpr import *
 from sklearn.cluster import SpectralClustering
 from numpy.linalg import eigh
 import pandas as pd
-
+from sklearn.preprocessing import StandardScaler
 
 def get_subset_by_clustering(X, kernel, ncluster):
     ''' find representative samples from a pool using clustering method
@@ -64,6 +64,27 @@ def Nystrom_solve(K_core, K_cross):
 
 
 class RobustFitGaussianProcessRegressor(GaussianProcessRegressor):
+    def __init__(self, y_scale=True, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.y_scale = y_scale
+    def fit(self, X, y):
+        # scale y according to train y and save the scalar
+        if self.y_scale:
+            self.scaler = StandardScaler().fit(y.values.reshape(-1,1))
+            super().fit(X, self.scaler.transform(y.values.reshape(-1,1)).flatten())
+        else:
+            super().fit(X, y)
+        return self
+    def predict(self, *args, **kwargs):
+        result = super().predict(*args, **kwargs)
+        if self.y_scale:
+            if type(result) is tuple: 
+                y_back = self.scaler.inverse_transform(result[0].reshape(-1,1)).flatten()
+                return y_back, result[1]
+            else:
+                return self.scaler.inverse_transform(result.reshape(-1,1)).flatten()
+        else:
+            return result
     def fit_robust(self, X, y):
         while self.alpha < 100:
             try:
@@ -88,7 +109,7 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         self.off_diagonal_cutoff = off_diagonal_cutoff
         self.core_max = core_max
 
-    def __y_normalise(self, y):
+        '''    def __y_normalise(self, y):
         # Normalize target value
         if self.normalize_y:
             self._y_train_mean_ = np.mean(y, axis=0)
@@ -96,7 +117,7 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             y = y - self._y_train_mean
         else:
             self._y_train_mean_ = np.zeros(1)
-        return y
+        return y '''
 
     def fit_robust(self, X, y):
         print('Start a new fit process')
@@ -147,7 +168,7 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             left = Kyc.dot(Kccinv).dot(K_cross.dot(Kxx_ihalf))  # y*c
             right = Kxx_ihalf.T.dot(self.y_train)  # c*o
             y_mean = left.dot(right)
-            y_mean = self._y_train_mean_ + y_mean  # undo normal.
+            # y_mean = self._y_train_mean_ + y_mean  # undo normal.
             print('')
             if return_cov:
                 y_cov = self.kernel_(X) - left.dot(left.T)  # Line 6
