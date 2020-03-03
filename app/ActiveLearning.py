@@ -42,6 +42,8 @@ class ActiveLearner:
         self.train_smiles = np.random.choice(self.unique_smiles, initial_size, replace=False)
 
     def stop_sign(self, max_size):
+        if max_size == 0: # no limit
+            max_size = len(self.train_X)
         if self.current_size > max_size:
             return True
         elif self.current_size == len(self.train_X):
