@@ -1,0 +1,14 @@
+
+*.log
+
+*.out
+
+data/
+
+app/__pycache__/
+
+log/
+
+.vscode/
+
+__pycache__/
