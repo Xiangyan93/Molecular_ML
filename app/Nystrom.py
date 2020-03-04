@@ -74,6 +74,7 @@ class RobustFitGaussianProcessRegressor(GaussianProcessRegressor):
             super().fit(X, self.scaler.transform(y.values.reshape(-1,1)).flatten())
         else:
             super().fit(X, y)
+        self.core_size = len(X)
         return self
     def predict(self, *args, **kwargs):
         result = super().predict(*args, **kwargs)

@@ -36,7 +36,8 @@ class ActiveLearner:
             os.makedirs(os.path.join(os.getcwd(), 'log'))
         self.logger = open('log/%s-%s-%s-%d-%s.log' % (
         self.kernel_config.property, self.learning_mode, self.add_mode, self.add_size, self.name), 'w')
-        self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
+        self.core_size = 0
+        self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': [], 'core_size':[]})
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
         self.seed = seed
@@ -81,6 +82,8 @@ class ActiveLearner:
                                                              logger=self.logger
                                                              ).fit_robust(train_x, train_y)
         self.alpha = self.model.alpha
+        if hasattr(self.model, 'core_size'):
+            self.core_size = self.model.core_size
         self.logger.write('training complete, alpha=%3g\n' % self.alpha)
 
     def add_samples(self):
@@ -241,7 +244,7 @@ class ActiveLearner:
         # variance explained
         ex_var = explained_variance_score(y_pred, self.test_Y)
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha
+        self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha, self.core_size
 
     def get_training_plot(self):
         if not os.path.exists(os.path.join(os.getcwd(),'result' )):
