@@ -329,27 +329,20 @@ class KernelConfig(PropertyConfig):
             NORMALIZED = True
 
         # define node and edge kernelets
-        knode = TensorProduct(aromatic=KroneckerDelta(0.8),
-                              #charge=SquareExponential(1.0),
-                              element=KroneckerDelta(0.5),
-                              hcount=SquareExponential(1.0)
-                              )
-        kedge = TensorProduct(order=SquareExponential(1.0),
-                              stereo=KroneckerDelta(0.8),
-                              conjugated=KroneckerDelta(0.8),
-                              inring=KroneckerDelta(0.8),
-                              )
-        stop_p = 0.05
+        knode = Config.Hyperpara.knode
+        kedge = Config.Hyperpara.kedge
+        stop_prob = Config.Hyperpara.stop_prob
+        stop_prob_bound = Config.Hyperpara.stop_prob_bound
         if NORMALIZED:
             if save_mem:
-                graph_kernel = ContractNormalizedKernel(None, [], knode, kedge, q=stop_p)
+                graph_kernel = ContractNormalizedKernel(None, [], knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
             else:
-                graph_kernel = NormalizedKernel(knode, kedge, q=stop_p)
+                graph_kernel = NormalizedKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
         else:
             if save_mem:
-                graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=stop_p)
+                graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
             else:
-                graph_kernel = MarginalizedGraphKernel(knode, kedge, q=stop_p)
+                graph_kernel = MarginalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
 
         if self.P:
             self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(10.0, (1e-3, 1e3))
