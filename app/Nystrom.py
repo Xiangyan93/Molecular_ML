@@ -28,7 +28,7 @@ from sklearn.cluster import SpectralClustering
 from sklearn.preprocessing import StandardScaler
 from numpy.linalg import eigh
 import pandas as pd
-
+from sklearn.preprocessing import StandardScaler
 
 def get_subset_by_clustering(X, kernel, ncluster):
     ''' find representative samples from a pool using clustering method
@@ -65,6 +65,27 @@ def Nystrom_solve(K_core, K_cross):
 
 
 class RobustFitGaussianProcessRegressor(GaussianProcessRegressor):
+    def __init__(self, y_scale=True, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.y_scale = y_scale
+    def fit(self, X, y):
+        # scale y according to train y and save the scalar
+        if self.y_scale:
+            self.scaler = StandardScaler().fit(y.values.reshape(-1,1))
+            super().fit(X, self.scaler.transform(y.values.reshape(-1,1)).flatten())
+        else:
+            super().fit(X, y)
+        return self
+    def predict(self, *args, **kwargs):
+        result = super().predict(*args, **kwargs)
+        if self.y_scale:
+            if type(result) is tuple: 
+                y_back = self.scaler.inverse_transform(result[0].reshape(-1,1)).flatten()
+                return y_back, result[1]
+            else:
+                return self.scaler.inverse_transform(result.reshape(-1,1)).flatten()
+        else:
+            return result
     def fit_robust(self, X, y):
         while self.alpha < 100:
             try:
