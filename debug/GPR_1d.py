@@ -4,7 +4,8 @@ import sys
 sys.path.append('..')
 from config import Config
 from app.ActiveLearning import *
-from app.Nystrom import NystromGaussianProcessRegressor
+from app.Nystrom import NystromGaussianProcessRegressor, NystromTest
+from app.kernel import NEWRBF, NEWConstantKernel
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import *
 import matplotlib.pyplot as plt
@@ -36,7 +37,8 @@ def main():
     test_X = test_X.reshape(N, 1)
     # gaussian process regression
     alpha = opt.alpha
-    kernel = ConstantKernel(1.0, (1e-1, 1e3)) * RBF(10.0, (1e-3, 1e3))
+    kernel = ConstantKernel(1.0, (1e-1, 1e3)) * RBF(1.0, (1e-3, 1e3))
+    # kernel = NEWConstantKernel(1.0, (1e-1, 1e3)) * NEWRBF(10.0, (1e-3, 1e3))
     if opt.nystrom:
         for i in range(Config.NystromPara.loop):
             model = NystromGaussianProcessRegressor(kernel=kernel, random_state=0, normalize_y=True, alpha=alpha,
@@ -47,8 +49,8 @@ def main():
     else:
         model = GaussianProcessRegressor(kernel=kernel, random_state=0, normalize_y=True, alpha=alpha).\
             fit(train_X, train_Y)
-    pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
-    df_test = pd.DataFrame({'Sim': test_Y, 'predict': pred_value_list})
+    pred_value_list, pred_std_list = model.nystrom_predict(test_X, return_std=True)
+    df_test = pd.DataFrame({'Sim': test_Y, 'predict': pred_value_list, 'predict_uncertainty': pred_std_list})
     df_test.to_csv('out-%.3f.txt' % alpha, index=False, sep=' ')
 
     plt.figure(figsize=(12, 3))

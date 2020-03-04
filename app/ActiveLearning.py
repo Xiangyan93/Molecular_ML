@@ -71,21 +71,22 @@ class ActiveLearner:
             train_x = train_x['graph']
         train_y = self.train_Y[self.train_SMILES.SMILES.isin(self.train_smiles)]
         train_y = train_y.reset_index().drop(columns='index')[self.kernel_config.property]
-        if train_x.shape[0] <= 1000:
+        if train_x.shape[0] <= Config.NystromPara.core_max:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
                                                            normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
         else:
+            kernel = self.kernel_config.kernel
             for i in range(Config.NystromPara.loop):
-                model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
+                model = NystromGaussianProcessRegressor(kernel=kernel, random_state=0,
                                                         normalize_y=True, alpha=alpha,
                                                         off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                         core_max=Config.NystromPara.core_max
                                                         ).fit_robust(train_x, train_y)
                 if model is None:
                     break
-                self.kernel_config.kernel = model.kernel_
+                kernel = model.kernel_
         if model is not None:
-            self.kernel_config.kernel = model.kernel_
+            print('hyperparameter: ', model.kernel_.hyperparameters)
             self.model = model
             self.alpha = self.model.alpha
             self.logger.write('training complete, alpha=%3g\n' % self.alpha)

@@ -48,6 +48,7 @@ def main():
     else:
         model = gp.GaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0,
                                             normalize_y=True, alpha=alpha).fit(train_X, train_Y)
+        print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
     print('***\tEnd: hyperparameters optimization.\t***\n')
 
     print('***\tStart: test set prediction.\t***\n')

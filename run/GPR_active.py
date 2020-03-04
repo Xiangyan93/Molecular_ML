@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--name', type=str, help='name for easy logging', default='default')
     parser.add_argument('--seed', type=int, help='random seed', default=233)
     parser.add_argument('--threshold', type=float, help='std threshold', default=11)
+
     opt = parser.parse_args()
 
     print('***\tStart: Reading input.\t***\n')
@@ -45,7 +46,7 @@ def main():
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
         if activelearner.train(alpha=opt.alpha, seed=opt.seed):
-            print('**\tstart evaluate\t**\n')
+            print('\n**\tstart evaluate\t**\n')
             activelearner.evaluate()
         else:
             print('Training failed for all alpha')
