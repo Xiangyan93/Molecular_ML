@@ -46,7 +46,7 @@ def main():
 
     if Config.TrainingSetSelectRule.ACTIVE_LEARNING:
         activelearner = ActiveLearner(train_X, train_Y, test_X, test_Y, Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['init_size'],
-                                      opt.add_size, kernel_config, opt.learning_mode, opt.add_mode, train_SMILES,  opt.search_size, opt.name, opt.threshold)
+                                      opt.add_size, kernel_config, opt.learning_mode, opt.add_mode, train_SMILES,  opt.search_size, opt.name, opt.threshold, opt.seed)
         while not activelearner.stop_sign(opt.max_size):
             print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
             print('**\tstart train\t**\n')

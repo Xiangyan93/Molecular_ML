@@ -16,7 +16,7 @@ from config import Config
 
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
-    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name, threshold):
+    def __init__(self, train_X, train_Y, test_X, test_Y, initial_size, add_size, kernel_config, learning_mode, add_mode, train_SMILES, search_size, name, threshold, seed):
         ''' df must have the 'graph' column '''
         self.train_X = train_X.reset_index().drop(columns='index')
         self.train_Y = train_Y.reset_index().drop(columns='index')
@@ -30,7 +30,7 @@ class ActiveLearner:
         self.add_mode = add_mode
         self.name = name
         self.full_size = 0
-        self.std_logging = False # for debugging
+        self.std_logging = True # for debugging
         self.threshold = threshold
         if not os.path.exists(os.path.join(os.getcwd(),'log' )):
             os.makedirs(os.path.join(os.getcwd(), 'log'))
@@ -39,6 +39,8 @@ class ActiveLearner:
         self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
         self.train_SMILES = train_SMILES.reset_index().drop(columns='index')
         self.unique_smiles = train_SMILES.unique()
+        self.seed = seed
+        np.random.seed(seed)
         self.train_smiles = np.random.choice(self.unique_smiles, initial_size, replace=False)
 
     def stop_sign(self, max_size):
