@@ -75,7 +75,8 @@ class ActiveLearner:
                 self.model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
                                                              normalize_y=True, alpha=alpha,
                                                              off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
-                                                             core_max=Config.NystromPara.core_max
+                                                             core_max=Config.NystromPara.core_max,
+                                                             logger=self.logger
                                                              ).fit_robust(train_x, train_y)
         self.alpha = self.model.alpha
         self.logger.write('training complete, alpha=%3g\n' % self.alpha)

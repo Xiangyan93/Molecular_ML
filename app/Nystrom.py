@@ -103,11 +103,11 @@ class RobustFitGaussianProcessRegressor(GaussianProcessRegressor):
 
 
 class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
-    def __init__(self, off_diagonal_cutoff=0.9, core_max=500, *args, **kwargs):
+    def __init__(self, off_diagonal_cutoff=0.9, core_max=500, logger=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.off_diagonal_cutoff = off_diagonal_cutoff
         self.core_max = core_max
-
+        self.logger = logger
         '''    def __y_normalise(self, y):
         # Normalize target value
         if self.normalize_y:
@@ -122,12 +122,12 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         print('Start a new fit process')
         if hasattr(self, 'kernel_'):
             X_, y_ = self.get_core_X(X, self.kernel_, off_diagonal_cutoff=self.off_diagonal_cutoff, y=y,
-                                     core_max=self.core_max)
+                                     core_max=self.core_max, logger=self.logger)
         else:
             X_, y_ = self.get_core_X(X, self.kernel, off_diagonal_cutoff=self.off_diagonal_cutoff, y=y,
-                                     core_max=self.core_max)
+                                     core_max=self.core_max, logger=self.logger)
         super().fit_robust(X_, y_)
-        y = self.__y_normalise(y)
+        #y = self.__y_normalise(y)
         self.X_train = np.copy(X) if self.copy_X_train else X
         self.y_train = np.copy(y) if self.copy_X_train else y
         return self
@@ -221,7 +221,7 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             return K_core, K_cross
 
     @staticmethod
-    def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='suggest'):
+    def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='suggest', logger=None):
         N = X.shape[0]
         randN = np.array(list(range(N)))
         np.random.shuffle(randN)
@@ -253,6 +253,8 @@ class NystromGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
                     C_idx = C_idx[:core_max]
                     break
             print('%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N))
+            if logger is not None:
+                logger.write( '%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N) )
         elif method == 'full':
             """
             O(n2) complexity. Suggest when X is not too large. 
