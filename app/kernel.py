@@ -15,6 +15,7 @@ from graphdot.kernel.marginalized import MarginalizedGraphKernel
 from graphdot.kernel.basekernel import TensorProduct
 from graphdot.kernel.basekernel import SquareExponential
 from graphdot.kernel.basekernel import KroneckerDelta
+from sklearn.cluster import SpectralClustering
 from app.property import *
 
 
@@ -279,6 +280,10 @@ class MultipleKernel:
         return sum(self.n_dims_list)
 
     @property
+    def hyperparameters(self):
+        return np.exp(self.theta)
+
+    @property
     def theta(self):
         for i, kernel in enumerate(self.kernel_list):
             if i == 0:
@@ -345,10 +350,10 @@ class KernelConfig(PropertyConfig):
                 graph_kernel = MarginalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
 
         if self.P:
-            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(10.0, (1e-3, 1e3))
-                                          * gp.kernels.RBF(10.0, (1e-3, 1e3))], [1, 2], 'product')
+            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(1000.0, (1e-3, 1e3))
+                                          * gp.kernels.RBF(1000.0, (1e-3, 1e3))], [1, 2], 'product')
         elif self.T:
-            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(10.0, (1e-3, 1e3))]
+            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(1000.0, (1e-3, 1e3))]
                                          , [1, 1], 'product')
         else:
             self.kernel = graph_kernel
@@ -366,7 +371,7 @@ def datafilter(df, ratio=None, remove_smiles=None, get_smiles=False, seed=233):
         df = df[df.SMILES.isin(random_smiles_list)]
     elif remove_smiles is not None:
         df = df[~df.SMILES.isin(remove_smiles)]
-    return df.reset_index().drop(columns='index')
+    return df
 
 
 def get_TP_extreme(df, P=True, T=True):
@@ -389,7 +394,7 @@ def get_TP_extreme(df, P=True, T=True):
     return df_
 
 
-def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_smiles=False, TPextreme=False, seed=233):
+def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233):
     if not os.path.exists('data'):
         os.mkdir('data')
     pkl_file = os.path.join('data', '%s.pkl' % kernel_config.descriptor)
@@ -414,10 +419,119 @@ def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, get_sm
         X = df['graph']
 
     Y = df[kernel_config.property]
-
+    if df.size == 0:
+        X = Y = None
     output = [X, Y]
-    if ratio is not None:
+    if remove_smiles is None:
         output.append(df.SMILES.unique())
-    if get_smiles:
-        output.append(df['SMILES'])
     return output
+
+
+def get_subset_by_clustering(X, kernel, ncluster):
+    ''' find representative samples from a pool using clustering method
+    :X: a list of graphs
+    :add_sample_size: add sample size
+    :return: list of idx
+    '''
+    # train SpectralClustering on X
+    if len(X) < ncluster:
+        return X
+    gram_matrix = kernel(X)
+    result = SpectralClustering(n_clusters=ncluster, affinity='precomputed').fit_predict(gram_matrix)  # cluster result
+    total_distance = {i: {} for i in range(ncluster)}  # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
+    for i in range(len(X)):  # get all in-class distance sum of each item
+        cluster_class = result[i]
+        total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * 1 / gram_matrix[i])] = i
+    add_idx = [total_distance[i][min(total_distance[i].keys())] for i in
+               range(ncluster)]  # find min-in-cluster-distance associated idx
+    return np.array(add_idx)
+
+
+def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500, method='suggest'):
+    N = X.shape[0]
+    if X.__class__ == pd.DataFrame or X.__class__ == pd.Series:
+        randN = X.index.tolist()
+    else:
+        randN = np.array(list(range(N)))
+    np.random.shuffle(randN)
+
+    def get_C_idx(K, skip=0):
+        K_diag = np.einsum("ii->i", K)
+        C_idx_ = [0] if skip == 0 else list(range(skip))
+        for m in range(K.shape[0]):
+            # sys.stdout.write('\r %i / %i' % (i, N))
+            if m >= skip and (K[m][C_idx_] / np.sqrt(K_diag[m] * K_diag[C_idx_])).max() < off_diagonal_cutoff:
+                C_idx_.append(m)
+            if len(C_idx_) > core_max:
+                break
+        return C_idx_[skip:]
+
+    def X_idx(X, idx):
+        if X.__class__ == pd.DataFrame:
+            X = X[X.index.isin(idx)]
+            if X.columns.size == 1 and X.columns[0] == 'graph':
+                X = X['graph']
+        else:
+            X = X[idx]
+        return X
+
+    if method == 'suggest':
+        """
+        O(m2) complexity. Suggested.
+        Best method now.
+        This is a trade-off between full and memory_save. Fast and do not need much memory.
+        """
+        import math
+        C_idx = np.array([], dtype=int)
+        n = 200
+        for i in range(math.ceil(N / n)):
+            idx1 = np.r_[C_idx, randN[i * n:(i + 1) * n]]
+            idx2 = get_C_idx(kernel(X_idx(X, idx1)), skip=len(C_idx))
+            C_idx = np.r_[C_idx, idx1[idx2]]
+            if len(C_idx) > core_max:
+                C_idx = C_idx[:core_max]
+                break
+    elif method == 'full':
+        """
+        O(n2) complexity. Suggest when X is not too large. 
+        need to calculate the whole kernel matrix.
+        Fastest in small sample cases. 
+        """
+        idx1 = randN
+        idx2 = get_C_idx(kernel(X_idx(X, idx1)))
+        C_idx = idx1[idx2]
+        print('%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N))
+    elif method == 'memory_save':
+        """
+        O(m2) complexity. Suggest when X is large.
+        This is too slow due to call kernel function too many times. But few memory cost.
+        """
+        import sys
+        C = X[:1]
+        C_diag = kernel.diag(C)
+        C_idx = []
+        for i in randN:
+            sys.stdout.write('\r %i / %i' % (i, N))
+            diag = kernel.diag(X[i:i + 1])
+            if (kernel(X[i:i + 1], C) / np.sqrt(diag * C_diag)).max() < off_diagonal_cutoff:
+                C = np.r_[C, X[i:i + 1]]
+                C_diag = np.r_[C_diag, diag]
+                C_idx.append(i)
+            if len(C_idx) > core_max:
+                break
+        print('\n%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N))
+    elif method == 'clustering':
+        """
+        Not suggest. 
+        The clustering method is slow. No performance comparison has done. 
+        """
+        _C_idx = get_subset_by_clustering(X, kernel, ncluster=500)
+        N = len(_C_idx)
+        print('%i / %i data are chosen by clustering as core in Nystrom approximation' % (len(_C_idx), X.shape[0]))
+        C_idx = get_C_idx(kernel(X[_C_idx]))
+        print('%i / %i data are furthur selected to avoid numerical explosion' % (len(C_idx), N))
+    elif method == 'random':
+        C_idx = randN[:core_max]
+    else:
+        raise Exception('unknown method')
+    return C_idx

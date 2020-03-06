@@ -27,21 +27,23 @@ def main():
     parser.add_argument('--name', type=str, help='name for easy logging', default='default')
     parser.add_argument('--seed', type=int, help='random seed', default=233)
     parser.add_argument('--threshold', type=float, help='std threshold', default=11)
-
+    parser.add_argument('--group_by_mol', help='The training set will group based on molecules', action='store_true')
+    parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
     opt = parser.parse_args()
 
+    optimizer = None if opt.optimizer == 'None' else opt.optimizer
     print('***\tStart: Reading input.\t***\n')
     kernel_config = KernelConfig(save_mem=False, property=opt.property)
 
-    train_X, train_Y, train_smiles_list, train_SMILES = \
+    train_X, train_Y, train_smiles_list = \
         get_XY_from_file(opt.input, kernel_config, ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'],
-                         get_smiles=True, seed=opt.seed)
+                         seed=opt.seed)
     test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list, seed=opt.seed)
     print('***\tEnd: Reading input.\t***\n')
 
-    activelearner = ActiveLearner(train_X, train_Y, test_X, test_Y, opt.init_size, opt.add_size, kernel_config,
-                                  opt.learning_mode, opt.add_mode, train_SMILES, opt.search_size, opt.name,
-                                  opt.threshold)
+    activelearner = ActiveLearner(train_X, train_Y, kernel_config, opt.learning_mode, opt.add_mode, opt.init_size,
+                                  opt.add_size, opt.search_size, opt.threshold, opt.name, test_X=test_X, test_Y=test_Y,
+                                  group_by_mol=opt.group_by_mol, optimizer=optimizer)
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')

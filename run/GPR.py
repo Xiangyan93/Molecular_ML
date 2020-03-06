@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--alpha', type=float, help='Initial alpha value.', default=0.5)
     parser.add_argument('--seed', type=int, help='random seed', default=233)
     parser.add_argument('--nystrom', help='Nystrom approximation.', action='store_true')
+    parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
     opt = parser.parse_args()
 
     print('***\tStart: Reading input.\t***\n')
@@ -40,13 +41,13 @@ def main():
     if opt.nystrom:
         for i in range(Config.NystromPara.loop):
             model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, normalize_y=True,
-                                                    alpha=alpha,
+                                                    alpha=alpha, optimizer=opt.optimizer,
                                                     off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                     core_max=Config.NystromPara.core_max
                                                     ).fit_robust(train_X, train_Y)
             kernel_config.kernel = model.kernel_
     else:
-        model = gp.GaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0,
+        model = gp.GaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, optimizer=opt.optimizer,
                                             normalize_y=True, alpha=alpha).fit(train_X, train_Y)
         print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
     print('***\tEnd: hyperparameters optimization.\t***\n')

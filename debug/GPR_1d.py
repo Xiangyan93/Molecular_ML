@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--noise', type=float, help='Random noise.', default=0.1)
     parser.add_argument('--alpha', type=float, help='alpha in GPR.', default=0.1)
     parser.add_argument('--nystrom', help='Nystrom approximation.', action='store_true')
+    parser.add_argument('--hyperfixed', help='Fixed hyperparameter.', action='store_true')
     opt = parser.parse_args()
 
     # function form
@@ -37,7 +38,10 @@ def main():
     test_X = test_X.reshape(N, 1)
     # gaussian process regression
     alpha = opt.alpha
-    kernel = ConstantKernel(1.0, (1e-1, 1e3)) * RBF(1.0, (1e-3, 1e3))
+    if opt.hyperfixed:
+        kernel = ConstantKernel(1.0, "fixed") * RBF(1.0, "fixed")
+    else:
+        kernel = ConstantKernel(1.0, (1e-1, 1e3)) * RBF(1.0, (1e-3, 1e3))
     # kernel = NEWConstantKernel(1.0, (1e-1, 1e3)) * NEWRBF(10.0, (1e-3, 1e3))
     if opt.nystrom:
         for i in range(Config.NystromPara.loop):
@@ -46,10 +50,12 @@ def main():
                                                     core_max=Config.NystromPara.core_max,
                                                     ).fit_robust(train_X, train_Y)
             kernel = model.kernel_
+        pred_value_list, pred_std_list = model.nystrom_predict(test_X, return_std=True)
     else:
         model = GaussianProcessRegressor(kernel=kernel, random_state=0, normalize_y=True, alpha=alpha).\
             fit(train_X, train_Y)
-    pred_value_list, pred_std_list = model.nystrom_predict(test_X, return_std=True)
+        pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
+
     df_test = pd.DataFrame({'Sim': test_Y, 'predict': pred_value_list, 'predict_uncertainty': pred_std_list})
     df_test.to_csv('out-%.3f.txt' % alpha, index=False, sep=' ')
 
