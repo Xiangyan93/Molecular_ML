@@ -299,7 +299,7 @@ class ActiveLearner:
         else:
             return 0
 
-    def evaluate(self):
+    def evaluate(self, debug=False):
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
             Y = self.test_Y
@@ -317,8 +317,13 @@ class ActiveLearner:
 
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha, self.__get_K_core_length()
-        out = pd.DataFrame({'sim': Y, 'predict': y_pred, 'uncertainty': y_std})
+        out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
         out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+        if debug:
+            train_x, train_y = self.__get_train_X_y()
+            y_pred, y_std = self.model.predict(train_x, return_std=True)
+            out = pd.DataFrame({'#sim': train_y, 'predict': y_pred, 'uncertainty': y_std})
+            out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep=' ', index=False)
 
     def get_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \

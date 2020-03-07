@@ -28,7 +28,7 @@ def main():
     e = opt.noise
     # train set data
     N = opt.ntrain
-    train_X = np.random.rand(N) * 10 * np.pi
+    train_X = np.random.rand(N) * 2 * np.pi
     train_Y = f(train_X) + np.random.randn(N) * e
     train_X = train_X.reshape(N, 1)
     # test set data
@@ -39,7 +39,7 @@ def main():
     # gaussian process regression
     alpha = opt.alpha
     if opt.hyperfixed:
-        kernel = ConstantKernel(1.0, "fixed") * RBF(1.0, "fixed")
+        kernel = ConstantKernel(1.0, "fixed") * RBF(2.0, "fixed")
     else:
         kernel = ConstantKernel(1.0, (1e-1, 1e3)) * RBF(1.0, (1e-3, 1e3))
     # kernel = NEWConstantKernel(1.0, (1e-1, 1e3)) * NEWRBF(10.0, (1e-3, 1e3))
@@ -73,6 +73,9 @@ def main():
         plt.plot(test_X, pred_value_list, label='predict')
 
     plt.legend()
+    plt.show()
+    K = kernel(train_X)
+    plt.hist(K[np.triu_indices(K.shape[0], k=1)], bins=20)
     plt.show()
 
 
