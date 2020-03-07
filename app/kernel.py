@@ -2,6 +2,7 @@ import sys
 import copy
 import numpy as np
 import pandas as pd
+import re
 import sklearn.gaussian_process as gp
 from sklearn.gaussian_process.kernels import *
 from sklearn.gaussian_process.kernels import _check_length_scale, _num_samples
@@ -107,7 +108,7 @@ class NormalizedKernel(MarginalizedGraphKernel):
         return self.__normalize(X, Y, R)
 
     def diag(self, X, nodal=False, lmin=0, timing=False):
-        return np.ones(X.shape[0])
+        return np.ones(len(X))
 
 
 class ContractMarginalizedGraphKernel(MarginalizedGraphKernel):
@@ -400,7 +401,12 @@ def get_TP_extreme(df, P=True, T=True):
 def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233):
     if not os.path.exists('data'):
         os.mkdir('data')
-    pkl_file = os.path.join('data', '%s.pkl' % kernel_config.descriptor)
+    original_filename = re.split('\.', file)[0]+'.pkl'
+    if 'data' in original_filename:
+        pkl_file = original_filename
+    else: 
+        pkl_file = os.path.join('data', original_filename)
+    
     if os.path.exists(pkl_file):
         print('reading existing data file: %s' % pkl_file)
         df = pd.read_pickle(pkl_file)

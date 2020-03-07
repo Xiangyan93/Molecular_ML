@@ -99,6 +99,7 @@ class ActiveLearner:
     def train(self, alpha=0.5, seed=233):
         # continue needs to be added soon
         np.random.seed(seed)
+        print('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('Start Training, training size = %i:\n' % self.current_size)
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
@@ -315,6 +316,7 @@ class ActiveLearner:
         # variance explained
         ex_var = explained_variance_score(y_pred, Y)
 
+        print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha, self.__get_K_core_length()
         out = pd.DataFrame({'sim': Y, 'predict': y_pred, 'uncertainty': y_std})
