@@ -116,7 +116,7 @@ class ActiveLearner:
                                                         normalize_y=True, alpha=alpha,
                                                         off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                         core_max=Config.NystromPara.core_max
-                                                        ).fit_robust(train_x, train_y)
+                                                        ).fit_robust(train_x, train_y, core_predict=False)
                 if model is None:
                     break
                 kernel = model.kernel_
