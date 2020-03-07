@@ -106,6 +106,9 @@ class NormalizedKernel(MarginalizedGraphKernel):
         R = super().__call__(X, Y, *args, **kwargs)
         return self.__normalize(X, Y, R)
 
+    def diag(self, X, nodal=False, lmin=0, timing=False):
+        return np.ones(X.shape[0])
+
 
 class ContractMarginalizedGraphKernel(MarginalizedGraphKernel):
     def __init__(self, train_X=None, train_idx=[], *args, **kwargs):
