@@ -331,11 +331,7 @@ class MultipleKernel:
 class KernelConfig(PropertyConfig):
     def __init__(self, save_mem=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.property in ['tc', 'cp']:
-            NORMALIZED = False
-        else:
-            NORMALIZED = True
-
+        NORMALIZED = True
         # define node and edge kernelets
         knode = Config.Hyperpara.knode
         kedge = Config.Hyperpara.kedge
