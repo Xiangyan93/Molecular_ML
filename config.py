@@ -23,6 +23,8 @@ class Config:
                               )
         stop_prob = 0.05
         stop_prob_bound = (1e-4, 0.2)
+        T = 500
+        P = 500
 
     class NystromPara:
         off_diagonal_cutoff = 0.95

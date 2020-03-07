@@ -147,7 +147,6 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             right = Kxx_ihalf.T.dot(self.full_y)  # c*o
             y_mean = left.dot(right)
             y_mean = self._y_train_mean_full + y_mean  # undo normal.
-            print('')
             if return_cov:
                 y_cov = self.kernel_(X) - left.dot(left.T)  # Line 6
                 return y_mean, y_cov

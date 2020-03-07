@@ -350,10 +350,10 @@ class KernelConfig(PropertyConfig):
                 graph_kernel = MarginalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
 
         if self.P:
-            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(1000.0, (1e-3, 1e3))
-                                          * gp.kernels.RBF(1000.0, (1e-3, 1e3))], [1, 2], 'product')
+            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(Config.Hyperpara.T, (1e-3, 1e3))
+                                          * gp.kernels.RBF(Config.Hyperpara.P, (1e-3, 1e3))], [1, 2], 'product')
         elif self.T:
-            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(1000.0, (1e-3, 1e3))]
+            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(Config.Hyperpara.T, (1e-3, 1e3))]
                                          , [1, 1], 'product')
         else:
             self.kernel = graph_kernel
@@ -448,6 +448,7 @@ def get_subset_by_clustering(X, kernel, ncluster):
 
 
 def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500, method='suggest'):
+    np.random.seed(1)
     N = X.shape[0]
     if X.__class__ == pd.DataFrame or X.__class__ == pd.Series:
         randN = X.index.tolist()

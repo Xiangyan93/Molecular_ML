@@ -49,7 +49,7 @@ class ActiveLearner:
 
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
-        self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': []})
+        self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': [], 'K_core': []})
         self.group_by_mol = group_by_mol
         if group_by_mol:
             self.unique_graphs = self.train_X.graph.unique()
@@ -293,6 +293,12 @@ class ActiveLearner:
                    range(self.add_size)]  # find min-in-cluster-distance associated idx
         return add_idx
 
+    def __get_K_core_length(self):
+        if hasattr(self.model, 'core_X'):
+            return self.model.core_X.shape[0]
+        else:
+            return 0
+
     def evaluate(self):
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
@@ -310,7 +316,7 @@ class ActiveLearner:
         ex_var = explained_variance_score(y_pred, Y)
 
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha
+        self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha, self.__get_K_core_length()
         out = pd.DataFrame({'y_pred': y_pred, 'y_sim': Y})
         out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
 
