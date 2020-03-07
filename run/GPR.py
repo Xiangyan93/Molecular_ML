@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
     opt = parser.parse_args()
 
+    optimizer = None if opt.optimizer == 'None' else opt.optimizer
     print('***\tStart: Reading input.\t***\n')
     kernel_config = KernelConfig(save_mem=False, property=opt.property)
     if Config.TrainingSetSelectRule.ASSIGNED and opt.train is not None:
@@ -41,13 +42,13 @@ def main():
     if opt.nystrom:
         for i in range(Config.NystromPara.loop):
             model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, normalize_y=True,
-                                                    alpha=alpha, optimizer=opt.optimizer,
+                                                    alpha=alpha, optimizer=optimizer,
                                                     off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                     core_max=Config.NystromPara.core_max
-                                                    ).fit_robust(train_X, train_Y)
+                                                    ).fit_robust(train_X, train_Y, core_predict=False)
             kernel_config.kernel = model.kernel_
     else:
-        model = gp.GaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, optimizer=opt.optimizer,
+        model = gp.GaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, optimizer=optimizer,
                                             normalize_y=True, alpha=alpha).fit(train_X, train_Y)
         print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
     print('***\tEnd: hyperparameters optimization.\t***\n')
@@ -55,7 +56,7 @@ def main():
     print('***\tStart: test set prediction.\t***\n')
     train_pred_value_list = model.predict(train_X, return_std=False)
     pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
-    df_test = pd.DataFrame({'Sim': test_Y, 'predict': pred_value_list})
+    df_test = pd.DataFrame({'sim': test_Y, 'predict': pred_value_list, 'uncertainty': pred_std_list})
     df_test.to_csv('out-%.3f.txt' % alpha, index=False, sep=' ')
     print('\nalpha = %.3f\n' % model.alpha)
     print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
