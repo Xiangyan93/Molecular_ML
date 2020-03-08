@@ -49,7 +49,7 @@ class ActiveLearner:
 
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
-        self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': [], 'K_core': []})
+        self.plotout = pd.DataFrame({'#size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': [], 'K_core': []})
         self.group_by_mol = group_by_mol
         if group_by_mol:
             self.unique_graphs = self.train_X.graph.unique()

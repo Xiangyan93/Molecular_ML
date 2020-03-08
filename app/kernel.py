@@ -107,7 +107,7 @@ class NormalizedKernel(MarginalizedGraphKernel):
         return self.__normalize(X, Y, R)
 
     def diag(self, X, nodal=False, lmin=0, timing=False):
-        return np.ones(X.shape[0])
+        return np.ones(len(X))
 
 
 class ContractMarginalizedGraphKernel(MarginalizedGraphKernel):
@@ -331,7 +331,11 @@ class MultipleKernel:
 class KernelConfig(PropertyConfig):
     def __init__(self, save_mem=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        NORMALIZED = True
+        if self.property in []:
+            NORMALIZED = False
+        else:
+            NORMALIZED = True
+
         # define node and edge kernelets
         knode = Config.Hyperpara.knode
         kedge = Config.Hyperpara.kedge
