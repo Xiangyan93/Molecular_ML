@@ -11,18 +11,20 @@ class Config:
     MS_TOOLS_DIR = os.path.join(CWD, '..', 'AIMS_Tools')
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
-        knode = TensorProduct(aromatic=KroneckerDelta(0.8),
+        v = 0.25
+        s = 1.5
+        knode = TensorProduct(aromatic=KroneckerDelta(v),
                               #charge=SquareExponential(1.0),
-                              element=KroneckerDelta(0.5),
-                              hcount=SquareExponential(1.0)
+                              element=KroneckerDelta(v),
+                              hcount=SquareExponential(s)
                               )
-        kedge = TensorProduct(order=SquareExponential(1.0),
-                              stereo=KroneckerDelta(0.8),
-                              conjugated=KroneckerDelta(0.8),
-                              inring=KroneckerDelta(0.8),
+        kedge = TensorProduct(order=SquareExponential(s),
+                              stereo=KroneckerDelta(v),
+                              conjugated=KroneckerDelta(v),
+                              inring=KroneckerDelta(v),
                               )
         stop_prob = 0.05
-        stop_prob_bound = (1e-4, 0.2)
+        stop_prob_bound = (1e-4, 1.0)
         T = 500
         P = 500
 
