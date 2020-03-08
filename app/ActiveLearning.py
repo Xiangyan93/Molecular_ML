@@ -23,8 +23,8 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
-                 threshold, name, nystrom_size=1000, test_X=None, test_Y=None, group_by_mol=False, random_init=False,
-                 optimizer="fmin_l_bfgs_b"):
+                 threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
+                 optimizer="fmin_l_bfgs_b", seed=233):
         ''' df must have the 'graph' column '''
         self.train_X = train_X
         self.train_Y = train_Y
@@ -51,6 +51,8 @@ class ActiveLearner:
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
         self.plotout = pd.DataFrame({'#size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': [], 'K_core': []})
         self.group_by_mol = group_by_mol
+        self.seed = seed
+        np.random.seed(seed)
         if group_by_mol:
             self.unique_graphs = self.train_X.graph.unique()
             if random_init:
@@ -96,9 +98,9 @@ class ActiveLearner:
             untrain_y = self.train_Y[~self.train_Y.index.isin(self.train_idx)]
         return untrain_x, untrain_y
 
-    def train(self, alpha=0.5, seed=233):
+    def train(self, alpha=0.5):
         # continue needs to be added soon
-        np.random.seed(seed)
+        np.random.seed(self.seed)
         print('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('Start Training, training size = %i:\n' % self.current_size)
@@ -106,14 +108,14 @@ class ActiveLearner:
         train_x, train_y = self.__get_train_X_y()
 
         if train_x.shape[0] <= self.nystrom_size:
-            model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
+            model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
             print('hyperparameter: ', model.kernel_.hyperparameters)
         else:
             kernel = self.kernel_config.kernel
             for i in range(Config.NystromPara.loop):
-                model = NystromGaussianProcessRegressor(kernel=kernel, random_state=0, optimizer=self.optimizer,
+                model = NystromGaussianProcessRegressor(kernel=kernel, random_state=self.seed, optimizer=self.optimizer,
                                                         normalize_y=True, alpha=alpha,
                                                         off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                         core_max=Config.NystromPara.core_max
@@ -175,6 +177,7 @@ class ActiveLearner:
                 self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'random':
+            np.random.seed(self.seed)
             if self.group_by_mol:
                 untrain_graphs = untrain_x.graph.unique()
                 if untrain_graphs.size < self.add_size:
