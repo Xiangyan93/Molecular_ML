@@ -49,7 +49,7 @@ class ActiveLearner:
 
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
-        self.plotout = pd.DataFrame({'#size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': [], 'K_core': []})
+        self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': []})
         self.group_by_mol = group_by_mol
         self.seed = seed
         np.random.seed(seed)
@@ -321,7 +321,7 @@ class ActiveLearner:
 
         print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha, self.__get_K_core_length()
+        self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
         out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
         out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
         if debug:
