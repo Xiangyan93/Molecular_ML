@@ -17,6 +17,7 @@ def main():
     K = kernel(X)
     # plt.imshow(K, cmap=plt.cm.gray)
     plt.hist(K[np.triu_indices(K.shape[0], k=1)], bins=20)
+    plt.savefig('kernelplot.png')
     plt.show()
 
 
