@@ -18,3 +18,8 @@ downloads/
 notebook/.ipynb_checkpoints/
 
 __pycache__/
+
+
+*.png
+
+.ipynb_checkpoints/
