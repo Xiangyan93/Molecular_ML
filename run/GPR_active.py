@@ -43,11 +43,11 @@ def main():
 
     activelearner = ActiveLearner(train_X, train_Y, kernel_config, opt.learning_mode, opt.add_mode, opt.init_size,
                                   opt.add_size, opt.search_size, opt.threshold, opt.name, test_X=test_X, test_Y=test_Y,
-                                  group_by_mol=opt.group_by_mol, optimizer=optimizer)
+                                  group_by_mol=opt.group_by_mol, optimizer=optimizer, seed=opt.seed)
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
-        if activelearner.train(alpha=opt.alpha, seed=opt.seed):
+        if activelearner.train(alpha=opt.alpha):
             print('\n**\tstart evaluate\t**\n')
             activelearner.evaluate()
         else:
