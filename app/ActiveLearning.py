@@ -213,34 +213,42 @@ class ActiveLearner:
         if self.add_mode == 'random':
             return np.array(random.sample(range(len(df)), self.add_size))
         elif self.add_mode == 'cluster':
-            if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
-                search_size = len(df)
-            else:
-                search_size = self.search_size
-            search_idx = sorted(df[target].nlargest(search_size).index)
-            search_graphs_list = df[df.index.isin(search_idx)]['graph']
-            add_idx = self._find_add_idx_cluster(search_graphs_list)
+            search_idx = self.__get_search_idx(df, target)
+            search_K = self.__get_gram_matrix(df[df.index.isin(search_idx)])
+            add_idx = self._find_add_idx_cluster(search_K)
             return np.array(search_idx)[add_idx]
         elif self.add_mode == 'nlargest':
             return df[target].nlargest(self.add_size).index
         elif self.add_mode == 'threshold':
             # threshold is predetermined by inspection, set in the initialization stage
-            search_idx = sorted(df[df[target] > self.threshold].index)
-            search_graphs_list = df[df.index.isin(search_idx)]['graph']
-            if len(search_graphs_list) < self.search_size:  # use traditional cluster
-                if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
-                    search_size = len(df)
-                else:
-                    search_size = self.search_size
-                search_idx = sorted(df[target].nlargest(search_size).index)
-                search_graphs_list = df[df.index.isin(search_idx)]['graph']
-                add_idx = self._find_add_idx_cluster(search_graphs_list)
-                return np.array(search_idx)[add_idx]
-            add_idx = self._find_add_idx_cluster(search_graphs_list)
-            self.logger.write('train_size:%d,search_size:%d\n' % (self.current_size, len(search_idx)))
+            #threshold_idx = sorted(df[df[target] > self.threshold].index)
+            #df = df[df.index.isin(threshold_idx)]
+            df = df[df[target] > self.threshold]
+            search_idx = self.__get_search_idx(df, target)
+            search_K = self.__get_gram_matrix(df[df.index.isin(search_idx)])
+            add_idx = self._find_add_idx_cluster(search_K)
             return np.array(search_idx)[add_idx]
         else:
             raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
+
+    def __get_search_idx(self, df, target):
+        if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
+            search_size = len(df)
+        else:
+            search_size = self.search_size
+        return sorted(df[target].nlargest(search_size).index)
+
+    def __get_gram_matrix(self, df):
+        if not self.kernel_config.T:
+            X = df.graph
+            kernel = self.kernel_mol
+        elif self.learning_mode == 'supervised':
+            X = df.drop(columns='mse')
+            kernel = self.kernel_config.kernel
+        elif self.learning_mode == 'unsupervised':
+            X = df.drop(columns='std')
+            kernel = self.kernel_config.kernel
+        return kernel(X)
 
     def _find_add_idx_cluster_old(self, X):
         ''' find representative samples from a pool using clustering method
@@ -270,12 +278,11 @@ class ActiveLearner:
                    range(self.add_size)]  # find min-in-cluster-distance associated idx
         return add_idx
 
-    def _find_add_idx_cluster(self, X):
+    def _find_add_idx_cluster(self, gram_matrix):
         ''' find representative samples from a pool using clustering method
         :X: a list of graphs
         :add_sample_size: add sample size
         :return: list of idx
-        '''
         # train SpectralClustering on X
         if len(X) < self.add_size:
             return [i for i in range(len(X))]
@@ -283,6 +290,7 @@ class ActiveLearner:
             gram_matrix = self.kernel_config.kernel.kernel_list[0](X)
         else:
             gram_matrix = self.kernel_config.kernel(X)
+        '''
         embedding = SpectralEmbedding(n_components=self.add_size, affinity='precomputed').fit_transform(gram_matrix)
         cluster_result = KMeans(n_clusters=self.add_size, random_state=0).fit_predict(embedding)
         # find all center of clustering
