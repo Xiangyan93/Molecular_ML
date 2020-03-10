@@ -24,7 +24,7 @@ class ActiveLearner:
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
                  threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
-                 optimizer="fmin_l_bfgs_b", seed=233):
+                 optimizer="fmin_l_bfgs_b", stride=20, seed=233):
         ''' df must have the 'graph' column '''
         self.train_X = train_X
         self.train_Y = train_Y
@@ -51,6 +51,7 @@ class ActiveLearner:
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
         self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': []})
         self.group_by_mol = group_by_mol
+        self.stride = stride
         self.seed = seed
         np.random.seed(seed)
         if group_by_mol:
@@ -330,13 +331,14 @@ class ActiveLearner:
         print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
-        out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
-        out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
-        if debug:
-            train_x, train_y = self.__get_train_X_y()
-            y_pred, y_std = self.model.predict(train_x, return_std=True)
-            out = pd.DataFrame({'#sim': train_y, 'predict': y_pred, 'uncertainty': y_std})
-            out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+        if self.current_size % self.stride == 0:
+            out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
+            out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+            if debug:
+                train_x, train_y = self.__get_train_X_y()
+                y_pred, y_std = self.model.predict(train_x, return_std=True)
+                out = pd.DataFrame({'#sim': train_y, 'predict': y_pred, 'uncertainty': y_std})
+                out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep=' ', index=False)
 
     def get_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \
