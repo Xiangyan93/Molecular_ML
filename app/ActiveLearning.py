@@ -23,8 +23,8 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
-                 threshold, name, nystrom_size=1000, test_X=None, test_Y=None, group_by_mol=False, random_init=False,
-                 optimizer="fmin_l_bfgs_b"):
+                 threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
+                 optimizer="fmin_l_bfgs_b", seed=233):
         ''' df must have the 'graph' column '''
         self.train_X = train_X
         self.train_Y = train_Y
@@ -49,8 +49,10 @@ class ActiveLearner:
 
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
-        self.plotout = pd.DataFrame({'size': [], 'mse': [], 'r2': [], 'ex-var': [], 'alpha': [], 'K_core': []})
+        self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': []})
         self.group_by_mol = group_by_mol
+        self.seed = seed
+        np.random.seed(seed)
         if group_by_mol:
             self.unique_graphs = self.train_X.graph.unique()
             if random_init:
@@ -96,9 +98,9 @@ class ActiveLearner:
             untrain_y = self.train_Y[~self.train_Y.index.isin(self.train_idx)]
         return untrain_x, untrain_y
 
-    def train(self, alpha=0.5, seed=233):
+    def train(self, alpha=0.5):
         # continue needs to be added soon
-        np.random.seed(seed)
+        np.random.seed(self.seed)
         print('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('Start Training, training size = %i:\n' % self.current_size)
@@ -106,14 +108,14 @@ class ActiveLearner:
         train_x, train_y = self.__get_train_X_y()
 
         if train_x.shape[0] <= self.nystrom_size:
-            model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=0,
+            model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
             print('hyperparameter: ', model.kernel_.hyperparameters)
         else:
             kernel = self.kernel_config.kernel
             for i in range(Config.NystromPara.loop):
-                model = NystromGaussianProcessRegressor(kernel=kernel, random_state=0, optimizer=self.optimizer,
+                model = NystromGaussianProcessRegressor(kernel=kernel, random_state=self.seed, optimizer=self.optimizer,
                                                         normalize_y=True, alpha=alpha,
                                                         off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                         core_max=Config.NystromPara.core_max
@@ -175,6 +177,7 @@ class ActiveLearner:
                 self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'random':
+            np.random.seed(self.seed)
             if self.group_by_mol:
                 untrain_graphs = untrain_x.graph.unique()
                 if untrain_graphs.size < self.add_size:
@@ -210,34 +213,42 @@ class ActiveLearner:
         if self.add_mode == 'random':
             return np.array(random.sample(range(len(df)), self.add_size))
         elif self.add_mode == 'cluster':
-            if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
-                search_size = len(df)
-            else:
-                search_size = self.search_size
-            search_idx = sorted(df[target].nlargest(search_size).index)
-            search_graphs_list = df[df.index.isin(search_idx)]['graph']
-            add_idx = self._find_add_idx_cluster(search_graphs_list)
+            search_idx = self.__get_search_idx(df, target)
+            search_K = self.__get_gram_matrix(df[df.index.isin(search_idx)])
+            add_idx = self._find_add_idx_cluster(search_K)
             return np.array(search_idx)[add_idx]
         elif self.add_mode == 'nlargest':
             return df[target].nlargest(self.add_size).index
         elif self.add_mode == 'threshold':
             # threshold is predetermined by inspection, set in the initialization stage
-            search_idx = sorted(df[df[target] > self.threshold].index)
-            search_graphs_list = df[df.index.isin(search_idx)]['graph']
-            if len(search_graphs_list) < self.search_size:  # use traditional cluster
-                if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
-                    search_size = len(df)
-                else:
-                    search_size = self.search_size
-                search_idx = sorted(df[target].nlargest(search_size).index)
-                search_graphs_list = df[df.index.isin(search_idx)]['graph']
-                add_idx = self._find_add_idx_cluster(search_graphs_list)
-                return np.array(search_idx)[add_idx]
-            add_idx = self._find_add_idx_cluster(search_graphs_list)
-            self.logger.write('train_size:%d,search_size:%d\n' % (self.current_size, len(search_idx)))
+            #threshold_idx = sorted(df[df[target] > self.threshold].index)
+            #df = df[df.index.isin(threshold_idx)]
+            df = df[df[target] > self.threshold]
+            search_idx = self.__get_search_idx(df, target)
+            search_K = self.__get_gram_matrix(df[df.index.isin(search_idx)])
+            add_idx = self._find_add_idx_cluster(search_K)
             return np.array(search_idx)[add_idx]
         else:
             raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
+
+    def __get_search_idx(self, df, target):
+        if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
+            search_size = len(df)
+        else:
+            search_size = self.search_size
+        return sorted(df[target].nlargest(search_size).index)
+
+    def __get_gram_matrix(self, df):
+        if not self.kernel_config.T:
+            X = df.graph
+            kernel = self.kernel_mol
+        elif self.learning_mode == 'supervised':
+            X = df.drop(columns='mse')
+            kernel = self.kernel_config.kernel
+        elif self.learning_mode == 'unsupervised':
+            X = df.drop(columns='std')
+            kernel = self.kernel_config.kernel
+        return kernel(X)
 
     def _find_add_idx_cluster_old(self, X):
         ''' find representative samples from a pool using clustering method
@@ -267,12 +278,11 @@ class ActiveLearner:
                    range(self.add_size)]  # find min-in-cluster-distance associated idx
         return add_idx
 
-    def _find_add_idx_cluster(self, X):
+    def _find_add_idx_cluster(self, gram_matrix):
         ''' find representative samples from a pool using clustering method
         :X: a list of graphs
         :add_sample_size: add sample size
         :return: list of idx
-        '''
         # train SpectralClustering on X
         if len(X) < self.add_size:
             return [i for i in range(len(X))]
@@ -280,6 +290,7 @@ class ActiveLearner:
             gram_matrix = self.kernel_config.kernel.kernel_list[0](X)
         else:
             gram_matrix = self.kernel_config.kernel(X)
+        '''
         embedding = SpectralEmbedding(n_components=self.add_size, affinity='precomputed').fit_transform(gram_matrix)
         cluster_result = KMeans(n_clusters=self.add_size, random_state=0).fit_predict(embedding)
         # find all center of clustering
@@ -300,7 +311,7 @@ class ActiveLearner:
         else:
             return 0
 
-    def evaluate(self):
+    def evaluate(self, debug=False):
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
             Y = self.test_Y
@@ -318,9 +329,14 @@ class ActiveLearner:
 
         print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        self.plotout.loc[self.current_size] = self.current_size, mse, r2, ex_var, self.alpha, self.__get_K_core_length()
-        out = pd.DataFrame({'sim': Y, 'predict': y_pred, 'uncertainty': y_std})
+        self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
+        out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
         out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+        if debug:
+            train_x, train_y = self.__get_train_X_y()
+            y_pred, y_std = self.model.predict(train_x, return_std=True)
+            out = pd.DataFrame({'#sim': train_y, 'predict': y_pred, 'uncertainty': y_std})
+            out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep=' ', index=False)
 
     def get_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \

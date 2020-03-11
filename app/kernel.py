@@ -332,7 +332,7 @@ class MultipleKernel:
 class KernelConfig(PropertyConfig):
     def __init__(self, save_mem=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.property in ['tc', 'cp']:
+        if self.property in []:
             NORMALIZED = False
         else:
             NORMALIZED = True

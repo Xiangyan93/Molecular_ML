@@ -9,6 +9,10 @@ parser.add_argument('--name', type=str, help='name for plotting', default='defau
 parser.add_argument('--violin', help='violin plot', action='store_true')
 parser.add_argument('--violin_step', type=int, help='violin step', default=100)
 parser.add_argument('--violin_initial',type=int, help='violin initial size', default=100)
+parser.add_argument('--prediction', help='predicted vs. actual line',  action='store_true' )
+parser.add_argument('--train_size', type=str,  help='plot train size', default='100')
+parser.add_argument('--error', help='predicted vs. actual line error bar',  action='store_true' )
+parser.add_argument('--plot_size', help='plot_size, 0 means all, n means n',  type=int, default=100 )
 
 def plot_violin(opt):
     ''' 
@@ -60,10 +64,31 @@ def plot_violin(opt):
     fig.savefig(os.path.join('result-%s' % opt.name, 'plot' ,'violen_plot.png'))
     #fig.legend()
 
+def plot_prediction_line(opt):
+    df = pd.read_csv(os.path.join('result-%s' % opt.name, '%s.log' % opt.train_size), sep=' ')
+    if opt.plot_size != 0:
+        df = df.sample(n=opt.plot_size)
+    plt.figure(figsize=(8, 8))
+    if opt.error:
+        plt.errorbar(df['#sim'], df['predict'], yerr=df['uncertainty'], fmt= '.', alpha=0.2 )
+    plt.scatter(df['#sim'], df['predict'], s=1)
+    plt.plot( (min(df['#sim']), max(df['#sim'])), (min(df['#sim']), max(df['#sim'])), c='grey' )
+    plt.plot( (min(df['#sim']), max(df['#sim'])), (min(df['#sim']) * 0.95, max(df['#sim']) * 0.95), c='gold', label='5%error line' )
+    plt.plot( (min(df['#sim']), max(df['#sim'])), (min(df['#sim']) * 1.05, max(df['#sim']) * 1.05), c='gold', label='5%error line' )
+
+    plt.xlabel('simu')
+    plt.ylabel('pred')
+    plt.legend()
+
+    if not os.path.exists(os.path.join('result-%s' % opt.name, 'plot')):
+        os.mkdir(os.path.join('result-%s' % opt.name, 'plot'))
+    plt.savefig(os.path.join('result-%s' % opt.name, 'plot' ,'prediction-%s.png' % opt.train_size))
 def main():
     opt = parser.parse_args()
     if opt.violin:
         plot_violin(opt)
+    if opt.prediction:
+        plot_prediction_line(opt)
 
 if __name__ == '__main__':
     main()
