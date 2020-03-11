@@ -42,7 +42,7 @@ class Config:
         }
 
         ACTIVE_LEARNING_Para = {
-            'ratio': None
+            'ratio': 0.9
         }
 
     class VectorFingerprint:
