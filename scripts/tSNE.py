@@ -34,7 +34,7 @@ def main():
             print('embedding')
             from app.kernel import get_XY_from_file
             # get graphs
-            X, Y = get_XY_from_file(opt.input, kernel_config, TPextreme=opt.TPextreme)
+            X, Y, remove_smiles = get_XY_from_file(opt.input, kernel_config, TPextreme=opt.TPextreme)
             R = kernel_config.kernel(X)
 
             d = R.diagonal() ** -0.5

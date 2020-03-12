@@ -131,6 +131,17 @@ def smiles2graph(smiles):
             g.edges[ij]['conjugated'] = bond.GetIsConjugated()
             g.edges[ij]['stereo'] = bond.GetStereo()
             g.edges[ij]['inring'] = bond.IsInRing()
+            ringinfo = []
+            for i in range(3, 15):
+                if bond.IsInRingSize(i):
+                    ringinfo.append(i)
+
+            if len(ringinfo) == 0:
+                g.edges[ij]['ring_number'] = 0
+                g.edges[ij]['smallest_ring'] = 0
+            else:
+                g.edges[ij]['ring_number'] = len(ringinfo)
+                g.edges[ij]['smallest_ring'] = ringinfo[0]
 
         # return g
         graph = HashGraph.from_networkx_(g, smiles)
