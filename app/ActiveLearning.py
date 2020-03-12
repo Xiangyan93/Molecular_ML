@@ -24,7 +24,7 @@ class ActiveLearner:
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
                  threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
-                 optimizer="fmin_l_bfgs_b", seed=233):
+                 optimizer="fmin_l_bfgs_b", stride=20, seed=233, nystrom_active=False):
         ''' df must have the 'graph' column '''
         self.train_X = train_X
         self.train_Y = train_Y
@@ -44,13 +44,16 @@ class ActiveLearner:
         self.result_dir = 'result-%s' % name
         if not os.path.exists(self.result_dir):
             os.mkdir(self.result_dir)
+        self.nystrom_active = nystrom_active
         self.nystrom_size = nystrom_size
         self.full_size = 0
 
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
         self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': []})
+        self.nystrom_out = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': []})
         self.group_by_mol = group_by_mol
+        self.stride = stride
         self.seed = seed
         np.random.seed(seed)
         if group_by_mol:
@@ -106,8 +109,8 @@ class ActiveLearner:
         self.logger.write('Start Training, training size = %i:\n' % self.current_size)
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x, train_y = self.__get_train_X_y()
-
-        if train_x.shape[0] <= self.nystrom_size:
+        self.train_x = train_x
+        if train_x.shape[0] <= self.nystrom_size or self.nystrom_active:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
@@ -139,7 +142,12 @@ class ActiveLearner:
 
         untrain_x, untrain_y = self.__get_untrain_X_y()
         if self.learning_mode == 'supervised':
-            y_pred = self.model.predict(untrain_x)
+            if self.nystrom_active:
+                y_pred = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
+                                                                          self.train_X, untrain_x, self.train_Y,
+                                                                          alpha=self.alpha)
+            else:
+                y_pred = self.model.predict(untrain_x)
             if untrain_x.__class__ == pd.Series:
                 untrain_x = pd.DataFrame({untrain_x.name: untrain_x})
             untrain_x.loc[:, 'mse'] = abs(y_pred - untrain_y)
@@ -158,7 +166,12 @@ class ActiveLearner:
                 self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'unsupervised':
-            y_pred, y_std = self.model.predict(untrain_x, return_std=True)
+            if self.nystrom_active:
+                y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
+                                                                                 self.train_X, X, self.train_Y,
+                                                                                 alpha=self.alpha, return_std=True)
+            else:
+                y_pred, y_std = self.model.predict(untrain_x, return_std=True)
             if untrain_x.__class__ == pd.Series:
                 untrain_x = pd.DataFrame({untrain_x.name: untrain_x})
             untrain_x.loc[:, 'std'] = y_std
@@ -330,15 +343,31 @@ class ActiveLearner:
         print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
-        out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
-        out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
-        if debug:
-            train_x, train_y = self.__get_train_X_y()
-            y_pred, y_std = self.model.predict(train_x, return_std=True)
-            out = pd.DataFrame({'#sim': train_y, 'predict': y_pred, 'uncertainty': y_std})
-            out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+        if self.current_size % self.stride == 0:
+            out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
+            out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+            if debug:
+                train_x, train_y = self.__get_train_X_y()
+                y_pred, y_std = self.model.predict(train_x, return_std=True)
+                out = pd.DataFrame({'#sim': train_y, 'predict': y_pred, 'uncertainty': y_std})
+                out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+
+        if self.nystrom_active:
+            y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
+                                                                             self.train_X, X, self.train_Y,
+                                                                             alpha=self.alpha, return_std=True)
+            # R2
+            r2 = r2_score(y_pred, Y)
+            # MSE
+            mse = mean_squared_error(y_pred, Y)
+            # variance explained
+            ex_var = explained_variance_score(y_pred, Y)
+            self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha
 
     def get_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \
             to_csv('%s/%s-%s-%s-%d.out' % (self.result_dir, self.kernel_config.property, self.learning_mode,
                                            self.add_mode, self.add_size), sep=' ', index=False)
+        if self.nystrom_active:
+            self.nystrom_out.reset_index().drop(columns='index'). \
+                to_csv('%s/nystrom_active.out' % self.result_dir, sep=' ', index=False)

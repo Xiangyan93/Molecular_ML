@@ -32,14 +32,14 @@ import pandas as pd
 from app.kernel import get_core_idx, get_subset_by_clustering
 
 
-def Nystrom_solve(K_core, K_cross):
+def Nystrom_solve(K_core, K_cross, alpha=1e-7):
     Wcc, Ucc = np.linalg.eigh(K_core)
     mask = Wcc > 0  # !!!
     Wcc = Wcc[mask]  # !!!
     Ucc = Ucc[:, mask]  # !!!
     Kccinv = (Ucc / Wcc).dot(Ucc.T)
     Uxx, Sxx, Vxx = np.linalg.svd(K_cross.T.dot((Ucc / Wcc ** 0.5).dot(Ucc.T)), full_matrices=False)
-    mask = Sxx > 1e-7  # !!!
+    mask = Sxx > alpha  # !!!
     Uxx = Uxx[:, mask]  # !!!
     Sxx = Sxx[mask]  # !!!
     Kxx_ihalf = Uxx / Sxx
@@ -193,8 +193,6 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         self.core_max = core_max
 
     def get_Nystrom_K(self, X, kernel, eval_gradient=False):
-        np.random.seed(1)
-
         core_X = self.get_core_X(X, kernel, off_diagonal_cutoff=self.off_diagonal_cutoff, core_max=self.core_max)
         self.core_X = core_X
         # print(rand_idx[:n_components], rand_idx[n_components:])
@@ -206,6 +204,34 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             K_core = kernel(core_X)
             K_cross = kernel(core_X, X)
             return K_core, K_cross
+
+    @staticmethod
+    def _nystrom_predict(kernel, C, X, Y, y, alpha=1e-7, return_std=False, return_cov=False, y_shift=0.0):
+        Kcc = kernel(C)
+        Kcx = kernel(C, X)
+        Kcc[np.diag_indices_from(Kcc)] += alpha
+        Kccinv, Kxx_ihalf = Nystrom_solve(Kcc, Kcx, alpha=alpha)
+        Kyc = kernel(Y, C)
+        left = Kyc.dot(Kccinv).dot(Kcx.dot(Kxx_ihalf))  # y*c
+        right = Kxx_ihalf.T.dot(y)  # c*o
+        y_mean = left.dot(right) + y_shift
+        print(y_mean)
+        if return_cov:
+            y_cov = kernel(Y) - left.dot(left.T)  # Line 6
+            return y_mean, y_cov
+        elif return_std:
+            y_var = kernel.diag(Y)
+            y_var -= np.einsum("ij,ij->i", left, left)
+            y_var_negative = y_var < 0
+            if np.any(y_var_negative):
+                print('%i predicted variances smaller than 0' % len(y_var[y_var_negative]))
+                print('They are: ', y_var[y_var_negative])
+                print('most negative value: %f' % min(y_var[y_var_negative]))
+                warnings.warn("Predicted variances smaller than 0. Setting those variances to 0.")
+                y_var[y_var_negative] = 0.0
+            return y_mean, np.sqrt(y_var)
+        else:
+            return y_mean
 
     def nystrom_predict(self, X, return_std=False, return_cov=False):
         if return_std and return_cov:
@@ -234,36 +260,13 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             else:
                 return y_mean
         else:  # Predict based on GP posterior
-            K_core, K_cross = self.get_Nystrom_K(self.full_X, self.kernel_)
-            K_core[np.diag_indices_from(K_core)] += self.alpha
-            Kccinv, Kxx_ihalf = Nystrom_solve(K_core, K_cross)
-            Kyc = self.kernel_(X, self.core_X)
-            left = Kyc.dot(Kccinv).dot(K_cross.dot(Kxx_ihalf))  # y*c
-            right = Kxx_ihalf.T.dot(self.full_y)  # c*o
-            y_mean = left.dot(right)
-            y_mean = self._y_train_mean_full + y_mean  # undo normal.
-            if return_cov:
-                y_cov = self.kernel_(X) - left.dot(left.T)  # Line 6
-                return y_mean, y_cov
-            elif return_std:
-                # Compute variance of predictive distribution
-                y_var = self.kernel_.diag(X)
-                y_var -= np.einsum("ij,ij->i", left, left)
-                # Check if any of the variances is negative because of
-                # numerical issues. If yes: set the variance to 0.
-                y_var_negative = y_var < 0
-                if np.any(y_var_negative):
-                    print('%i predicted variances smaller than 0' % len(y_var[y_var_negative]))
-                    print('They are: ', y_var[y_var_negative])
-                    print('most negative value: %f' % min(y_var[y_var_negative]))
-                    warnings.warn("Predicted variances smaller than 0. Setting those variances to 0.")
-                    y_var[y_var_negative] = 0.0
-                return y_mean, np.sqrt(y_var)
-            else:
-                return y_mean
+            self.core_X = self.get_core_X(self.full_X, self.kernel_, off_diagonal_cutoff=self.off_diagonal_cutoff,
+                                          core_max=self.core_max)
+            return self._nystrom_predict(self.kernel_, self.core_X, self.full_X, X, self.full_y, alpha=self.alpha,
+                                         return_std=return_std, return_cov=return_cov, y_shift=self._y_train_mean_full)
 
     @staticmethod
-    def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='suggest'):
+    def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='random'):
         C_idx = get_core_idx(X, kernel, off_diagonal_cutoff=off_diagonal_cutoff, core_max=core_max, method=method)
         print('%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), X.shape[0]))
         X = X[X.index.isin(C_idx)] if X.__class__ == pd.DataFrame else X[C_idx]
