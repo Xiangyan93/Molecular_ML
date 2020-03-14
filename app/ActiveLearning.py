@@ -344,7 +344,11 @@ class ActiveLearner:
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
         if self.current_size % self.stride == 0:
-            out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
+            if self.group_by_mol:
+                istrain = self.train_X.graph.isin(self.train_graphs)
+            else:
+                istrain = self.train_X.index.isin(self.train_idx)
+            out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std, 'train': istrain})
             out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
             if debug:
                 train_x, train_y = self.__get_train_X_y()

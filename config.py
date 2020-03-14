@@ -12,7 +12,7 @@ class Config:
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
         v = 0.25
-        s = 1.5
+        s = 1.0
         knode = TensorProduct(aromatic=KroneckerDelta(v),
                               #charge=SquareExponential(1.0),
                               element=KroneckerDelta(v),
@@ -22,8 +22,8 @@ class Config:
                               stereo=KroneckerDelta(v),
                               conjugated=KroneckerDelta(v),
                               smallest_ring=KroneckerDelta(v),
-                              ring_number=KroneckerDelta(v)
                               )
+
         stop_prob = 0.05
         stop_prob_bound = (1e-4, 1.0)
         T = 500
