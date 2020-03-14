@@ -32,14 +32,14 @@ import pandas as pd
 from app.kernel import get_core_idx, get_subset_by_clustering
 
 
-def Nystrom_solve(K_core, K_cross, alpha=1e-7):
+def Nystrom_solve(K_core, K_cross, eigen_cutoff=1e-4):
     Wcc, Ucc = np.linalg.eigh(K_core)
-    mask = Wcc > 0  # !!!
+    mask = Wcc > eigen_cutoff * max(Wcc)# alpha  # !!!
     Wcc = Wcc[mask]  # !!!
     Ucc = Ucc[:, mask]  # !!!
     Kccinv = (Ucc / Wcc).dot(Ucc.T)
     Uxx, Sxx, Vxx = np.linalg.svd(K_cross.T.dot((Ucc / Wcc ** 0.5).dot(Ucc.T)), full_matrices=False)
-    mask = Sxx > alpha  # !!!
+    mask = Sxx > eigen_cutoff * max(Sxx)  # !!!
     Uxx = Uxx[:, mask]  # !!!
     Sxx = Sxx[mask]  # !!!
     Kxx_ihalf = Uxx / Sxx
@@ -210,12 +210,11 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         Kcc = kernel(C)
         Kcx = kernel(C, X)
         Kcc[np.diag_indices_from(Kcc)] += alpha
-        Kccinv, Kxx_ihalf = Nystrom_solve(Kcc, Kcx, alpha=alpha)
+        Kccinv, Kxx_ihalf = Nystrom_solve(Kcc, Kcx, eigen_cutoff=alpha)
         Kyc = kernel(Y, C)
         left = Kyc.dot(Kccinv).dot(Kcx.dot(Kxx_ihalf))  # y*c
         right = Kxx_ihalf.T.dot(y)  # c*o
         y_mean = left.dot(right) + y_shift
-        print(y_mean)
         if return_cov:
             y_cov = kernel(Y) - left.dot(left.T)  # Line 6
             return y_mean, y_cov
@@ -372,7 +371,7 @@ class NystromTest(NystromPreGaussianProcessRegressor):
         if y_train.ndim == 1:
             y_train = y_train[:, np.newaxis]
 
-        Kccinv, Kxx_ihalf = Nystrom_solve(K_core, K_cross)
+        Kccinv, Kxx_ihalf = Nystrom_solve(K_core, K_cross, eigen_cutoff=self.alpha)
         alpha = Kxx_ihalf.dot(Kxx_ihalf.T.dot(y_train))
 
         # Compute log-likelihood (compare line 7)
