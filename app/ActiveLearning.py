@@ -134,6 +134,13 @@ class ActiveLearner:
         else:
             return False
 
+    @staticmethod
+    def __to_df(x):
+        if x.__class__ == pd.Series:
+            return pd.DataFrame({x.name: x})
+        else:
+            return x
+
     def add_samples(self):
         import warnings
         warnings.filterwarnings("ignore")
@@ -148,8 +155,7 @@ class ActiveLearner:
                                                                           alpha=self.alpha)
             else:
                 y_pred = self.model.predict(untrain_x)
-            if untrain_x.__class__ == pd.Series:
-                untrain_x = pd.DataFrame({untrain_x.name: untrain_x})
+            untrain_x = self.__to_df(untrain_x)
             untrain_x.loc[:, 'mse'] = abs(y_pred - untrain_y)
             if self.group_by_mol:
                 group = untrain_x.groupby('graph')
@@ -348,8 +354,18 @@ class ActiveLearner:
                 istrain = self.train_X.graph.isin(self.train_graphs)
             else:
                 istrain = self.train_X.index.isin(self.train_idx)
-            out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std, 'train': istrain})
-            out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+
+            out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(Y-y_pred),
+                                'rel_dev': abs((Y-y_pred)/Y), 'train': istrain})
+            X = self.__to_df(X)
+
+            def get_smiles(graph):
+                return graph.smiles
+
+            X['smiles'] = X.graph.apply(get_smiles)
+            out = pd.concat([out, X.drop(columns='graph')], axis=1)
+            out.sort_values(by='rel_dev', ascending=False).\
+                to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
             if debug:
                 train_x, train_y = self.__get_train_X_y()
                 y_pred, y_std = self.model.predict(train_x, return_std=True)
