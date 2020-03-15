@@ -330,7 +330,7 @@ class ActiveLearner:
         else:
             return 0
 
-    def evaluate(self, debug=True):
+    def evaluate(self, debug=False):
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
             Y = self.test_Y
