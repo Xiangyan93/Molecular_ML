@@ -365,7 +365,7 @@ class ActiveLearner:
                 if istrain is not None:
                     out = pd.concat([out, pd.DataFrame({'train': istrain})], axis=1)
 
-                x['smiles'] = x.graph.apply(get_smiles)
+                x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
                 return pd.concat([out, x.drop(columns='graph')], axis=1)
 
             out = get_df(X, Y, y_pred, y_std, istrain=istrain)
