@@ -23,8 +23,8 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
-                 threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
-                 optimizer="fmin_l_bfgs_b", stride=20, seed=233, nystrom_active=False):
+                 threshold, name, nystrom_size=1000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
+                 optimizer="fmin_l_bfgs_b", stride=10, seed=233, nystrom_active=False):
         ''' df must have the 'graph' column '''
         self.train_X = train_X
         self.train_Y = train_Y
@@ -330,7 +330,7 @@ class ActiveLearner:
         else:
             return 0
 
-    def evaluate(self, debug=False):
+    def evaluate(self, debug=True):
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
             Y = self.test_Y
@@ -354,23 +354,30 @@ class ActiveLearner:
                 istrain = self.train_X.graph.isin(self.train_graphs)
             else:
                 istrain = self.train_X.index.isin(self.train_idx)
-
-            out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(Y-y_pred),
-                                'rel_dev': abs((Y-y_pred)/Y), 'train': istrain})
             X = self.__to_df(X)
 
             def get_smiles(graph):
                 return graph.smiles
 
-            X['smiles'] = X.graph.apply(get_smiles)
-            out = pd.concat([out, X.drop(columns='graph')], axis=1)
+            def get_df(x, y, y_pred, y_std, istrain=None):
+                out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
+                                    'rel_dev': abs((y - y_pred) / y)})
+                if istrain is not None:
+                    out = pd.concat([out, pd.DataFrame({'train': istrain})], axis=1)
+
+                x['smiles'] = x.graph.apply(get_smiles)
+                return pd.concat([out, x.drop(columns='graph')], axis=1)
+
+            out = get_df(X, Y, y_pred, y_std, istrain=istrain)
             out.sort_values(by='rel_dev', ascending=False).\
                 to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
             if debug:
                 train_x, train_y = self.__get_train_X_y()
                 y_pred, y_std = self.model.predict(train_x, return_std=True)
-                out = pd.DataFrame({'#sim': train_y, 'predict': y_pred, 'uncertainty': y_std})
-                out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+                out = get_df(train_x, train_y, y_pred, y_std)
+                out.sort_values(by='rel_dev', ascending=False). \
+                    to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
+                           float_format='%10.5f')
 
         if self.nystrom_active:
             y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
