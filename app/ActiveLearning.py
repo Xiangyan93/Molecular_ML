@@ -363,7 +363,6 @@ class ActiveLearner:
                                     'rel_dev': abs((y - y_pred) / y)})
                 if istrain is not None:
                     out = pd.concat([out, pd.DataFrame({'train': istrain})], axis=1)
-
                 x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
                 return pd.concat([out, x.drop(columns='graph')], axis=1)
 
@@ -373,6 +372,7 @@ class ActiveLearner:
             if debug:
                 train_x, train_y = self.__get_train_X_y()
                 y_pred, y_std = self.model.predict(train_x, return_std=True)
+                train_x = self.__to_df(train_x)
                 out = get_df(train_x, train_y, y_pred, y_std)
                 out.sort_values(by='rel_dev', ascending=False). \
                     to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
