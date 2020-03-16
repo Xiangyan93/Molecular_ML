@@ -29,6 +29,8 @@ def main():
     parser.add_argument('--threshold', type=float, help='std threshold', default=11)
     parser.add_argument('--group_by_mol', help='The training set will group based on molecules', action='store_true')
     parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
+    parser.add_argument('--nystrom_size', type=int, help='training set size start using Nystrom approximation.',
+                        default=3000)
     parser.add_argument('--nystrom_active', help='Active learning for core matrix in Nystrom approximation.',
                         action='store_true')
     opt = parser.parse_args()
@@ -46,7 +48,7 @@ def main():
     activelearner = ActiveLearner(train_X, train_Y, kernel_config, opt.learning_mode, opt.add_mode, opt.init_size,
                                   opt.add_size, opt.search_size, opt.threshold, opt.name, test_X=test_X, test_Y=test_Y,
                                   group_by_mol=opt.group_by_mol, optimizer=optimizer, seed=opt.seed,
-                                  nystrom_active=opt.nystrom_active)
+                                  nystrom_active=opt.nystrom_active, nystrom_size=opt.nystrom_size)
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
