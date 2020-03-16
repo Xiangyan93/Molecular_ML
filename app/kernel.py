@@ -265,7 +265,8 @@ class MultipleKernel:
             if i == 0:
                 diag = kernel.diag(Xi)
             else:
-                diag += kernel.diag(Xi)
+                if self.combined_rule == 'product':
+                    diag *= kernel.diag(Xi)
         return diag
 
     def is_stationary(self):
