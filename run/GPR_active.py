@@ -61,7 +61,8 @@ def main():
         if activelearner.stop_sign(opt.max_size):
             break
         activelearner.add_samples()
-    activelearner.get_training_plot()
+        if activelearner.current_size % 100 == 0:
+            activelearner.get_training_plot()
     print('\n***\tEnd: active learning\t***\n')
 
 
