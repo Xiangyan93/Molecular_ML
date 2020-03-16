@@ -349,24 +349,18 @@ class ActiveLearner:
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
         if self.current_size % self.stride == 0:
-            if self.group_by_mol:
-                istrain = self.train_X.graph.isin(self.train_graphs)
-            else:
-                istrain = self.train_X.index.isin(self.train_idx)
             _X = self.__to_df(X)
 
             def get_smiles(graph):
                 return graph.smiles
 
-            def get_df(x, y, y_pred, y_std, istrain=None):
+            def get_df(x, y, y_pred, y_std):
                 out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
                                     'rel_dev': abs((y - y_pred) / y)})
-                if istrain is not None:
-                    out = pd.concat([out, pd.DataFrame({'train': istrain})], axis=1)
                 x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
                 return pd.concat([out, x.drop(columns='graph')], axis=1)
 
-            out = get_df(_X, Y, y_pred, y_std, istrain=istrain)
+            out = get_df(_X, Y, y_pred, y_std)
             out.sort_values(by='rel_dev', ascending=False).\
                 to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
             if debug:
