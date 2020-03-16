@@ -30,8 +30,8 @@ class Config:
         P = 500
 
     class NystromPara:
-        off_diagonal_cutoff = 0.95
-        core_max = 1000
+        off_diagonal_cutoff = 0.9
+        core_max = 2000
         loop = 1
 
     class TrainingSetSelectRule:
@@ -43,7 +43,7 @@ class Config:
         }
 
         ACTIVE_LEARNING_Para = {
-            'ratio': 0.9
+            'ratio': 0.8
         }
 
     class VectorFingerprint:

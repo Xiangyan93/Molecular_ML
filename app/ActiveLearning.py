@@ -23,7 +23,7 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
-                 threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
+                 threshold, name, nystrom_size=1000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
                  optimizer="fmin_l_bfgs_b", stride=20, seed=233, nystrom_active=False):
         ''' df must have the 'graph' column '''
         self.train_X = train_X
@@ -110,6 +110,8 @@ class ActiveLearner:
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x, train_y = self.__get_train_X_y()
         self.train_x = train_x
+        print('unique molecule: %d' % len(train_x.graph.unique()))
+        print( 'training size: %d' % len(train_x) )
         if train_x.shape[0] <= self.nystrom_size or self.nystrom_active:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
@@ -348,7 +350,10 @@ class ActiveLearner:
                 istrain = self.train_X.graph.isin(self.train_graphs)
             else:
                 istrain = self.train_X.index.isin(self.train_idx)
-            out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std, 'train': istrain})
+            if self.test_X is not None and self.test_Y is not None:
+                out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
+            else:
+                out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std, 'train': istrain})
             out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
             if debug:
                 train_x, train_y = self.__get_train_X_y()
