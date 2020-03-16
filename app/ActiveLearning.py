@@ -174,7 +174,7 @@ class ActiveLearner:
         elif self.learning_mode == 'unsupervised':
             if self.nystrom_active:
                 y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
-                                                                                 self.train_X, X, self.train_Y,
+                                                                                 self.train_X, untrain_x, self.train_Y,
                                                                                  alpha=self.alpha, return_std=True)
             else:
                 y_pred, y_std = self.model.predict(untrain_x, return_std=True)
