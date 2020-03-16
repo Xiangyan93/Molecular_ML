@@ -335,8 +335,7 @@ class ActiveLearner:
             X = self.test_X
             Y = self.test_Y
         else:
-            X = self.train_X
-            Y = self.train_Y
+            X, Y = self.__get_untrain_X_y()
 
         y_pred, y_std = self.model.predict(X, return_std=True)
         # R2
@@ -354,7 +353,7 @@ class ActiveLearner:
                 istrain = self.train_X.graph.isin(self.train_graphs)
             else:
                 istrain = self.train_X.index.isin(self.train_idx)
-            X = self.__to_df(X)
+            _X = self.__to_df(X)
 
             def get_smiles(graph):
                 return graph.smiles
@@ -368,7 +367,7 @@ class ActiveLearner:
                 x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
                 return pd.concat([out, x.drop(columns='graph')], axis=1)
 
-            out = get_df(X, Y, y_pred, y_std, istrain=istrain)
+            out = get_df(_X, Y, y_pred, y_std, istrain=istrain)
             out.sort_values(by='rel_dev', ascending=False).\
                 to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
             if debug:
