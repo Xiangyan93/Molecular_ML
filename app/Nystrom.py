@@ -192,19 +192,6 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         self.off_diagonal_cutoff = off_diagonal_cutoff
         self.core_max = core_max
 
-    def get_Nystrom_K(self, X, kernel, eval_gradient=False):
-        core_X = self.get_core_X(X, kernel, off_diagonal_cutoff=self.off_diagonal_cutoff, core_max=self.core_max)
-        self.core_X = core_X
-        # print(rand_idx[:n_components], rand_idx[n_components:])
-        if eval_gradient:
-            K_core, K_core_gradient = kernel(core_X, eval_gradient=True)
-            K_cross, K_cross_gradient = kernel(core_X, X, eval_gradient=True)
-            return K_core, K_core_gradient, K_cross, K_cross_gradient
-        else:
-            K_core = kernel(core_X)
-            K_cross = kernel(core_X, X)
-            return K_core, K_cross
-
     @staticmethod
     def _nystrom_predict(kernel, C, X, Y, y, alpha=1e-7, return_std=False, return_cov=False, y_shift=0.0):
         Kcc = kernel(C)
@@ -259,8 +246,6 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             else:
                 return y_mean
         else:  # Predict based on GP posterior
-            self.core_X = self.get_core_X(self.full_X, self.kernel_, off_diagonal_cutoff=self.off_diagonal_cutoff,
-                                          core_max=self.core_max)
             return self._nystrom_predict(self.kernel_, self.core_X, self.full_X, X, self.full_y, alpha=self.alpha,
                                          return_std=return_std, return_cov=return_cov, y_shift=self._y_train_mean_full)
 
@@ -296,6 +281,9 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
                                      core_max=self.core_max)
         if super().fit_robust(X_, y_, core_predict=core_predict) is None:
             return None
+        if self.optimizer is not None:
+            X_, y_ = self.get_core_X(X, self.kernel_, off_diagonal_cutoff=self.off_diagonal_cutoff, y=y,
+                                     core_max=self.core_max)
         y = self.y_normalise(y)
         self.core_X = np.copy(X_)
         self.core_y = np.copy(y_)
@@ -448,3 +436,16 @@ class NystromTest(NystromPreGaussianProcessRegressor):
             raise
         self.alpha_ = cho_solve((self.L_, True), self.y_train_)  # Line 3
         return super().predict(X, return_std, return_cov)
+
+    def get_Nystrom_K(self, X, kernel, eval_gradient=False):
+        core_X = self.get_core_X(X, kernel, off_diagonal_cutoff=self.off_diagonal_cutoff, core_max=self.core_max)
+        self.core_X = core_X
+        # print(rand_idx[:n_components], rand_idx[n_components:])
+        if eval_gradient:
+            K_core, K_core_gradient = kernel(core_X, eval_gradient=True)
+            K_cross, K_cross_gradient = kernel(core_X, X, eval_gradient=True)
+            return K_core, K_core_gradient, K_cross, K_cross_gradient
+        else:
+            K_core = kernel(core_X)
+            K_cross = kernel(core_X, X)
+            return K_core, K_cross
