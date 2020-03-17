@@ -26,7 +26,7 @@ class Config:
 
         stop_prob = 0.05
         stop_prob_bound = (1e-4, 1.0)
-        T = 500
+        T = 100
         P = 500
 
     class NystromPara:

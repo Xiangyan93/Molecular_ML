@@ -24,7 +24,8 @@ class ActiveLearner:
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
                  threshold, name, nystrom_size=1000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
-                 optimizer="fmin_l_bfgs_b", stride=20, seed=233, nystrom_active=False):
+                 optimizer="fmin_l_bfgs_b", stride=10, seed=233, nystrom_active=False):
+
         ''' df must have the 'graph' column '''
         self.train_X = train_X
         self.train_Y = train_Y
@@ -136,6 +137,13 @@ class ActiveLearner:
         else:
             return False
 
+    @staticmethod
+    def __to_df(x):
+        if x.__class__ == pd.Series:
+            return pd.DataFrame({x.name: x})
+        else:
+            return x
+
     def add_samples(self):
         import warnings
         warnings.filterwarnings("ignore")
@@ -150,8 +158,7 @@ class ActiveLearner:
                                                                           alpha=self.alpha)
             else:
                 y_pred = self.model.predict(untrain_x)
-            if untrain_x.__class__ == pd.Series:
-                untrain_x = pd.DataFrame({untrain_x.name: untrain_x})
+            untrain_x = self.__to_df(untrain_x)
             untrain_x.loc[:, 'mse'] = abs(y_pred - untrain_y)
             if self.group_by_mol:
                 group = untrain_x.groupby('graph')
@@ -170,7 +177,7 @@ class ActiveLearner:
         elif self.learning_mode == 'unsupervised':
             if self.nystrom_active:
                 y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
-                                                                                 self.train_X, X, self.train_Y,
+                                                                                 self.train_X, untrain_x, self.train_Y,
                                                                                  alpha=self.alpha, return_std=True)
             else:
                 y_pred, y_std = self.model.predict(untrain_x, return_std=True)
@@ -326,13 +333,12 @@ class ActiveLearner:
         else:
             return 0
 
-    def evaluate(self, debug=False):
+    def evaluate(self, debug=True):
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
             Y = self.test_Y
         else:
-            X = self.train_X
-            Y = self.train_Y
+            X, Y = self.__get_untrain_X_y()
 
         y_pred, y_std = self.model.predict(X, return_std=True)
         # R2
@@ -350,16 +356,32 @@ class ActiveLearner:
                 istrain = self.train_X.graph.isin(self.train_graphs)
             else:
                 istrain = self.train_X.index.isin(self.train_idx)
-            if self.test_X is not None and self.test_Y is not None:
-                out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std})
-            else:
-                out = pd.DataFrame({'#sim': Y, 'predict': y_pred, 'uncertainty': y_std, 'train': istrain})
-            out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+                
+            _X = self.__to_df(X)
+
+            def get_smiles(graph):
+                return graph.smiles
+
+            def get_df(x, y, y_pred, y_std, istrain=None):
+                out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
+                                    'rel_dev': abs((y - y_pred) / y)})
+                if istrain is not None:
+                    out = pd.concat([out, pd.DataFrame({'train': istrain})], axis=1)
+                x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
+                return pd.concat([out, x.drop(columns='graph')], axis=1)
+
+            out = get_df(_X, Y, y_pred, y_std, istrain=istrain)
+            out.sort_values(by='rel_dev', ascending=False).\
+                to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
+
             if debug:
                 train_x, train_y = self.__get_train_X_y()
                 y_pred, y_std = self.model.predict(train_x, return_std=True)
-                out = pd.DataFrame({'#sim': train_y, 'predict': y_pred, 'uncertainty': y_std})
-                out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep=' ', index=False)
+                train_x = self.__to_df(train_x)
+                out = get_df(train_x, train_y, y_pred, y_std)
+                out.sort_values(by='rel_dev', ascending=False). \
+                    to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
+                           float_format='%10.5f')
 
         if self.nystrom_active:
             y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
