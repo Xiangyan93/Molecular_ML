@@ -111,8 +111,8 @@ class ActiveLearner:
         train_x, train_y = self.__get_train_X_y()
         self.train_x = train_x
         self.train_y = train_y
-        print('unique molecule: %d' % len(train_x.graph.unique()))
-        print( 'training size: %d' % len(train_x) )
+        print('unique molecule: %d' % len(self.__to_df(train_x).graph.unique()))
+        print('training size: %d' % len(train_x))
         if train_x.shape[0] <= self.nystrom_size or self.nystrom_active:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
