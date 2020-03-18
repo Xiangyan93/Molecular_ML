@@ -25,6 +25,7 @@ class ActiveLearner:
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
                  threshold, name, nystrom_size=1000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
                  optimizer="fmin_l_bfgs_b", stride=10, seed=233, nystrom_active=False):
+
         ''' df must have the 'graph' column '''
         self.train_X = train_X
         self.train_Y = train_Y
@@ -110,6 +111,8 @@ class ActiveLearner:
         train_x, train_y = self.__get_train_X_y()
         self.train_x = train_x
         self.train_y = train_y
+        print('unique molecule: %d' % len(train_x.graph.unique()))
+        print( 'training size: %d' % len(train_x) )
         if train_x.shape[0] <= self.nystrom_size or self.nystrom_active:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
@@ -368,6 +371,7 @@ class ActiveLearner:
             out = get_df(_X, Y, y_pred, y_std)
             out.sort_values(by='rel_dev', ascending=False).\
                 to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
+
             if debug:
                 train_x, train_y = self.train_x, self.train_y
                 if self.nystrom_active:
