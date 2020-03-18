@@ -52,7 +52,6 @@ class ActiveLearner:
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
         self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': []})
-        self.nystrom_out = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': []})
         self.group_by_mol = group_by_mol
         self.stride = stride
         self.seed = seed
@@ -111,6 +110,7 @@ class ActiveLearner:
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x, train_y = self.__get_train_X_y()
         self.train_x = train_x
+        self.train_y = train_y
         print('unique molecule: %d' % len(train_x.graph.unique()))
         print( 'training size: %d' % len(train_x) )
         if train_x.shape[0] <= self.nystrom_size or self.nystrom_active:
@@ -340,7 +340,12 @@ class ActiveLearner:
         else:
             X, Y = self.__get_untrain_X_y()
 
-        y_pred, y_std = self.model.predict(X, return_std=True)
+        if self.nystrom_active:
+            y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
+                                                                             self.train_X, X, self.train_Y,
+                                                                             alpha=self.alpha, return_std=True)
+        else:
+            y_pred, y_std = self.model.predict(X, return_std=True)
         # R2
         r2 = r2_score(y_pred, Y)
         # MSE
@@ -352,53 +357,37 @@ class ActiveLearner:
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
         if self.current_size % self.stride == 0:
-            if self.group_by_mol:
-                istrain = self.train_X.graph.isin(self.train_graphs)
-            else:
-                istrain = self.train_X.index.isin(self.train_idx)
-                
             _X = self.__to_df(X)
 
             def get_smiles(graph):
                 return graph.smiles
 
-            def get_df(x, y, y_pred, y_std, istrain=None):
+            def get_df(x, y, y_pred, y_std):
                 out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
                                     'rel_dev': abs((y - y_pred) / y)})
-                if istrain is not None:
-                    out = pd.concat([out, pd.DataFrame({'train': istrain})], axis=1)
                 x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
                 return pd.concat([out, x.drop(columns='graph')], axis=1)
 
-            out = get_df(_X, Y, y_pred, y_std, istrain=istrain)
+            out = get_df(_X, Y, y_pred, y_std)
             out.sort_values(by='rel_dev', ascending=False).\
                 to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
 
             if debug:
-                train_x, train_y = self.__get_train_X_y()
-                y_pred, y_std = self.model.predict(train_x, return_std=True)
+                train_x, train_y = self.train_x, self.train_y
+                if self.nystrom_active:
+                    y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, train_x,
+                                                                                     self.train_X, train_x, self.train_Y,
+                                                                                     alpha=self.alpha, return_std=True)
+                else:
+                    y_pred, y_std = self.model.predict(train_x, return_std=True)
                 train_x = self.__to_df(train_x)
                 out = get_df(train_x, train_y, y_pred, y_std)
                 out.sort_values(by='rel_dev', ascending=False). \
                     to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
                            float_format='%10.5f')
 
-        if self.nystrom_active:
-            y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
-                                                                             self.train_X, X, self.train_Y,
-                                                                             alpha=self.alpha, return_std=True)
-            # R2
-            r2 = r2_score(y_pred, Y)
-            # MSE
-            mse = mean_squared_error(y_pred, Y)
-            # variance explained
-            ex_var = explained_variance_score(y_pred, Y)
-            self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha
-
     def get_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \
             to_csv('%s/%s-%s-%s-%d.out' % (self.result_dir, self.kernel_config.property, self.learning_mode,
                                            self.add_mode, self.add_size), sep=' ', index=False)
-        if self.nystrom_active:
-            self.nystrom_out.reset_index().drop(columns='index'). \
-                to_csv('%s/nystrom_active.out' % self.result_dir, sep=' ', index=False)
+

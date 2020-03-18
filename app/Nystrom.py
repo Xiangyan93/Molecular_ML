@@ -193,7 +193,13 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         self.core_max = core_max
 
     @staticmethod
-    def _nystrom_predict(kernel, C, X, Y, y, alpha=1e-7, return_std=False, return_cov=False, y_shift=0.0):
+    def _nystrom_predict(kernel, C, X, Y, y, alpha=1e-7, return_std=False, return_cov=False, y_shift=0.0,
+                         normalize_y=True):
+        if normalize_y:
+            y_mean = y.mean()
+            y = np.copy(y) - y_mean
+        else:
+            y_mean = 0.
         Kcc = kernel(C)
         Kcx = kernel(C, X)
         Kcc[np.diag_indices_from(Kcc)] += alpha
@@ -201,7 +207,7 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         Kyc = kernel(Y, C)
         left = Kyc.dot(Kccinv).dot(Kcx.dot(Kxx_ihalf))  # y*c
         right = Kxx_ihalf.T.dot(y)  # c*o
-        y_mean = left.dot(right) + y_shift
+        y_mean += left.dot(right) + y_shift
         if return_cov:
             y_cov = kernel(Y) - left.dot(left.T)  # Line 6
             return y_mean, y_cov
@@ -449,3 +455,14 @@ class NystromTest(NystromPreGaussianProcessRegressor):
             K_core = kernel(core_X)
             K_cross = kernel(core_X, X)
             return K_core, K_cross
+
+    @staticmethod
+    def _woodbury_predict(kernel, C, X, Y, y, alpha=1e-1, return_std=False, return_cov=False, y_shift=0.0):
+        Kcc = kernel(C)
+        Kcx = kernel(C, X)
+        Ktmp = Kcx.dot(Kcx.T) + alpha * Kcc
+        L = cholesky(Ktmp, lower=True)
+        Linv = np.linalg.inv(L)
+        Lihalf = Linv.dot(Kcx)  # c*x
+        Kyx = kernel(Y, X)
+        return Kyx.dot((y - Lihalf.dot(Lihalf.dot(y))) / alpha)
