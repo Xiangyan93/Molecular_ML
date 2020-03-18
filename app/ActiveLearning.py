@@ -51,7 +51,6 @@ class ActiveLearner:
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
         self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': []})
-        self.nystrom_out = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': []})
         self.group_by_mol = group_by_mol
         self.stride = stride
         self.seed = seed
@@ -110,6 +109,7 @@ class ActiveLearner:
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
         train_x, train_y = self.__get_train_X_y()
         self.train_x = train_x
+        self.train_y = train_y
         if train_x.shape[0] <= self.nystrom_size or self.nystrom_active:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
@@ -337,7 +337,12 @@ class ActiveLearner:
         else:
             X, Y = self.__get_untrain_X_y()
 
-        y_pred, y_std = self.model.predict(X, return_std=True)
+        if self.nystrom_active:
+            y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
+                                                                             self.train_X, X, self.train_Y,
+                                                                             alpha=self.alpha, return_std=True)
+        else:
+            y_pred, y_std = self.model.predict(X, return_std=True)
         # R2
         r2 = r2_score(y_pred, Y)
         # MSE
@@ -364,30 +369,21 @@ class ActiveLearner:
             out.sort_values(by='rel_dev', ascending=False).\
                 to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
             if debug:
-                train_x, train_y = self.__get_train_X_y()
-                y_pred, y_std = self.model.predict(train_x, return_std=True)
+                train_x, train_y = self.train_x, self.train_y
+                if self.nystrom_active:
+                    y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, train_x,
+                                                                                     self.train_X, train_x, self.train_Y,
+                                                                                     alpha=self.alpha, return_std=True)
+                else:
+                    y_pred, y_std = self.model.predict(train_x, return_std=True)
                 train_x = self.__to_df(train_x)
                 out = get_df(train_x, train_y, y_pred, y_std)
                 out.sort_values(by='rel_dev', ascending=False). \
                     to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
                            float_format='%10.5f')
 
-        if self.nystrom_active:
-            y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
-                                                                             self.train_X, X, self.train_Y,
-                                                                             alpha=self.alpha, return_std=True)
-            # R2
-            r2 = r2_score(y_pred, Y)
-            # MSE
-            mse = mean_squared_error(y_pred, Y)
-            # variance explained
-            ex_var = explained_variance_score(y_pred, Y)
-            self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha
-
     def get_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \
             to_csv('%s/%s-%s-%s-%d.out' % (self.result_dir, self.kernel_config.property, self.learning_mode,
                                            self.add_mode, self.add_size), sep=' ', index=False)
-        if self.nystrom_active:
-            self.nystrom_out.reset_index().drop(columns='index'). \
-                to_csv('%s/nystrom_active.out' % self.result_dir, sep=' ', index=False)
+

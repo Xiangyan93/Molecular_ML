@@ -449,3 +449,14 @@ class NystromTest(NystromPreGaussianProcessRegressor):
             K_core = kernel(core_X)
             K_cross = kernel(core_X, X)
             return K_core, K_cross
+
+    @staticmethod
+    def _woodbury_predict(kernel, C, X, Y, y, alpha=1e-1, return_std=False, return_cov=False, y_shift=0.0):
+        Kcc = kernel(C)
+        Kcx = kernel(C, X)
+        Ktmp = Kcx.dot(Kcx.T) + alpha * Kcc
+        L = cholesky(Ktmp, lower=True)
+        Linv = np.linalg.inv(L)
+        Lihalf = Linv.dot(Kcx)  # c*x
+        Kyx = kernel(Y, X)
+        return Kyx.dot((y - Lihalf.dot(Lihalf.dot(y))) / alpha)
