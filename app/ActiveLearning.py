@@ -23,7 +23,7 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
-                 threshold, name, nystrom_size=1000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
+                 threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
                  optimizer="fmin_l_bfgs_b", stride=10, seed=233, nystrom_active=False):
 
         ''' df must have the 'graph' column '''
@@ -356,6 +356,14 @@ class ActiveLearner:
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
         if self.current_size % self.stride == 0:
+            if self.test_X is None and self.test_Y is None:
+                if self.group_by_mol:
+                    istrain = self.train_X.graph.isin(self.train_graphs)
+                else:
+                    istrain = self.train_X.index.isin(self.train_idx)
+            else:
+                istrain = None
+                
             _X = self.__to_df(X)
 
             def get_smiles(graph):
