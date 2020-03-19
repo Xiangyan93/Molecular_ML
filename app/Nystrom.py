@@ -32,7 +32,7 @@ import pandas as pd
 from app.kernel import get_core_idx, get_subset_by_clustering
 
 
-def Nystrom_solve(K_core, K_cross, eigen_cutoff=1e-4):
+def Nystrom_solve(K_core, K_cross, eigen_cutoff=1e-5):
     Wcc, Ucc = np.linalg.eigh(K_core)
     mask = Wcc > eigen_cutoff * max(Wcc)# alpha  # !!!
     Wcc = Wcc[mask]  # !!!
@@ -193,7 +193,7 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         self.core_max = core_max
 
     @staticmethod
-    def _nystrom_predict(kernel, C, X, Y, y, alpha=1e-7, return_std=False, return_cov=False, y_shift=0.0,
+    def _nystrom_predict(kernel, C, X, Y, y, alpha=1e-5, return_std=False, return_cov=False, y_shift=0.0,
                          normalize_y=True):
         if normalize_y:
             y_mean = y.mean()
@@ -252,8 +252,8 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             else:
                 return y_mean
         else:  # Predict based on GP posterior
-            return self._nystrom_predict(self.kernel_, self.core_X, self.full_X, X, self.full_y, alpha=self.alpha,
-                                         return_std=return_std, return_cov=return_cov, y_shift=self._y_train_mean_full)
+            return self._nystrom_predict(self.kernel_, self.core_X, self.full_X, X, self.full_y, return_std=return_std,
+                                         return_cov=return_cov, y_shift=self._y_train_mean_full)
 
     @staticmethod
     def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='suggest'):
