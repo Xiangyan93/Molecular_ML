@@ -154,8 +154,7 @@ class ActiveLearner:
         if self.learning_mode == 'supervised':
             if self.nystrom_active:
                 y_pred = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
-                                                                          self.train_X, untrain_x, self.train_Y,
-                                                                          alpha=self.alpha)
+                                                                          self.train_X, untrain_x, self.train_Y)
             else:
                 y_pred = self.model.predict(untrain_x)
             untrain_x = self.__to_df(untrain_x)
@@ -178,7 +177,7 @@ class ActiveLearner:
             if self.nystrom_active:
                 y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
                                                                                  self.train_X, untrain_x, self.train_Y,
-                                                                                 alpha=self.alpha, return_std=True)
+                                                                                 return_std=True)
             else:
                 y_pred, y_std = self.model.predict(untrain_x, return_std=True)
             if untrain_x.__class__ == pd.Series:
@@ -343,7 +342,7 @@ class ActiveLearner:
         if self.nystrom_active:
             y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
                                                                              self.train_X, X, self.train_Y,
-                                                                             alpha=self.alpha, return_std=True)
+                                                                             return_std=True)
         else:
             y_pred, y_std = self.model.predict(X, return_std=True)
         # R2
@@ -377,7 +376,7 @@ class ActiveLearner:
                 if self.nystrom_active:
                     y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, train_x,
                                                                                      self.train_X, train_x, self.train_Y,
-                                                                                     alpha=self.alpha, return_std=True)
+                                                                                     return_std=True)
                 else:
                     y_pred, y_std = self.model.predict(train_x, return_std=True)
                 train_x = self.__to_df(train_x)
