@@ -33,26 +33,29 @@ def main():
                         default=3000)
     parser.add_argument('--nystrom_active', help='Active learning for core matrix in Nystrom approximation.',
                         action='store_true')
-    opt = parser.parse_args()
+    parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
+                        action='store_true')
+    args = parser.parse_args()
 
-    optimizer = None if opt.optimizer == 'None' else opt.optimizer
+    optimizer = None if args.optimizer == 'None' else args.optimizer
     print('***\tStart: Reading input.\t***\n')
-    kernel_config = KernelConfig(save_mem=False, property=opt.property)
+    kernel_config = KernelConfig(save_mem=False, property=args.property)
 
     train_X, train_Y, train_smiles_list = \
-        get_XY_from_file(opt.input, kernel_config, ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'],
-                         seed=opt.seed)
-    test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list, seed=opt.seed)
+        get_XY_from_file(args.input, kernel_config, ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'],
+                         seed=args.seed)
+    test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed)
     print('***\tEnd: Reading input.\t***\n')
 
-    activelearner = ActiveLearner(train_X, train_Y, kernel_config, opt.learning_mode, opt.add_mode, opt.init_size,
-                                  opt.add_size, opt.max_size, opt.search_size, opt.threshold, opt.name, test_X=test_X,
-                                  test_Y=test_Y, group_by_mol=opt.group_by_mol, optimizer=optimizer, seed=opt.seed,
-                                  nystrom_active=opt.nystrom_active, nystrom_size=opt.nystrom_size)
+    activelearner = ActiveLearner(train_X, train_Y, kernel_config, args.learning_mode, args.add_mode, args.init_size,
+                                  args.add_size, args.max_size, args.search_size, args.threshold, args.name,
+                                  test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol, optimizer=optimizer,
+                                  seed=args.seed, nystrom_active=args.nystrom_active, nystrom_size=args.nystrom_size,
+                                  nystrom_predict=args.nystrom_predict)
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
-        if activelearner.train(alpha=opt.alpha):
+        if activelearner.train(alpha=args.alpha):
             print('\n**\tstart evaluate\t**\n')
             activelearner.evaluate()
         else:
