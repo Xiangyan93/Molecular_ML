@@ -9,6 +9,7 @@ CWD = os.path.dirname(os.path.abspath(__file__))
 class Config:
     GRAPHDOT_DIR = os.path.join(CWD, '..', 'GraphDot')
     MS_TOOLS_DIR = os.path.join(CWD, '..', 'AIMS_Tools')
+    DEBUG = False
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
         v = 0.25
@@ -33,6 +34,7 @@ class Config:
         off_diagonal_cutoff = 0.9
         core_max = 2000
         loop = 1
+        alpha = 1e-10
 
     class TrainingSetSelectRule:
         ASSIGNED = False

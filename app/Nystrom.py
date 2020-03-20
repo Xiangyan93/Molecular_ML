@@ -28,22 +28,10 @@ from sklearn.cluster import SpectralClustering
 from sklearn.preprocessing import StandardScaler
 from numpy.linalg import eigh
 import pandas as pd
+import math
 
 from app.kernel import get_core_idx, get_subset_by_clustering
-
-
-def Nystrom_solve(K_core, K_cross, eigen_cutoff=1e-5):
-    Wcc, Ucc = np.linalg.eigh(K_core)
-    mask = Wcc > eigen_cutoff * max(Wcc)# alpha  # !!!
-    Wcc = Wcc[mask]  # !!!
-    Ucc = Ucc[:, mask]  # !!!
-    Kccinv = (Ucc / Wcc).dot(Ucc.T)
-    Uxx, Sxx, Vxx = np.linalg.svd(K_cross.T.dot((Ucc / Wcc ** 0.5).dot(Ucc.T)), full_matrices=False)
-    mask = Sxx > eigen_cutoff * max(Sxx)  # !!!
-    Uxx = Uxx[:, mask]  # !!!
-    Sxx = Sxx[mask]  # !!!
-    Kxx_ihalf = Uxx / Sxx
-    return Kccinv, Kxx_ihalf
+from config import Config
 
 
 class GPR(GaussianProcessRegressor):
@@ -140,6 +128,28 @@ class GPR(GaussianProcessRegressor):
             self.alpha_ = cho_solve((self.L_, True), self.y_train_)  # Line 3
         return self
 
+    def predict(self, X, return_std=False, return_cov=False):
+        if return_cov:
+            return super().predict(X, return_std=return_std, return_cov=return_cov)
+        else:
+            if X.__class__ != np.ndarray:
+                X = X.to_numpy()
+            N = X.shape[0]
+            y_mean = np.array([])
+            y_std = np.array([])
+            for i in range(math.ceil(N / 20000)):
+                X_ = X[i*20000:(i+1)*20000]
+                if return_std:
+                    y_mean_, y_std_ = super().predict(X_, return_std=return_std, return_cov=return_cov)
+                    y_std = np.r_[y_std, y_std_]
+                else:
+                    y_mean_ = super().predict(X_, return_std=return_std, return_cov=return_cov)
+                y_mean = np.r_[y_mean, y_mean_]
+            if return_std:
+                return y_mean, y_std
+            else:
+                return y_mean
+
 
 class RobustFitGaussianProcessRegressor(GPR):
     def __init__(self, y_scale=False, *args, **kwargs):
@@ -193,7 +203,23 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         self.core_max = core_max
 
     @staticmethod
-    def _nystrom_predict(kernel, C, X, Y, y, alpha=1e-5, return_std=False, return_cov=False, y_shift=0.0,
+    def Nystrom_solve(K_core, K_cross, eigen_cutoff=1e-10, debug=False):
+        Wcc, Ucc = np.linalg.eigh(K_core)
+        mask = Wcc > eigen_cutoff * max(Wcc)  # alpha  # !!!
+        if debug:
+            print('%i / %i eigenvalues are used in Nystrom Kcc' % (len(Wcc[mask]), len(Wcc)))
+        Wcc = Wcc[mask]  # !!!
+        Ucc = Ucc[:, mask]  # !!!
+        Kccinv = (Ucc / Wcc).dot(Ucc.T)
+        Uxx, Sxx, Vxx = np.linalg.svd(K_cross.T.dot((Ucc / Wcc ** 0.5).dot(Ucc.T)), full_matrices=False)
+        mask = Sxx > eigen_cutoff * max(Sxx)  # !!!
+        Uxx = Uxx[:, mask]  # !!!
+        Sxx = Sxx[mask]  # !!!
+        Kxx_ihalf = Uxx / Sxx
+        return Kccinv, Kxx_ihalf
+
+    @staticmethod
+    def _nystrom_predict(kernel, C, X, Y, y, alpha=1e-10, return_std=False, return_cov=False, y_shift=0.0,
                          normalize_y=True):
         if normalize_y:
             y_mean = y.mean()
@@ -203,7 +229,7 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
         Kcc = kernel(C)
         Kcx = kernel(C, X)
         Kcc[np.diag_indices_from(Kcc)] += alpha
-        Kccinv, Kxx_ihalf = Nystrom_solve(Kcc, Kcx, eigen_cutoff=alpha)
+        Kccinv, Kxx_ihalf = NystromPreGaussianProcessRegressor.Nystrom_solve(Kcc, Kcx, eigen_cutoff=alpha)
         Kyc = kernel(Y, C)
         left = Kyc.dot(Kccinv).dot(Kcx.dot(Kxx_ihalf))  # y*c
         right = Kxx_ihalf.T.dot(y)  # c*o
@@ -217,8 +243,8 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             y_var_negative = y_var < 0
             if np.any(y_var_negative):
                 print('%i predicted variances smaller than 0' % len(y_var[y_var_negative]))
-                print('They are: ', y_var[y_var_negative])
-                print('most negative value: %f' % min(y_var[y_var_negative]))
+                # print('They are: ', y_var[y_var_negative])
+                print('most negative value: %e' % min(y_var[y_var_negative]))
                 warnings.warn("Predicted variances smaller than 0. Setting those variances to 0.")
                 y_var[y_var_negative] = 0.0
             return y_mean, np.sqrt(y_var)
@@ -252,8 +278,26 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
             else:
                 return y_mean
         else:  # Predict based on GP posterior
-            return self._nystrom_predict(self.kernel_, self.core_X, self.full_X, X, self.full_y, return_std=return_std,
-                                         return_cov=return_cov, y_shift=self._y_train_mean_full)
+            kernel = self.kernel_
+            Kyc = kernel(X, self.core_X)
+            left = Kyc.dot(self.left)
+            y_mean = left.dot(self.right) + self._y_train_mean_full
+            if return_cov:
+                y_cov = kernel(X) - left.dot(left.T)  # Line 6
+                return y_mean, y_cov
+            elif return_std:
+                y_var = kernel.diag(X)
+                y_var -= np.einsum("ij,ij->i", left, left)
+                y_var_negative = y_var < 0
+                if np.any(y_var_negative):
+                    print('%i predicted variances smaller than 0' % len(y_var[y_var_negative]))
+                    # print('They are: ', y_var[y_var_negative])
+                    print('most negative value: %e' % min(y_var[y_var_negative]))
+                    warnings.warn("Predicted variances smaller than 0. Setting those variances to 0.")
+                    y_var[y_var_negative] = 0.0
+                return y_mean, np.sqrt(y_var)
+            else:
+                return y_mean
 
     @staticmethod
     def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='suggest'):
@@ -277,15 +321,22 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
 
 
 class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
-    def fit_robust(self, X, y, core_predict=True):
+    def __init__(self, core_predict=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.core_predict = core_predict
+
+    def fit_robust(self, X, y, Xc=None, yc=None):
         print('Start a new fit process')
-        if hasattr(self, 'kernel_'):
+        if Xc is not None and yc is not None:
+            X_ = Xc
+            y_ = yc
+        elif hasattr(self, 'kernel_'):
             X_, y_ = self.get_core_X(X, self.kernel_, off_diagonal_cutoff=self.off_diagonal_cutoff, y=y,
                                      core_max=self.core_max)
         else:
             X_, y_ = self.get_core_X(X, self.kernel, off_diagonal_cutoff=self.off_diagonal_cutoff, y=y,
                                      core_max=self.core_max)
-        if super().fit_robust(X_, y_, core_predict=core_predict) is None:
+        if super().fit_robust(X_, y_, core_predict=self.core_predict) is None:
             return None
         if self.optimizer is not None:
             X_, y_ = self.get_core_X(X, self.kernel_, off_diagonal_cutoff=self.off_diagonal_cutoff, y=y,
@@ -296,27 +347,16 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
         self.full_X = np.copy(X) if self.copy_X_train else X
         self.full_y = np.copy(y) if self.copy_X_train else y
         print('hyperparameter: ', self.kernel_.hyperparameters, '\n')
+        Kcc = self.kernel_(X_)
+        Kcx = self.kernel_(X_, X)
+        Kccinv, Kxx_ihalf = self.Nystrom_solve(Kcc, Kcx, eigen_cutoff=Config.NystromPara.alpha, debug=Config.DEBUG)
+        self.left = Kccinv.dot(Kcx.dot(Kxx_ihalf))  # c*c
+        self.right = Kxx_ihalf.T.dot(y)  # c*o
         return self
 
     def core_predict(self, X, return_std=False, return_cov=False):
-        # Precompute quantities required for predictions which are independent
-        # of actual query points
-        """
-        K = self.kernel_(self.X_train_)
-        K[np.diag_indices_from(K)] += self.alpha
-        try:
-            self.L_ = cholesky(K, lower=True)  # Line 2
-            # self.L_ changed, self._K_inv needs to be recomputed
-            self._K_inv = None
-        except np.linalg.LinAlgError as exc:
-            exc.args = ("The kernel, %s, is not returning a "
-                        "positive definite matrix. Try gradually "
-                        "increasing the 'alpha' parameter of your "
-                        "GaussianProcessRegressor estimator."
-                        % self.kernel_,) + exc.args
-            raise
-        self.alpha_ = cho_solve((self.L_, True), self.y_train_)  # Line 3
-        """
+        if not self.core_predict:
+            raise Exception('core_prediction can only used by set core_predict=True in fit_robust()')
         return super().predict(X, return_std, return_cov)
 
     def predict(self, X, return_std=False, return_cov=False):
@@ -365,7 +405,7 @@ class NystromTest(NystromPreGaussianProcessRegressor):
         if y_train.ndim == 1:
             y_train = y_train[:, np.newaxis]
 
-        Kccinv, Kxx_ihalf = Nystrom_solve(K_core, K_cross, eigen_cutoff=self.alpha)
+        Kccinv, Kxx_ihalf = self.Nystrom_solve(K_core, K_cross, eigen_cutoff=self.alpha)
         alpha = Kxx_ihalf.dot(Kxx_ihalf.T.dot(y_train))
 
         # Compute log-likelihood (compare line 7)
