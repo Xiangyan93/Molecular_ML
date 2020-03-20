@@ -26,8 +26,12 @@ class ActiveLearner:
                  search_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False,
                  random_init=True, optimizer="fmin_l_bfgs_b", stride=100, seed=233, nystrom_active=False,
                  nystrom_predict=False):
-
-        ''' df must have the 'graph' column '''
+        ''' df must have the 'graph' column
+        nystrom_active: If True, using train_X as training set and active learning the K_core of corresponding nystrom
+                        approximation.
+        nystrom_predict: If True, no nystrom approximation is used in the active learning process. But output the
+                        nystrom prediction using train_X as X and train_x as C.
+        '''
         self.train_X = train_X
         self.train_Y = train_Y
         self.test_X = test_X
@@ -51,10 +55,7 @@ class ActiveLearner:
         self.nystrom_size = nystrom_size
         self.nystrom_predict = nystrom_predict
         if self.nystrom_predict:
-            if self.test_X is not None and self.test_Y is not None:
-                raise Exception('for nystrom_predict=True, test_X and test_Y must be None')
-            if self.max_size > self.nystrom_size:
-                raise Exception('for nystrom_predict=True, max_size must be smaller than nystrom_size')
+            self.nystrom_size = self.max_size + 1000
             self.nystrom_out = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': []})
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
@@ -143,6 +144,7 @@ class ActiveLearner:
                                                     optimizer=self.optimizer, normalize_y=True, alpha=alpha). \
                 fit_robust(train_x, train_y, Xc=core_x, yc=core_y)
         else:
+            raise Exception('Using Nystrom approximation with optimizer is not allow so far')
             kernel = self.kernel_config.kernel
             for i in range(Config.NystromPara.loop):
                 model = NystromGaussianProcessRegressor(kernel=kernel, random_state=self.seed, optimizer=self.optimizer,
@@ -313,16 +315,8 @@ class ActiveLearner:
 
     def _find_add_idx_cluster(self, gram_matrix):
         ''' find representative samples from a pool using clustering method
-        :X: a list of graphs
-        :add_sample_size: add sample size
+        :gram_matrix: gram matrix of the pool samples
         :return: list of idx
-        # train SpectralClustering on X
-        if len(X) < self.add_size:
-            return [i for i in range(len(X))]
-        if hasattr(self.kernel_config.kernel, 'kernel_list'):
-            gram_matrix = self.kernel_config.kernel.kernel_list[0](X)
-        else:
-            gram_matrix = self.kernel_config.kernel(X)
         '''
         embedding = SpectralEmbedding(n_components=self.add_size, affinity='precomputed').fit_transform(gram_matrix)
         cluster_result = KMeans(n_clusters=self.add_size, random_state=0).fit_predict(embedding)

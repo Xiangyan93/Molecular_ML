@@ -34,7 +34,7 @@ class Config:
         off_diagonal_cutoff = 0.9
         core_max = 2000
         loop = 1
-        alpha = 1e-10
+        alpha = 1e-8
 
     class TrainingSetSelectRule:
         ASSIGNED = False
