@@ -22,11 +22,16 @@ from config import Config
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
-    def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
-                 threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
-                 optimizer="fmin_l_bfgs_b", stride=100, seed=233, nystrom_active=False, nystrom_predict=False):
-
-        ''' df must have the 'graph' column '''
+    def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, max_size,
+                 search_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False,
+                 random_init=True, optimizer="fmin_l_bfgs_b", stride=100, seed=233, nystrom_active=False,
+                 nystrom_predict=False):
+        ''' df must have the 'graph' column
+        nystrom_active: If True, using train_X as training set and active learning the K_core of corresponding nystrom
+                        approximation.
+        nystrom_predict: If True, no nystrom approximation is used in the active learning process. But output the
+                        nystrom prediction using train_X as X and train_x as C.
+        '''
         self.train_X = train_X
         self.train_Y = train_Y
         self.test_X = test_X
@@ -39,6 +44,7 @@ class ActiveLearner:
         self.add_mode = add_mode
         self.current_size = initial_size
         self.add_size = add_size
+        self.max_size = max_size
         self.search_size = search_size
         self.threshold = threshold
         self.name = name
@@ -49,11 +55,8 @@ class ActiveLearner:
         self.nystrom_size = nystrom_size
         self.nystrom_predict = nystrom_predict
         if self.nystrom_predict:
-            if self.test_X is not None and self.test_Y is not None:
-                print(test_X)
-                raise Exception('for nystrom_predict=True, test_X and test_Y must be None')
+            self.nystrom_size = self.max_size + 1000
             self.nystrom_out = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': []})
-        self.full_size = 0
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
         self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': []})
@@ -76,15 +79,9 @@ class ActiveLearner:
                                               core_max=initial_size)
         self.optimizer = optimizer
 
-    def stop_sign(self, max_size):
-        if self.current_size > max_size:
+    def stop_sign(self):
+        if self.current_size >= self.max_size or self.current_size == len(self.train_X):
             return True
-        elif self.current_size == len(self.train_X):
-            if self.full_size == 1:
-                return True
-            else:
-                self.full_size = 1
-                return False
         else:
             return False
 
@@ -105,6 +102,15 @@ class ActiveLearner:
             untrain_x = self.train_X[~self.train_X.index.isin(self.train_idx)]
             untrain_y = self.train_Y[~self.train_Y.index.isin(self.train_idx)]
         return untrain_x, untrain_y
+
+    def __get_core_X_y(self):
+        if self.group_by_mol:
+            train_x = self.train_X[self.train_X.graph.isin(self.core_graphs)]
+            train_y = self.train_Y[self.train_X.graph.isin(self.core_graphs)]
+        else:
+            train_x = self.train_X[self.train_X.index.isin(self.core_idx)]
+            train_y = self.train_Y[self.train_Y.index.isin(self.core_idx)]
+        return train_x, train_y
 
     def train(self, alpha=0.5):
         # continue needs to be added soon
@@ -127,7 +133,18 @@ class ActiveLearner:
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
             print('hyperparameter: ', model.kernel_.hyperparameters)
+            if train_x.shape[0] == self.nystrom_size:
+                if self.group_by_mol:
+                    self.core_graphs = self.train_graphs
+                else:
+                    self.core_idx = self.train_idx
+        elif self.optimizer is None:
+            core_x, core_y = self.__get_core_X_y()
+            model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
+                                                    optimizer=self.optimizer, normalize_y=True, alpha=alpha). \
+                fit_robust(train_x, train_y, Xc=core_x, yc=core_y)
         else:
+            raise Exception('Using Nystrom approximation with optimizer is not allow so far')
             kernel = self.kernel_config.kernel
             for i in range(Config.NystromPara.loop):
                 model = NystromGaussianProcessRegressor(kernel=kernel, random_state=self.seed, optimizer=self.optimizer,
@@ -156,9 +173,6 @@ class ActiveLearner:
     def add_samples(self):
         import warnings
         warnings.filterwarnings("ignore")
-        if self.full_size == 1:
-            return
-
         untrain_x, untrain_y = self.__get_untrain_X_y()
         if self.learning_mode == 'supervised':
             y_pred = self.model.predict(untrain_x)
@@ -301,16 +315,8 @@ class ActiveLearner:
 
     def _find_add_idx_cluster(self, gram_matrix):
         ''' find representative samples from a pool using clustering method
-        :X: a list of graphs
-        :add_sample_size: add sample size
+        :gram_matrix: gram matrix of the pool samples
         :return: list of idx
-        # train SpectralClustering on X
-        if len(X) < self.add_size:
-            return [i for i in range(len(X))]
-        if hasattr(self.kernel_config.kernel, 'kernel_list'):
-            gram_matrix = self.kernel_config.kernel.kernel_list[0](X)
-        else:
-            gram_matrix = self.kernel_config.kernel(X)
         '''
         embedding = SpectralEmbedding(n_components=self.add_size, affinity='precomputed').fit_transform(gram_matrix)
         cluster_result = KMeans(n_clusters=self.add_size, random_state=0).fit_predict(embedding)
