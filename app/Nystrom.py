@@ -300,7 +300,7 @@ class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
                 return y_mean
 
     @staticmethod
-    def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='suggest'):
+    def get_core_X(X, kernel, off_diagonal_cutoff=0.9, y=None, core_max=500, method='random'):
         C_idx = get_core_idx(X, kernel, off_diagonal_cutoff=off_diagonal_cutoff, core_max=core_max, method=method)
         print('%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), X.shape[0]))
         X = X[X.index.isin(C_idx)] if X.__class__ == pd.DataFrame else X[C_idx]

@@ -23,3 +23,5 @@ __pycache__/
 *.png
 
 .ipynb_checkpoints/
+
+out-0.000.txt
