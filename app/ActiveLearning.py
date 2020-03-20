@@ -23,7 +23,7 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
-                 threshold, name, nystrom_size=1000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
+                 threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
                  optimizer="fmin_l_bfgs_b", stride=100, seed=233, nystrom_active=False, nystrom_predict=False):
 
         ''' df must have the 'graph' column '''
