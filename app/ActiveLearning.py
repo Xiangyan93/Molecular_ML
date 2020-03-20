@@ -102,6 +102,15 @@ class ActiveLearner:
             untrain_y = self.train_Y[~self.train_Y.index.isin(self.train_idx)]
         return untrain_x, untrain_y
 
+    def __get_core_X_y(self):
+        if self.group_by_mol:
+            train_x = self.train_X[self.train_X.graph.isin(self.core_graphs)]
+            train_y = self.train_Y[self.train_X.graph.isin(self.core_graphs)]
+        else:
+            train_x = self.train_X[self.train_X.index.isin(self.core_idx)]
+            train_y = self.train_Y[self.train_Y.index.isin(self.core_idx)]
+        return train_x, train_y
+
     def train(self, alpha=0.5):
         # continue needs to be added soon
         np.random.seed(self.seed)
@@ -123,6 +132,16 @@ class ActiveLearner:
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
             print('hyperparameter: ', model.kernel_.hyperparameters)
+            if train_x.shape[0] == self.nystrom_size:
+                if self.group_by_mol:
+                    self.core_graphs = self.train_graphs
+                else:
+                    self.core_idx = self.train_idx
+        elif self.optimizer is None:
+            core_x, core_y = self.__get_core_X_y()
+            model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
+                                                    optimizer=self.optimizer, normalize_y=True, alpha=alpha). \
+                fit_robust(train_x, train_y, Xc=core_x, yc=core_y)
         else:
             kernel = self.kernel_config.kernel
             for i in range(Config.NystromPara.loop):
