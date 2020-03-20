@@ -22,9 +22,10 @@ from config import Config
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
-    def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, search_size,
-                 threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False, random_init=True,
-                 optimizer="fmin_l_bfgs_b", stride=100, seed=233, nystrom_active=False, nystrom_predict=False):
+    def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, max_size,
+                 search_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False,
+                 random_init=True, optimizer="fmin_l_bfgs_b", stride=100, seed=233, nystrom_active=False,
+                 nystrom_predict=False):
 
         ''' df must have the 'graph' column '''
         self.train_X = train_X
@@ -39,6 +40,7 @@ class ActiveLearner:
         self.add_mode = add_mode
         self.current_size = initial_size
         self.add_size = add_size
+        self.max_size = max_size
         self.search_size = search_size
         self.threshold = threshold
         self.name = name
@@ -50,10 +52,10 @@ class ActiveLearner:
         self.nystrom_predict = nystrom_predict
         if self.nystrom_predict:
             if self.test_X is not None and self.test_Y is not None:
-                print(test_X)
                 raise Exception('for nystrom_predict=True, test_X and test_Y must be None')
+            if self.max_size > self.nystrom_size:
+                raise Exception('for nystrom_predict=True, max_size must be smaller than nystrom_size')
             self.nystrom_out = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': []})
-        self.full_size = 0
         self.std_logging = False  # for debugging
         self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
         self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': []})
@@ -76,15 +78,9 @@ class ActiveLearner:
                                               core_max=initial_size)
         self.optimizer = optimizer
 
-    def stop_sign(self, max_size):
-        if self.current_size > max_size:
+    def stop_sign(self):
+        if self.current_size >= self.max_size or self.current_size == len(self.train_X):
             return True
-        elif self.current_size == len(self.train_X):
-            if self.full_size == 1:
-                return True
-            else:
-                self.full_size = 1
-                return False
         else:
             return False
 
@@ -156,9 +152,6 @@ class ActiveLearner:
     def add_samples(self):
         import warnings
         warnings.filterwarnings("ignore")
-        if self.full_size == 1:
-            return
-
         untrain_x, untrain_y = self.__get_untrain_X_y()
         if self.learning_mode == 'supervised':
             y_pred = self.model.predict(untrain_x)

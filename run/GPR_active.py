@@ -46,8 +46,8 @@ def main():
     print('***\tEnd: Reading input.\t***\n')
 
     activelearner = ActiveLearner(train_X, train_Y, kernel_config, opt.learning_mode, opt.add_mode, opt.init_size,
-                                  opt.add_size, opt.search_size, opt.threshold, opt.name, test_X=test_X, test_Y=test_Y,
-                                  group_by_mol=opt.group_by_mol, optimizer=optimizer, seed=opt.seed,
+                                  opt.add_size, opt.max_size, opt.search_size, opt.threshold, opt.name, test_X=test_X,
+                                  test_Y=test_Y, group_by_mol=opt.group_by_mol, optimizer=optimizer, seed=opt.seed,
                                   nystrom_active=opt.nystrom_active, nystrom_size=opt.nystrom_size)
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
@@ -57,9 +57,9 @@ def main():
             activelearner.evaluate()
         else:
             print('Training failed for all alpha')
-        print('**\tstart add samples\t**\n')
-        if activelearner.stop_sign(opt.max_size):
+        if activelearner.stop_sign():
             break
+        print('**\tstart add samples\t**\n')
         activelearner.add_samples()
         if activelearner.current_size % 100 == 0:
             activelearner.get_training_plot()
