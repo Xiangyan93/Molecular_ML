@@ -23,8 +23,8 @@ def main():
     parser.add_argument('--max_size', type=int, help='Max size for active learning', default=800)
     parser.add_argument('--search_size', type=int, help='Search size for active learning, 0 for pooling from all '
                                                         'remaining samples', default=0)
-    parser.add_argument('--cluster_size', type=int, help='Cluster size for unsupervised active learning, 0 for pooling '
-                                                         'from all remaining samples', default=200)
+    parser.add_argument('--pool_size', type=int, help='Pool size for active learning, 0 for pooling from all searched '
+                                                      'samples', default=200)
     parser.add_argument('--threshold', type=float, help='std threshold', default=0.1)
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name',
                         default='default')
