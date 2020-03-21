@@ -66,12 +66,14 @@ class ActiveLearner:
         np.random.seed(seed)
         if group_by_mol:
             self.unique_graphs = self.train_X.graph.unique()
+            self.train_size = len(self.unique_graphs)
             if random_init:
                 self.train_graphs = np.random.choice(self.unique_graphs, initial_size, replace=False)
             else:
                 idx = get_core_idx(self.unique_graphs, self.kernel_mol, off_diagonal_cutoff=0.95, core_max=initial_size)
                 self.train_graphs = self.unique_graphs[idx]
         else:
+            self.train_size = len(self.train_X)
             if random_init:
                 self.train_idx = np.random.choice(self.train_X.index, initial_size, replace=False)
             else:
@@ -255,7 +257,7 @@ class ActiveLearner:
             return df.index
         df_threshold = df[df[target] > self.threshold]
         print('%i / %i searched samples less than threshold %e' % (len(df_threshold), self.search_size, self.threshold))
-        if len(df_threshold) < self.search_size * 0.5:
+        if len(df_threshold) < self.search_size * 0.5 and self.search_size < self.train_size:
             self.search_size *= 2
         if self.add_mode == 'random':
             return np.array(random.sample(range(len(df)), self.add_size))
