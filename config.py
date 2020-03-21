@@ -27,8 +27,8 @@ class Config:
 
         stop_prob = 0.05
         stop_prob_bound = (1e-4, 1.0)
-        T = 100
-        P = 500
+        T = 300
+        P = 300
 
     class NystromPara:
         off_diagonal_cutoff = 0.9
@@ -45,7 +45,7 @@ class Config:
         }
 
         ACTIVE_LEARNING_Para = {
-            'ratio': 0.8
+            'ratio': None
         }
 
     class VectorFingerprint:
