@@ -16,21 +16,24 @@ def main():
     parser.add_argument('-i', '--input', type=str, help='Input data.')
     parser.add_argument('-p', '--property', type=str, help='Target property.')
     parser.add_argument('--alpha', type=float, help='Initial alpha value.', default=0.5)
+    parser.add_argument('--learning_mode', type=str, help='supervised/unsupervised/random', default='unsupervised')
+    parser.add_argument('--add_mode', type=str, help='random/cluster/nlargest/threshold', default='cluster')
     parser.add_argument('--init_size', type=int, help='Initial size for active learning', default=100)
     parser.add_argument('--add_size', type=int, help='Add size for active learning', default=10)
-    parser.add_argument('--max_size', type=int, help='Max size for unsupervised active learning', default=800)
-    parser.add_argument('--search_size', type=int, help='Search size for unsupervised active learning, 0 for pooling '
-                                                        'from all remaining samples', default=200)
-    parser.add_argument('--learning_mode', type=str, help='supervised/unsupervised/random active',
-                        default='unsupervised')
-    parser.add_argument('--add_mode', type=str, help='random/cluster/nlargest/threshold', default='cluster')
-    parser.add_argument('--name', type=str, help='name for easy logging', default='default')
+    parser.add_argument('--max_size', type=int, help='Max size for active learning', default=800)
+    parser.add_argument('--search_size', type=int, help='Search size for active learning, 0 for pooling from all '
+                                                        'remaining samples', default=0)
+    parser.add_argument('--cluster_size', type=int, help='Cluster size for unsupervised active learning, 0 for pooling '
+                                                         'from all remaining samples', default=200)
+    parser.add_argument('--threshold', type=float, help='std threshold', default=0.1)
+    parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name',
+                        default='default')
+    parser.add_argument('--stride', type=int, help='output stride', default=100)
     parser.add_argument('--seed', type=int, help='random seed', default=233)
-    parser.add_argument('--threshold', type=float, help='std threshold', default=11)
+    parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR. fmin_l_bfgs_b', default='None')
     parser.add_argument('--group_by_mol', help='The training set will group based on molecules', action='store_true')
-    parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
     parser.add_argument('--nystrom_size', type=int, help='training set size start using Nystrom approximation.',
-                        default=3000)
+                        default=2000)
     parser.add_argument('--nystrom_active', help='Active learning for core matrix in Nystrom approximation.',
                         action='store_true')
     parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
@@ -48,14 +51,15 @@ def main():
     print('***\tEnd: Reading input.\t***\n')
 
     activelearner = ActiveLearner(train_X, train_Y, kernel_config, args.learning_mode, args.add_mode, args.init_size,
-                                  args.add_size, args.max_size, args.search_size, args.threshold, args.name,
-                                  test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol, optimizer=optimizer,
-                                  seed=args.seed, nystrom_active=args.nystrom_active, nystrom_size=args.nystrom_size,
-                                  nystrom_predict=args.nystrom_predict)
+                                  args.add_size, args.max_size, args.search_size, args.cluster_size, args.threshold,
+                                  args.name, test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol,
+                                  optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
+                                  nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
+                                  stride=args.stride)
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
-        if activelearner.train(alpha=args.alpha):
+        if activelearner.train(alpha=args.alpha) and activelearner.current_size % activelearner.stride == 0:
             print('\n**\tstart evaluate\t**\n')
             activelearner.evaluate()
         else:

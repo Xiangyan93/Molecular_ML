@@ -1,7 +1,3 @@
-"""
-train_SMILES is None: active learning based on data points
-             is not None: active learning based on molecules.
-"""
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
@@ -23,10 +19,10 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, max_size,
-                 search_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None, group_by_mol=False,
-                 random_init=True, optimizer="fmin_l_bfgs_b", stride=100, seed=233, nystrom_active=False,
-                 nystrom_predict=False):
-        ''' df must have the 'graph' column
+                 search_size, cluster_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None,
+                 group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
+                 nystrom_active=False, nystrom_predict=False):
+        '''
         nystrom_active: If True, using train_X as training set and active learning the K_core of corresponding nystrom
                         approximation.
         nystrom_predict: If True, no nystrom approximation is used in the active learning process. But output the
@@ -46,6 +42,7 @@ class ActiveLearner:
         self.add_size = add_size
         self.max_size = max_size
         self.search_size = search_size
+        self.cluster_size = cluster_size
         self.threshold = threshold
         self.name = name
         self.result_dir = 'result-%s' % name
@@ -94,13 +91,15 @@ class ActiveLearner:
             train_y = self.train_Y[self.train_Y.index.isin(self.train_idx)]
         return train_x, train_y
 
-    def __get_untrain_X_y(self):
+    def __get_untrain_X_y(self, full=True):
         if self.group_by_mol:
             untrain_x = self.train_X[~self.train_X.graph.isin(self.train_graphs)]
-            untrain_y = self.train_Y[~self.train_X.graph.isin(self.train_graphs)]
         else:
             untrain_x = self.train_X[~self.train_X.index.isin(self.train_idx)]
-            untrain_y = self.train_Y[~self.train_Y.index.isin(self.train_idx)]
+        if not full and self.search_size != 0 and self.search_size < len(untrain_x):
+            untrain_x = untrain_x.sample(self.search_size)
+        untrain_idx = untrain_x.index
+        untrain_y = self.train_Y[~self.train_Y.index.isin(untrain_idx)]
         return untrain_x, untrain_y
 
     def __get_core_X_y(self):
@@ -115,7 +114,7 @@ class ActiveLearner:
     def train(self, alpha=0.5):
         # continue needs to be added soon
         np.random.seed(self.seed)
-        print('%s\n' % (time.asctime(time.localtime(time.time()))))
+        print('%s' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
         self.logger.write('Start Training, training size = %i:\n' % self.current_size)
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
@@ -171,9 +170,10 @@ class ActiveLearner:
             return x
 
     def add_samples(self):
+        print('%s' % (time.asctime(time.localtime(time.time()))))
         import warnings
         warnings.filterwarnings("ignore")
-        untrain_x, untrain_y = self.__get_untrain_X_y()
+        untrain_x, untrain_y = self.__get_untrain_X_y(full=False)
         if self.learning_mode == 'supervised':
             y_pred = self.model.predict(untrain_x)
             untrain_x = self.__to_df(untrain_x)
@@ -239,6 +239,7 @@ class ActiveLearner:
         :target: should be one of mse/std
         :return: list of idx
         '''
+        print('%s' % (time.asctime(time.localtime(time.time()))))
         if self.std_logging:  # for debugging
             if not os.path.exists(os.path.join(os.getcwd(), 'log', 'std_log')):
                 os.makedirs(os.path.join(os.getcwd(), 'log', 'std_log'))
@@ -267,11 +268,11 @@ class ActiveLearner:
             raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
 
     def __get_search_idx(self, df, target):
-        if self.search_size == 0 or len(df) < self.search_size:  # from all remaining samples
-            search_size = len(df)
+        if self.cluster_size == 0 or len(df) < self.cluster_size:  # from all remaining samples
+            cluster_size = len(df)
         else:
-            search_size = self.search_size
-        return sorted(df[target].nlargest(search_size).index)
+            cluster_size = self.cluster_size
+        return sorted(df[target].nlargest(cluster_size).index)
 
     def __get_gram_matrix(self, df):
         if not self.kernel_config.T:
@@ -339,6 +340,7 @@ class ActiveLearner:
             return 0
 
     def evaluate(self, train_output=True):
+        print('%s' % (time.asctime(time.localtime(time.time()))))
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
             Y = self.test_Y
@@ -362,35 +364,33 @@ class ActiveLearner:
         mse = mean_squared_error(y_pred, Y)
         # variance explained
         ex_var = explained_variance_score(y_pred, Y)
-
         print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()
 
-        if self.current_size % self.stride == 0:
-            _X = self.__to_df(X)
+        _X = self.__to_df(X)
 
-            def get_smiles(graph):
-                return graph.smiles
+        def get_smiles(graph):
+            return graph.smiles
 
-            def get_df(x, y, y_pred, y_std):
-                out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
-                                    'rel_dev': abs((y - y_pred) / y)})
-                x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
-                return pd.concat([out, x.drop(columns='graph')], axis=1)
+        def get_df(x, y, y_pred, y_std):
+            out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
+                                'rel_dev': abs((y - y_pred) / y)})
+            x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
+            return pd.concat([out, x.drop(columns='graph')], axis=1)
 
-            out = get_df(_X, Y, y_pred, y_std)
+        out = get_df(_X, Y, y_pred, y_std)
+        out.sort_values(by='rel_dev', ascending=False). \
+            to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
+
+        if train_output:
+            train_x, train_y = self.train_x, self.train_y
+            y_pred, y_std = self.model.predict(train_x, return_std=True)
+            train_x = self.__to_df(train_x)
+            out = get_df(train_x, train_y, y_pred, y_std)
             out.sort_values(by='rel_dev', ascending=False). \
-                to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
-
-            if train_output:
-                train_x, train_y = self.train_x, self.train_y
-                y_pred, y_std = self.model.predict(train_x, return_std=True)
-                train_x = self.__to_df(train_x)
-                out = get_df(train_x, train_y, y_pred, y_std)
-                out.sort_values(by='rel_dev', ascending=False). \
-                    to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
-                           float_format='%10.5f')
+                to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
+                       float_format='%10.5f')
 
     def get_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \
