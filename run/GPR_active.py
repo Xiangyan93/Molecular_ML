@@ -51,7 +51,7 @@ def main():
     print('***\tEnd: Reading input.\t***\n')
 
     activelearner = ActiveLearner(train_X, train_Y, kernel_config, args.learning_mode, args.add_mode, args.init_size,
-                                  args.add_size, args.max_size, args.search_size, args.cluster_size, args.threshold,
+                                  args.add_size, args.max_size, args.search_size, args.pool_size, args.threshold,
                                   args.name, test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol,
                                   optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
                                   nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
