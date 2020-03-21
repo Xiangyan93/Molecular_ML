@@ -19,6 +19,7 @@ def main():
     parser.add_argument('--alpha', type=float, help='Initial alpha value.', default=0.5)
     parser.add_argument('--seed', type=int, help='random seed', default=233)
     parser.add_argument('--nystrom', help='Nystrom approximation.', action='store_true')
+    parser.add_argument('--size', type=int, help='training size')
     parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
     opt = parser.parse_args()
 
@@ -36,7 +37,7 @@ def main():
                                                                seed=opt.seed)
         test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list)
     print('***\tEnd: Reading input.\t***\n')
-
+    train_X, train_Y = train_X[:opt.size], train_Y[:opt.size]
     print('***\tStart: hyperparameters optimization.\t***\n')
     alpha = opt.alpha
     if opt.nystrom:

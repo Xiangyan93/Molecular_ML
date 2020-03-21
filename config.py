@@ -27,12 +27,13 @@ class Config:
 
         stop_prob = 0.05
         stop_prob_bound = (1e-4, 1.0)
-        T = 300
-        P = 300
+
+        T = 1000
+        P = 1000
 
     class NystromPara:
         off_diagonal_cutoff = 0.9
-        core_max = 2000
+        core_max = 1500
         loop = 1
         alpha = 1e-8
 
