@@ -45,7 +45,7 @@ def main():
             model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, normalize_y=True,
                                                     alpha=alpha, optimizer=optimizer,
                                                     off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
-                                                    core_max=Config.NystromPara.core_max
+                                                    core_max=Config.NystromPara.core_max, core_predict=False
                                                     ).fit_robust(train_X, train_Y)
             kernel_config.kernel = model.kernel_
     else:

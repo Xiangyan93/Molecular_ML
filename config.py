@@ -27,6 +27,7 @@ class Config:
 
         stop_prob = 0.05
         stop_prob_bound = (1e-4, 1.0)
+
         T = 1000
         P = 1000
 
@@ -45,7 +46,7 @@ class Config:
         }
 
         ACTIVE_LEARNING_Para = {
-            'ratio': 0.8
+            'ratio': None
         }
 
     class VectorFingerprint:
