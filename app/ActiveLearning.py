@@ -19,10 +19,12 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, max_size,
-                 search_size, cluster_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None,
+                 search_size, pool_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None,
                  group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
                  nystrom_active=False, nystrom_predict=False):
         '''
+        search_size: Random chose samples from untrained samples. And are predicted based on current model.
+        pool_size: The largest mse or std samples in search_size.
         nystrom_active: If True, using train_X as training set and active learning the K_core of corresponding nystrom
                         approximation.
         nystrom_predict: If True, no nystrom approximation is used in the active learning process. But output the
@@ -42,7 +44,7 @@ class ActiveLearner:
         self.add_size = add_size
         self.max_size = max_size
         self.search_size = search_size
-        self.cluster_size = cluster_size
+        self.pool_size = pool_size
         self.threshold = threshold
         self.name = name
         self.result_dir = 'result-%s' % name
@@ -268,11 +270,11 @@ class ActiveLearner:
             raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
 
     def __get_search_idx(self, df, target):
-        if self.cluster_size == 0 or len(df) < self.cluster_size:  # from all remaining samples
-            cluster_size = len(df)
+        if self.pool_size == 0 or len(df) < self.pool_size:  # from all remaining samples
+            pool_size = len(df)
         else:
-            cluster_size = self.cluster_size
-        return sorted(df[target].nlargest(cluster_size).index)
+            pool_size = self.pool_size
+        return sorted(df[target].nlargest(pool_size).index)
 
     def __get_gram_matrix(self, df):
         if not self.kernel_config.T:
