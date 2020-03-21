@@ -96,12 +96,17 @@ class ActiveLearner:
     def __get_untrain_X_y(self, full=True):
         if self.group_by_mol:
             untrain_x = self.train_X[~self.train_X.graph.isin(self.train_graphs)]
+            if not full and self.search_size != 0:
+                untrain_graphs = self.__to_df(untrain_x).graph.unique()
+                if self.search_size < len(untrain_graphs):
+                    untrain_graphs = np.random.choice(untrain_graphs, self.search_size, replace=False)
+                untrain_x = self.train_X[self.train_X.graph.isin(untrain_graphs)]
         else:
             untrain_x = self.train_X[~self.train_X.index.isin(self.train_idx)]
-        if not full and self.search_size != 0 and self.search_size < len(untrain_x):
-            untrain_x = untrain_x.sample(self.search_size)
+            if not full and self.search_size != 0 and self.search_size < len(untrain_x):
+                untrain_x = untrain_x.sample(self.search_size)
         untrain_idx = untrain_x.index
-        untrain_y = self.train_Y[~self.train_Y.index.isin(untrain_idx)]
+        untrain_y = self.train_Y[self.train_Y.index.isin(untrain_idx)]
         return untrain_x, untrain_y
 
     def __get_core_X_y(self):
@@ -196,8 +201,7 @@ class ActiveLearner:
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'unsupervised':
             y_pred, y_std = self.model.predict(untrain_x, return_std=True)
-            if untrain_x.__class__ == pd.Series:
-                untrain_x = pd.DataFrame({untrain_x.name: untrain_x})
+            untrain_x = self.__to_df(untrain_x)
             untrain_x.loc[:, 'std'] = y_std
             if self.group_by_mol:
                 group = untrain_x.groupby('graph')
@@ -248,6 +252,10 @@ class ActiveLearner:
             df[['SMILES', 'std']].to_csv('log/std_log/%d-%d.csv' % (len(df), len(self.train_X) - len(df)))
         if len(df) < self.add_size:  # add all if end of the training set
             return df.index
+        df_threshold = df[df[target] > self.threshold]
+        print('%i / %i searched samples less than threshold %e' % (len(df_threshold), self.search_size, self.threshold))
+        if len(df_threshold) < self.search_size * 0.5:
+            self.search_size *= 2
         if self.add_mode == 'random':
             return np.array(random.sample(range(len(df)), self.add_size))
         elif self.add_mode == 'cluster':
