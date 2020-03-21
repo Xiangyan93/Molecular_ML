@@ -25,7 +25,7 @@ def main():
                                                         'remaining samples', default=0)
     parser.add_argument('--pool_size', type=int, help='Pool size for active learning, 0 for pooling from all searched '
                                                       'samples', default=200)
-    parser.add_argument('--threshold', type=float, help='std threshold', default=0.1)
+    parser.add_argument('--threshold', type=float, help='threshold', default=0.1)
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name',
                         default='default')
     parser.add_argument('--stride', type=int, help='output stride', default=100)
