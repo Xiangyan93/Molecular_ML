@@ -23,6 +23,7 @@ class Config:
                               stereo=KroneckerDelta(v),
                               conjugated=KroneckerDelta(v),
                               smallest_ring=KroneckerDelta(v),
+                              ring_number=KroneckerDelta(v),
                               )
 
         stop_prob = 0.05
