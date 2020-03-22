@@ -59,9 +59,13 @@ def main():
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
-        if activelearner.train(alpha=args.alpha) and activelearner.current_size % activelearner.stride == 0:
-            print('\n**\tstart evaluate\t**\n')
-            activelearner.evaluate()
+        if activelearner.train(alpha=args.alpha):
+            if activelearner.current_size % activelearner.stride == 0:
+                print('\n**\tstart evaluate\t**\n')
+                activelearner.evaluate()
+            else:
+                activelearner.y_pred = None
+                activelearner.y_std = None
         else:
             print('Training failed for all alpha')
         if activelearner.stop_sign():

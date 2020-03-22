@@ -80,6 +80,8 @@ class ActiveLearner:
                 self.train_idx = get_core_idx(self.train_X, self.kernel_config.kernel, off_diagonal_cutoff=0.95,
                                               core_max=initial_size)
         self.optimizer = optimizer
+        self.y_pred = None
+        self.y_std = None
 
     def stop_sign(self):
         if self.current_size >= self.max_size or self.current_size == len(self.train_X):
@@ -183,9 +185,12 @@ class ActiveLearner:
         print('%s' % (time.asctime(time.localtime(time.time()))))
         import warnings
         warnings.filterwarnings("ignore")
-        untrain_x, untrain_y = self.__get_untrain_X_y(full=False)
+        if self.y_pred is None and self.y_std is None:
+            untrain_x, untrain_y = self.__get_untrain_X_y(full=False)
+        else:
+            untrain_x, untrain_y = self.__get_untrain_X_y(full=True)
         if self.learning_mode == 'supervised':
-            y_pred = self.model.predict(untrain_x)
+            y_pred = self.model.predict(untrain_x) if self.y_pred is None else self.y_pred
             untrain_x = self.__to_df(untrain_x)
             untrain_x.loc[:, 'mse'] = abs(y_pred - untrain_y)
             if self.group_by_mol:
@@ -203,7 +208,10 @@ class ActiveLearner:
                 self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'unsupervised':
-            y_pred, y_std = self.model.predict(untrain_x, return_std=True)
+            if self.y_std is None:
+                y_pred, y_std = self.model.predict(untrain_x, return_std=True)
+            else:
+                y_std = self.y_std
             untrain_x = self.__to_df(untrain_x)
             untrain_x.loc[:, 'std'] = y_std
             if self.group_by_mol:
@@ -371,6 +379,8 @@ class ActiveLearner:
             ex_var = explained_variance_score(y_pred, Y)
             self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var
         y_pred, y_std = self.model.predict(X, return_std=True)
+        self.y_pred = y_pred
+        self.y_std = y_std
         # R2
         r2 = r2_score(y_pred, Y)
         # MSE
