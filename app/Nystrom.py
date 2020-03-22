@@ -360,7 +360,26 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
         return super().predict(X, return_std, return_cov)
 
     def predict(self, X, return_std=False, return_cov=False):
-        return super().nystrom_predict(X, return_std, return_cov)
+        if return_cov:
+            return super().nystrom_predict(X, return_std=return_std, return_cov=return_cov)
+        else:
+            if X.__class__ != np.ndarray:
+                X = X.to_numpy()
+            N = X.shape[0]
+            y_mean = np.array([])
+            y_std = np.array([])
+            for i in range(math.ceil(N / 5000)):
+                X_ = X[i*5000:(i+1)*5000]
+                if return_std:
+                    y_mean_, y_std_ = super().nystrom_predict(X_, return_std=return_std, return_cov=return_cov)
+                    y_std = np.r_[y_std, y_std_]
+                else:
+                    y_mean_ = super().nystrom_predict(X_, return_std=return_std, return_cov=return_cov)
+                y_mean = np.r_[y_mean, y_mean_]
+            if return_std:
+                return y_mean, y_std
+            else:
+                return y_mean
 
 
 """
