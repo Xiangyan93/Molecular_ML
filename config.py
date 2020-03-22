@@ -17,7 +17,8 @@ class Config:
         knode = TensorProduct(aromatic=KroneckerDelta(v),
                               #charge=SquareExponential(1.0),
                               element=KroneckerDelta(v),
-                              hcount=SquareExponential(s)
+                              hcount=SquareExponential(s),
+                              chiral=KroneckerDelta(v),
                               )
         kedge = TensorProduct(order=SquareExponential(s),
                               stereo=KroneckerDelta(v),
