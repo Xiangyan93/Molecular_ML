@@ -54,7 +54,7 @@ def main():
                                                     )
             if opt.continued:
                 print('load original model\n')
-                model.load(os.path.join(result_dir,'model.pkl'))
+                model.load(result_dir)
             else:
                 model.fit_robust(train_X, train_Y)
             kernel_config.kernel = model.kernel_
@@ -63,8 +63,7 @@ def main():
                                                       optimizer=optimizer, normalize_y=True, alpha=alpha)
         if opt.continued:
             print('load original model\n')
-            model.fit_robust(train_X, train_Y)
-            model.load(os.path.join(result_dir,'model.pkl'))
+            model.load(result_dir)
         else:
             model.fit_robust(train_X, train_Y)
         print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
@@ -81,7 +80,7 @@ def main():
     print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
     print('mean unsigned error: %.6f\n' % (abs(pred_value_list - test_Y) / test_Y).mean())
     print('***\tEnd: test set prediction.\t***\n')
-    model.save(os.path.join(result_dir,'model.pkl'))
+    model.save(result_dir)
 
 
 if __name__ == '__main__':
