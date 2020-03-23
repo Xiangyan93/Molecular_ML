@@ -29,3 +29,5 @@ out-0.000.txt
 *.cprof
 
 *.pkl
+
+*.txt

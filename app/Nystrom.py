@@ -30,6 +30,7 @@ from numpy.linalg import eigh
 import pandas as pd
 import math
 import pickle
+import os
 
 from app.kernel import get_core_idx, get_subset_by_clustering
 from config import Config
@@ -150,23 +151,34 @@ class GPR(GaussianProcessRegressor):
                 return y_mean, y_std
             else:
                 return y_mean
-                
-    def save(self, save_dir):
+
+    def save(self, result_dir):
+        if not os.path.exists(result_dir):
+            os.mkdir(result_dir)
+        model_save_dir = os.path.join(result_dir,'model.pkl')
         store_dict = self.__dict__.copy()
         if 'kernel' in store_dict.keys():
             store_dict.pop('kernel')
         if 'kernel_' in store_dict.keys():
             store_dict.pop('kernel_')
-        with open(save_dir, 'wb') as file:
+        with open(model_save_dir, 'wb') as file:
             pickle.dump(store_dict, file)
+        theta_save_dir = os.path.join(result_dir,'theta.pkl')
+        with open(theta_save_dir, 'wb') as file:
+            pickle.dump(self.kernel_.theta, file)
 
-    def load(self, save_dir):
-        if self.kernel is not None:
-            self.kernel_ = self.kernel
-        with open(save_dir, 'rb') as file:
+    def load(self, result_dir):
+        model_save_dir = os.path.join(result_dir,'model.pkl')
+        theta_save_dir = os.path.join(result_dir,'theta.pkl')
+        with open(theta_save_dir, 'rb') as file:
+            theta = pickle.load(file)      
+        with open(model_save_dir, 'rb') as file:
             store_dict = pickle.load(file)        
         for key in store_dict.keys():
             setattr(self, key, store_dict[key])
+        if self.kernel is not None:
+            self.kernel = self.kernel.clone_with_theta(theta)
+            self.kernel_ = self.kernel
 
 class RobustFitGaussianProcessRegressor(GPR):
     def __init__(self, y_scale=False, *args, **kwargs):

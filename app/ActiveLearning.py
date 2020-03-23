@@ -436,6 +436,8 @@ class ActiveLearner:
                                                        self.add_mode, self.add_size), sep=' ', index=False)
 
     def save(self):
+        if not os.path.exists(self.result_dir):
+            os.mkdir(self.result_dir)
         # store all attributes instead of model
         store_dict = self.__dict__.copy()
         if 'model' in store_dict.keys():
@@ -455,7 +457,7 @@ class ActiveLearner:
                 store_dict['model_class'] = 'nystrom'
             elif isinstance(self.model, RobustFitGaussianProcessRegressor):
                 store_dict['model_class'] = 'normal'
-            self.model.save(os.path.join(self.result_dir,'model.pkl'))
+            self.model.save(os.path.join(self.result_dir))
         with open(os.path.join(self.result_dir, 'activelearner_param.pkl'), 'wb') as file:
             pickle.dump(store_dict, file)
     
@@ -471,11 +473,12 @@ class ActiveLearner:
             if self.model_class == 'nystrom':
                 self.model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=self.seed,
                                                     optimizer=self.optimizer, normalize_y=True, alpha=self.alpha)
-                self.model.load(os.path.join(result_dir,'model.pkl'))
+                self.model.load(self.result_dir)
             elif self.model_class == 'normal':
                 self.model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=self.alpha)
+                self.model.load(self.result_dir)
     
     def __str__(self):
         return 'parameter of current active learning checkpoint:\n' + \
