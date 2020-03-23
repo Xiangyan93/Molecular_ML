@@ -25,3 +25,7 @@ __pycache__/
 .ipynb_checkpoints/
 
 out-0.000.txt
+
+*.cprof
+
+*.pkl

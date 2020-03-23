@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import argparse
+import os
 
 sys.path.append('.')
 sys.path.append('..')
@@ -19,11 +20,14 @@ def main():
     parser.add_argument('--alpha', type=float, help='Initial alpha value.', default=0.5)
     parser.add_argument('--seed', type=int, help='random seed', default=233)
     parser.add_argument('--nystrom', help='Nystrom approximation.', action='store_true')
-    parser.add_argument('--size', type=int, help='training size')
+    parser.add_argument('--size', type=int, help='training size, 0 for all', default=0)
     parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
+    parser.add_argument('--continued', help='whether continue training', action='store_true')
+    parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name', default='default')
     opt = parser.parse_args()
 
     optimizer = None if opt.optimizer == 'None' else opt.optimizer
+    result_dir = 'result-%s' % opt.name
     print('***\tStart: Reading input.\t***\n')
     kernel_config = KernelConfig(save_mem=False, property=opt.property)
     if Config.TrainingSetSelectRule.ASSIGNED and opt.train is not None:
@@ -37,7 +41,8 @@ def main():
                                                                seed=opt.seed)
         test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list)
     print('***\tEnd: Reading input.\t***\n')
-    train_X, train_Y = train_X[:opt.size], train_Y[:opt.size]
+    if opt.size != 0:
+        train_X, train_Y = train_X[:opt.size], train_Y[:opt.size]
     print('***\tStart: hyperparameters optimization.\t***\n')
     alpha = opt.alpha
     if opt.nystrom:
@@ -46,11 +51,22 @@ def main():
                                                     alpha=alpha, optimizer=optimizer,
                                                     off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                     core_max=Config.NystromPara.core_max, core_predict=False
-                                                    ).fit_robust(train_X, train_Y)
+                                                    )
+            if opt.continued:
+                print('load original model\n')
+                model.load(os.path.join(result_dir,'model.pkl'))
+            else:
+                model.fit_robust(train_X, train_Y)
             kernel_config.kernel = model.kernel_
     else:
-        model = gp.GaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, optimizer=optimizer,
-                                            normalize_y=True, alpha=alpha).fit(train_X, train_Y)
+        model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0,
+                                                      optimizer=optimizer, normalize_y=True, alpha=alpha)
+        if opt.continued:
+            print('load original model\n')
+            model.fit_robust(train_X, train_Y)
+            model.load(os.path.join(result_dir,'model.pkl'))
+        else:
+            model.fit_robust(train_X, train_Y)
         print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
     print('***\tEnd: hyperparameters optimization.\t***\n')
 
@@ -65,6 +81,7 @@ def main():
     print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
     print('mean unsigned error: %.6f\n' % (abs(pred_value_list - test_Y) / test_Y).mean())
     print('***\tEnd: test set prediction.\t***\n')
+    model.save(os.path.join(result_dir,'model.pkl'))
 
 
 if __name__ == '__main__':

@@ -8,6 +8,7 @@ from app.kernel import *
 from app.smiles import *
 from app.ActiveLearning import *
 from app.Nystrom import NystromGaussianProcessRegressor
+import pickle
 
 
 def main():
@@ -39,6 +40,7 @@ def main():
                         action='store_true')
     parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
                         action='store_true')
+    parser.add_argument('--continued', help='whether continue training', action='store_true')
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -57,6 +59,13 @@ def main():
                                   optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
                                   nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
                                   stride=args.stride, nystrom_add_size=args.nystrom_add_size)
+    if args.continued:
+        print('**\tLoading checkpoint\t**\n')
+        activelearner.load(kernel_config)
+        activelearner.max_size = args.max_size
+        print("model continued from checkpoint")
+        print(activelearner)
+
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
@@ -66,6 +75,7 @@ def main():
                 print('\n**\tstart evaluate\t**\n')
                 activelearner.evaluate()
                 activelearner.write_training_plot()
+                activelearner.save()
             else:
                 activelearner.y_pred = None
                 activelearner.y_std = None
@@ -73,8 +83,9 @@ def main():
             print('Training failed for all alpha')
         if activelearner.stop_sign():
             break
-        print('**\tstart add samples\t**\n')
+        print('**\tstart add samples & saving\t**\n')
         activelearner.add_samples()
+
     print('\n***\tEnd: active learning\t***\n')
 
 
