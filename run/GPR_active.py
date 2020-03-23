@@ -68,12 +68,12 @@ def main():
                 activelearner.y_std = None
         else:
             print('Training failed for all alpha')
+        if activelearner.current_size % 100 == 0:
+            activelearner.get_training_plot()
         if activelearner.stop_sign():
             break
         print('**\tstart add samples\t**\n')
         activelearner.add_samples()
-        if activelearner.current_size % 100 == 0:
-            activelearner.get_training_plot()
     print('\n***\tEnd: active learning\t***\n')
 
 

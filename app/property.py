@@ -1,7 +1,7 @@
 class PropertyConfig:
     def __init__(self, property='density'):
         self.property = property
-        if property in ['tc', 'dc', 'tt', 'tb']:
+        if property in ['tc', 'dc', 'tt', 'tb', 'pc', 'hfus']:
             self.T, self.P = False, False
         elif property in ['st']:
             self.T, self.P = True, False
