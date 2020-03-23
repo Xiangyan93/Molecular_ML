@@ -150,10 +150,10 @@ class ActiveLearner:
                     self.core_graphs = self.train_graphs
                 else:
                     self.core_idx = self.train_idx
+                self.add_size = self.nystrom_size
+                if self.add_mode == 'cluster':
+                    self.add_mode = 'nlargest'
         elif self.optimizer is None:
-            self.add_size = self.nystrom_size
-            if self.learning_mode == 'unsupervised':
-                self.add_mode = 'random'
             core_x, core_y = self.__get_core_X_y()
             model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                     optimizer=self.optimizer, normalize_y=True, alpha=alpha). \
