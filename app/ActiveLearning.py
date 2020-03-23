@@ -150,7 +150,7 @@ class ActiveLearner:
                     self.core_graphs = self.train_graphs
                 else:
                     self.core_idx = self.train_idx
-                self.add_size = self.nystrom_size
+                self.add_size = self.nystrom_add_size
                 if self.add_mode == 'cluster':
                     self.add_mode = 'nlargest'
         elif self.optimizer is None:
@@ -267,10 +267,12 @@ class ActiveLearner:
             df[['SMILES', 'std']].to_csv('log/std_log/%d-%d.csv' % (len(df), len(self.train_X) - len(df)))
         if len(df) < self.add_size:  # add all if end of the training set
             return df.index
-        df_threshold = df[df[target] > self.threshold]
-        print('%i / %i searched samples less than threshold %e' % (len(df_threshold), self.search_size, self.threshold))
-        if len(df_threshold) < self.search_size * 0.5 and self.search_size < self.train_size:
-            self.search_size *= 2
+        if self.search_size != 0:
+            df_threshold = df[df[target] > self.threshold]
+            print('%i / %i searched samples less than threshold %e' % (len(df_threshold), self.search_size,
+                                                                       self.threshold))
+            if len(df_threshold) < self.search_size * 0.5 and self.search_size < self.train_size:
+                self.search_size *= 2
         if self.add_mode == 'random':
             return np.array(random.sample(range(len(df)), self.add_size))
         elif self.add_mode == 'cluster':
