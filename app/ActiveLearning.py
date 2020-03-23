@@ -383,8 +383,12 @@ class ActiveLearner:
             ex_var = explained_variance_score(y_pred, Y)
             self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var
         y_pred, y_std = self.model.predict(X, return_std=True)
-        self.y_pred = y_pred
-        self.y_std = y_std
+        if self.test_X is not None and self.test_Y is not None:
+            self.y_pred = None
+            self.y_std = None
+        else:
+            self.y_pred = y_pred
+            self.y_std = y_std
         # R2
         r2 = r2_score(y_pred, Y)
         # MSE
