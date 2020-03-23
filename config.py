@@ -17,15 +17,17 @@ class Config:
         knode = TensorProduct(aromatic=KroneckerDelta(v),
                               #charge=SquareExponential(1.0),
                               element=KroneckerDelta(v),
-                              hcount=SquareExponential(s)
+                              hcount=SquareExponential(s),
+                              chiral=KroneckerDelta(v),
                               )
         kedge = TensorProduct(order=SquareExponential(s),
                               stereo=KroneckerDelta(v),
                               conjugated=KroneckerDelta(v),
                               smallest_ring=KroneckerDelta(v),
+                              ring_number=KroneckerDelta(v),
                               )
 
-        stop_prob = 0.05
+        stop_prob = 0.01
         stop_prob_bound = (1e-4, 1.0)
 
         T = 1000

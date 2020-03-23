@@ -140,7 +140,7 @@ def smiles2graph(smiles):
                 g.edges[ij]['ring_number'] = 0
                 g.edges[ij]['smallest_ring'] = 0
             else:
-                g.edges[ij]['ring_number'] = len(ringinfo)
+                g.edges[ij]['ring_number'] = mol.GetRingInfo().NumBondRings(bond.GetIdx())
                 g.edges[ij]['smallest_ring'] = ringinfo[0]
 
         # return g
