@@ -20,8 +20,8 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, max_size,
-                 search_size, pool_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None,
-                 group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
+                 search_size, pool_size, threshold, name, nystrom_size=3000, nystrom_add_size=3000, test_X=None,
+                 test_Y=None, group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
                  nystrom_active=False, nystrom_predict=False):
         '''
         search_size: Random chose samples from untrained samples. And are predicted based on current model.
@@ -53,6 +53,7 @@ class ActiveLearner:
             os.mkdir(self.result_dir)
         self.nystrom_active = nystrom_active
         self.nystrom_size = nystrom_size
+        self.nystrom_add_size = nystrom_add_size
         self.nystrom_predict = nystrom_predict
         if self.nystrom_predict:
             self.nystrom_size = self.max_size + 1000
@@ -150,6 +151,9 @@ class ActiveLearner:
                     self.core_graphs = self.train_graphs
                 else:
                     self.core_idx = self.train_idx
+                self.add_size = self.nystrom_add_size
+                if self.add_mode == 'cluster':
+                    self.add_mode = 'nlargest'
         elif self.optimizer is None:
             core_x, core_y = self.__get_core_X_y()
             model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
@@ -261,10 +265,12 @@ class ActiveLearner:
             df[['SMILES', 'std']].to_csv('log/std_log/%d-%d.csv' % (len(df), len(self.train_X) - len(df)))
         if len(df) < self.add_size:  # add all if end of the training set
             return df.index
-        df_threshold = df[df[target] > self.threshold]
-        print('%i / %i searched samples less than threshold %e' % (len(df_threshold), self.search_size, self.threshold))
-        if len(df_threshold) < self.search_size * 0.5 and self.search_size < self.train_size:
-            self.search_size *= 2
+        if self.search_size != 0:
+            df_threshold = df[df[target] > self.threshold]
+            print('%i / %i searched samples less than threshold %e' % (len(df_threshold), self.search_size,
+                                                                       self.threshold))
+            if len(df_threshold) < self.search_size * 0.5 and self.search_size < self.train_size:
+                self.search_size *= 2
         if self.add_mode == 'random':
             return np.array(random.sample(range(len(df)), self.add_size))
         elif self.add_mode == 'cluster':
@@ -377,8 +383,14 @@ class ActiveLearner:
             ex_var = explained_variance_score(y_pred, Y)
             self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var
         y_pred, y_std = self.model.predict(X, return_std=True)
-        #self.y_pred = y_pred
-        #self.y_std = y_std
+
+        if self.test_X is not None and self.test_Y is not None:
+            self.y_pred = None
+            self.y_std = None
+        else:
+            self.y_pred = y_pred
+            self.y_std = y_std
+
         # R2
         r2 = r2_score(y_pred, Y)
         # MSE
@@ -414,7 +426,7 @@ class ActiveLearner:
                 to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
                        float_format='%10.5f')
 
-    def get_training_plot(self):
+    def write_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \
             to_csv('%s/%s-%s-%s-%d.out' % (self.result_dir, self.kernel_config.property, self.learning_mode,
                                            self.add_mode, self.add_size), sep=' ', index=False)
