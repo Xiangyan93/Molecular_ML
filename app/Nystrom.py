@@ -29,6 +29,7 @@ from sklearn.preprocessing import StandardScaler
 from numpy.linalg import eigh
 import pandas as pd
 import math
+import pickle
 
 from app.kernel import get_core_idx, get_subset_by_clustering
 from config import Config
@@ -149,7 +150,23 @@ class GPR(GaussianProcessRegressor):
                 return y_mean, y_std
             else:
                 return y_mean
+                
+    def save(self, save_dir):
+        store_dict = self.__dict__.copy()
+        if 'kernel' in store_dict.keys():
+            store_dict.pop('kernel')
+        if 'kernel_' in store_dict.keys():
+            store_dict.pop('kernel_')
+        with open(save_dir, 'wb') as file:
+            pickle.dump(store_dict, file)
 
+    def load(self, save_dir):
+        if self.kernel is not None:
+            self.kernel_ = self.kernel
+        with open(save_dir, 'rb') as file:
+            store_dict = pickle.load(file)        
+        for key in store_dict.keys():
+            setattr(self, key, store_dict[key])
 
 class RobustFitGaussianProcessRegressor(GPR):
     def __init__(self, y_scale=False, *args, **kwargs):
