@@ -19,8 +19,8 @@ class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
     def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, max_size,
-                 search_size, pool_size, threshold, name, nystrom_size=3000, test_X=None, test_Y=None,
-                 group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
+                 search_size, pool_size, threshold, name, nystrom_size=3000, nystrom_add_size=3000, test_X=None,
+                 test_Y=None, group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
                  nystrom_active=False, nystrom_predict=False):
         '''
         search_size: Random chose samples from untrained samples. And are predicted based on current model.
@@ -52,6 +52,7 @@ class ActiveLearner:
             os.mkdir(self.result_dir)
         self.nystrom_active = nystrom_active
         self.nystrom_size = nystrom_size
+        self.nystrom_add_size = nystrom_add_size
         self.nystrom_predict = nystrom_predict
         if self.nystrom_predict:
             self.nystrom_size = self.max_size + 1000
@@ -150,6 +151,9 @@ class ActiveLearner:
                 else:
                     self.core_idx = self.train_idx
         elif self.optimizer is None:
+            self.add_size = self.nystrom_size
+            if self.learning_mode == 'unsupervised':
+                self.add_mode = 'random'
             core_x, core_y = self.__get_core_X_y()
             model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                     optimizer=self.optimizer, normalize_y=True, alpha=alpha). \
@@ -416,7 +420,7 @@ class ActiveLearner:
                 to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
                        float_format='%10.5f')
 
-    def get_training_plot(self):
+    def write_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \
             to_csv('%s/%s-%s-%s-%d.out' % (self.result_dir, self.kernel_config.property, self.learning_mode,
                                            self.add_mode, self.add_size), sep=' ', index=False)

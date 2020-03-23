@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--group_by_mol', help='The training set will group based on molecules', action='store_true')
     parser.add_argument('--nystrom_size', type=int, help='training set size start using Nystrom approximation.',
                         default=2000)
+    parser.add_argument('--nystrom_add_size', type=int, help='Add size for nystrom active learning', default=1000)
     parser.add_argument('--nystrom_active', help='Active learning for core matrix in Nystrom approximation.',
                         action='store_true')
     parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
@@ -55,21 +56,21 @@ def main():
                                   args.name, test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol,
                                   optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
                                   nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
-                                  stride=args.stride)
+                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size)
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
         if activelearner.train(alpha=args.alpha):
-            if activelearner.current_size % activelearner.stride == 0:
+            if activelearner.current_size % activelearner.stride == 0 \
+                    or activelearner.current_size > activelearner.nystrom_size:
                 print('\n**\tstart evaluate\t**\n')
                 activelearner.evaluate()
+                activelearner.write_training_plot()
             else:
                 activelearner.y_pred = None
                 activelearner.y_std = None
         else:
             print('Training failed for all alpha')
-        if activelearner.current_size % 100 == 0:
-            activelearner.get_training_plot()
         if activelearner.stop_sign():
             break
         print('**\tstart add samples\t**\n')
