@@ -27,7 +27,7 @@ class Config:
                               ring_number=KroneckerDelta(v),
                               )
 
-        stop_prob = 0.05
+        stop_prob = 0.01
         stop_prob_bound = (1e-4, 1.0)
 
         T = 1000
