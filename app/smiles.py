@@ -122,6 +122,8 @@ def smiles2graph(smiles):
             g.nodes[i]['aromatic'] = atom.GetIsAromatic()
             g.nodes[i]['hybridization'] = atom.GetHybridization()
             g.nodes[i]['chiral'] = atom.GetChiralTag()
+            g.nodes[i]['ring_number'] = mol.GetRingInfo().NumAtomRings(atom.GetIdx())
+            g.nodes[i]['smallest_ring'] = mol.GetRingInfo().MinAtomRingSize(atom.GetIdx())
 
         for bond in mol.GetBonds():
             ij = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
@@ -130,18 +132,7 @@ def smiles2graph(smiles):
             g.edges[ij]['aromatic'] = bond.GetIsAromatic()
             g.edges[ij]['conjugated'] = bond.GetIsConjugated()
             g.edges[ij]['stereo'] = bond.GetStereo()
-            g.edges[ij]['inring'] = bond.IsInRing()
-            ringinfo = []
-            for i in range(3, 15):
-                if bond.IsInRingSize(i):
-                    ringinfo.append(i)
-
-            if len(ringinfo) == 0:
-                g.edges[ij]['ring_number'] = 0
-                g.edges[ij]['smallest_ring'] = 0
-            else:
-                g.edges[ij]['ring_number'] = mol.GetRingInfo().NumBondRings(bond.GetIdx())
-                g.edges[ij]['smallest_ring'] = ringinfo[0]
+            # g.edges[ij]['inring'] = bond.IsInRing()
 
         # return g
         graph = HashGraph.from_networkx_(g, smiles)
