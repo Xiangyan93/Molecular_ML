@@ -116,7 +116,7 @@ class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
 
     def PreCalculate(self, X):
         self.graphs = np.sort(X)
-        self.K = self(X)
+        self.K = self(self.graphs)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if self.K is None or eval_gradient:

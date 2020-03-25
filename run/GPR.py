@@ -24,35 +24,51 @@ def main():
     parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
     parser.add_argument('--continued', help='whether continue training', action='store_true')
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name', default='default')
-    opt = parser.parse_args()
+    args = parser.parse_args()
 
-    optimizer = None if opt.optimizer == 'None' else opt.optimizer
-    result_dir = 'result-%s' % opt.name
+    optimizer = None if args.optimizer == 'None' else args.optimizer
+    result_dir = 'result-%s' % args.name
     print('***\tStart: Reading input.\t***\n')
-    kernel_config = KernelConfig(save_mem=False, property=opt.property)
-    if Config.TrainingSetSelectRule.ASSIGNED and opt.train is not None:
-        df = pd.read_csv(opt.train, sep='\s+', header=0)
+    kernel_config = KernelConfig(save_mem=False, property=args.property)
+    if Config.TrainingSetSelectRule.ASSIGNED and args.train is not None:
+        df = pd.read_csv(args.train, sep='\s+', header=0)
         train_smiles_list = df.SMILES.unique().tolist()
-        train_X, train_Y = get_XY_from_file(opt.train, kernel_config, seed=opt.seed)
-        test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list, seed=opt.seed)
+        train_X, train_Y = get_XY_from_file(args.train, kernel_config, seed=args.seed)
+        test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed)
     elif Config.TrainingSetSelectRule.RANDOM:
-        train_X, train_Y, train_smiles_list = get_XY_from_file(opt.input, kernel_config,
+        train_X, train_Y, train_smiles_list = get_XY_from_file(args.input, kernel_config,
                                                                ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
-                                                               seed=opt.seed)
-        test_X, test_Y = get_XY_from_file(opt.input, kernel_config, remove_smiles=train_smiles_list)
+                                                               seed=args.seed)
+        test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list)
     print('***\tEnd: Reading input.\t***\n')
-    if opt.size != 0:
-        train_X, train_Y = train_X[:opt.size], train_Y[:opt.size]
+    if args.size != 0:
+        train_X, train_Y = train_X[:args.size], train_Y[:args.size]
+        
+    if optimizer is None:
+        print('***\tStart: Pre-calculate of graph kernels\t***\n')
+        if test_X is None and test_Y is None:
+            X = train_X
+        else:
+            X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None)
+        if kernel_config.T:
+            X = X.graph.unique()
+            kernel_config.kernel.kernel_list[0].PreCalculate(X)
+        else:
+            X = X.unique()
+            kernel_config.kernel.PreCalculate(X)
+        print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
+        
     print('***\tStart: hyperparameters optimization.\t***\n')
-    alpha = opt.alpha
-    if opt.nystrom:
+    
+    alpha = args.alpha
+    if args.nystrom:
         for i in range(Config.NystromPara.loop):
             model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, normalize_y=True,
                                                     alpha=alpha, optimizer=optimizer,
                                                     off_diagonal_cutoff=Config.NystromPara.off_diagonal_cutoff,
                                                     core_max=Config.NystromPara.core_max, core_predict=False
                                                     )
-            if opt.continued:
+            if args.continued:
                 print('load original model\n')
                 model.load(result_dir)
             else:
@@ -61,7 +77,7 @@ def main():
     else:
         model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0,
                                                       optimizer=optimizer, normalize_y=True, alpha=alpha)
-        if opt.continued:
+        if args.continued:
             print('load original model\n')
             model.load(result_dir)
         else:
