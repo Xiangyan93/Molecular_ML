@@ -180,6 +180,7 @@ class GPR(GaussianProcessRegressor):
             self.kernel = self.kernel.clone_with_theta(theta)
             self.kernel_ = self.kernel
 
+
 class RobustFitGaussianProcessRegressor(GPR):
     def __init__(self, y_scale=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
