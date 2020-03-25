@@ -73,10 +73,7 @@ class NEWConstantKernel(ConstantKernel):
             return K
 
 
-class NormalizedKernel(MarginalizedGraphKernel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+class NormalizedGraphKernel(MarginalizedGraphKernel):
     def __normalize(self, X, Y, R):
         if Y is None:
             # square matrix
@@ -109,6 +106,28 @@ class NormalizedKernel(MarginalizedGraphKernel):
 
     def diag(self, X, nodal=False, lmin=0, timing=False):
         return np.ones(len(X))
+
+
+class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
+    def __init__(self, *args, **kwargs):
+        self.graphs = None
+        self.K = None
+        super().__init__(*args, **kwargs)
+
+    def PreCalculate(self, X):
+        self.graphs = np.sort(X)
+        self.K = self(X)
+
+    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
+        if self.K is None or eval_gradient:
+            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args, **kwargs)
+        else:
+            X_idx = np.searchsorted(self.graphs, X)
+            if Y is not None:
+                Y_idx = np.searchsorted(self.graphs, Y)
+                return self.K[X_idx][:, Y_idx]
+            else:
+                return self.K[X_idx][:, X_idx]
 
 
 class ContractMarginalizedGraphKernel(MarginalizedGraphKernel):
@@ -222,7 +241,8 @@ class MultipleKernel:
             X = X.to_numpy()
         X = X[:, s:e]
         if self.kernel_list[i].__class__ in [ContractMarginalizedGraphKernel, ContractNormalizedKernel,
-                                             MarginalizedGraphKernel, NormalizedKernel]:
+                                             MarginalizedGraphKernel, NormalizedGraphKernel,
+                                             PreCalcNormalizedGraphKernel]:
             X = X.transpose().tolist()[0]
         return X
 
@@ -347,7 +367,7 @@ class KernelConfig(PropertyConfig):
             if save_mem:
                 graph_kernel = ContractNormalizedKernel(None, [], knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
             else:
-                graph_kernel = NormalizedKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
+                graph_kernel = PreCalcNormalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
         else:
             if save_mem:
                 graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
@@ -368,7 +388,7 @@ class KernelConfig(PropertyConfig):
         return '%s,graph_kernel' % self.property
 
 
-def datafilter(df, ratio=None, remove_smiles=None, get_smiles=False, seed=233):
+def datafilter(df, ratio=None, remove_smiles=None, seed=233):
     np.random.seed(seed)
     if ratio is not None:
         unique_smiles_list = df.SMILES.unique().tolist()

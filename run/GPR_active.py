@@ -53,6 +53,20 @@ def main():
     test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed)
     print('***\tEnd: Reading input.\t***\n')
 
+    if optimizer is None:
+        print('***\tStart: Pre-calculate of graph kernels\t***\n')
+        if test_X is None and test_Y is None:
+            X = train_X
+        else:
+            X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None)
+        if kernel_config.T:
+            X = X.graph.unique()
+            kernel_config.kernel.kernel_list[0].PreCalculate(X)
+        else:
+            X = X.unique()
+            kernel_config.kernel.PreCalculate(X)
+        print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
+
     activelearner = ActiveLearner(train_X, train_Y, kernel_config, args.learning_mode, args.add_mode, args.init_size,
                                   args.add_size, args.max_size, args.search_size, args.pool_size, args.threshold,
                                   args.name, test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol,
