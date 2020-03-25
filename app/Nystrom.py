@@ -43,8 +43,12 @@ class GPR(GaussianProcessRegressor):
                 * RBF(1.0, length_scale_bounds="fixed")
         else:
             self.kernel_ = clone(self.kernel)
-            self.kernel_.graphs = self.kernel.graphs
-            self.kernel_.K = self.kernel.K
+            if hasattr(self.kernel, 'kernel_list'):
+                self.kernel_.kernel_list[0].graphs = self.kernel.kernel_list[0].graphs
+                self.kernel_.kernel_list[0].K = self.kernel.kernel_list[0].K
+            else:
+                self.kernel_.graphs = self.kernel.graphs
+                self.kernel_.K = self.kernel.K
 
         self._rng = check_random_state(self.random_state)
 
@@ -209,6 +213,7 @@ class RobustFitGaussianProcessRegressor(GPR):
             return result
 
     def fit_robust(self, X, y, core_predict=True):
+        self.fit(X, y, core_predict=core_predict)
         while self.alpha < 100:
             try:
                 print('Try to fit the data with alpha = %f' % self.alpha)
