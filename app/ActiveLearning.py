@@ -146,9 +146,6 @@ class ActiveLearner:
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
             print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
-            if self.optimizer is None:
-                model.kernel_.graphs = self.kernel_config.kernel.graphs
-                model.kernel_.K = self.kernel_config.kernel.K
             if train_x.shape[0] == self.nystrom_size:
                 if self.group_by_mol:
                     self.core_graphs = self.train_graphs

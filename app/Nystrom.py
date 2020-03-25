@@ -43,6 +43,8 @@ class GPR(GaussianProcessRegressor):
                 * RBF(1.0, length_scale_bounds="fixed")
         else:
             self.kernel_ = clone(self.kernel)
+            self.kernel_.graphs = self.kernel.graphs
+            self.kernel_.K = self.kernel.K
 
         self._rng = check_random_state(self.random_state)
 
