@@ -145,8 +145,8 @@ class GPR(GaussianProcessRegressor):
             N = X.shape[0]
             y_mean = np.array([])
             y_std = np.array([])
-            for i in range(math.ceil(N / 5000)):
-                X_ = X[i*5000:(i+1)*5000]
+            for i in range(math.ceil(N / 1000)):
+                X_ = X[i*1000:(i+1)*1000]
                 if return_std:
                     y_mean_, y_std_ = super().predict(X_, return_std=return_std, return_cov=return_cov)
                     y_std = np.r_[y_std, y_std_]
@@ -405,8 +405,8 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
             N = X.shape[0]
             y_mean = np.array([])
             y_std = np.array([])
-            for i in range(math.ceil(N / 5000)):
-                X_ = X[i*5000:(i+1)*5000]
+            for i in range(math.ceil(N / 1000)):
+                X_ = X[i*1000:(i+1)*1000]
                 if return_std:
                     y_mean_, y_std_ = super().nystrom_predict(X_, return_std=return_std, return_cov=return_cov)
                     y_std = np.r_[y_std, y_std_]
