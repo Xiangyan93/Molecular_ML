@@ -128,7 +128,7 @@ def smiles2graph(smiles):
         for bond in mol.GetBonds():
             ij = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
             g.add_edge(*ij)
-            g.edges[ij]['order'] = bond.GetBondType()
+            g.edges[ij]['order'] = bond.GetBondTypeAsDouble()
             g.edges[ij]['aromatic'] = bond.GetIsAromatic()
             g.edges[ij]['conjugated'] = bond.GetIsConjugated()
             g.edges[ij]['stereo'] = bond.GetStereo()
