@@ -41,6 +41,9 @@ def main():
     parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
                         action='store_true')
     parser.add_argument('--continued', help='whether continue training', action='store_true')
+    parser.add_argument('--y_min', type=float, help='', default=None)
+    parser.add_argument('--y_max', type=float, help='', default=None)
+    parser.add_argument('--y_std', type=float, help='', default=None)
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -49,9 +52,25 @@ def main():
 
     train_X, train_Y, train_smiles_list = \
         get_XY_from_file(args.input, kernel_config, ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'],
-                         seed=args.seed)
-    test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed)
+                         seed=args.seed, y_min=args.y_min, y_max=args.y_max, std=args.y_std)
+    test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed,
+                                      y_min=args.y_min, y_max=args.y_max, std=args.y_std)
     print('***\tEnd: Reading input.\t***\n')
+
+    if optimizer is None:
+        print('***\tStart: Pre-calculate of graph kernels\t***\n')
+        if test_X is None and test_Y is None:
+            X = train_X
+        else:
+            X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
+                                                       y_max=args.y_max, std=args.y_std)
+        if kernel_config.T:
+            X = X.graph.unique()
+            kernel_config.kernel.kernel_list[0].PreCalculate(X)
+        else:
+            X = X.unique()
+            kernel_config.kernel.PreCalculate(X)
+        print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
 
     activelearner = ActiveLearner(train_X, train_Y, kernel_config, args.learning_mode, args.add_mode, args.init_size,
                                   args.add_size, args.max_size, args.search_size, args.pool_size, args.threshold,

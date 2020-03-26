@@ -73,10 +73,7 @@ class NEWConstantKernel(ConstantKernel):
             return K
 
 
-class NormalizedKernel(MarginalizedGraphKernel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+class NormalizedGraphKernel(MarginalizedGraphKernel):
     def __normalize(self, X, Y, R):
         if Y is None:
             # square matrix
@@ -109,6 +106,28 @@ class NormalizedKernel(MarginalizedGraphKernel):
 
     def diag(self, X, nodal=False, lmin=0, timing=False):
         return np.ones(len(X))
+
+
+class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
+    def __init__(self, *args, **kwargs):
+        self.graphs = None
+        self.K = None
+        super().__init__(*args, **kwargs)
+
+    def PreCalculate(self, X):
+        self.graphs = np.sort(X)
+        self.K = self(self.graphs)
+
+    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
+        if self.K is None or eval_gradient:
+            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args, **kwargs)
+        else:
+            X_idx = np.searchsorted(self.graphs, X)
+            if Y is not None:
+                Y_idx = np.searchsorted(self.graphs, Y)
+                return self.K[X_idx][:, Y_idx]
+            else:
+                return self.K[X_idx][:, X_idx]
 
 
 class ContractMarginalizedGraphKernel(MarginalizedGraphKernel):
@@ -222,7 +241,8 @@ class MultipleKernel:
             X = X.to_numpy()
         X = X[:, s:e]
         if self.kernel_list[i].__class__ in [ContractMarginalizedGraphKernel, ContractNormalizedKernel,
-                                             MarginalizedGraphKernel, NormalizedKernel]:
+                                             MarginalizedGraphKernel, NormalizedGraphKernel,
+                                             PreCalcNormalizedGraphKernel]:
             X = X.transpose().tolist()[0]
         return X
 
@@ -347,10 +367,11 @@ class KernelConfig(PropertyConfig):
             if save_mem:
                 graph_kernel = ContractNormalizedKernel(None, [], knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
             else:
-                graph_kernel = NormalizedKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
+                graph_kernel = PreCalcNormalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
         else:
             if save_mem:
-                graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
+                graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=stop_prob,
+                                                               q_bounds=stop_prob_bound)
             else:
                 graph_kernel = MarginalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
 
@@ -368,8 +389,14 @@ class KernelConfig(PropertyConfig):
         return '%s,graph_kernel' % self.property
 
 
-def datafilter(df, ratio=None, remove_smiles=None, get_smiles=False, seed=233):
+def datafilter(df, ratio=None, remove_smiles=None, seed=233, y=None, y_min=None, y_max=None, std=None):
     np.random.seed(seed)
+    N = len(df)
+    if y_min is not None and y_max is not None:
+        df = df.loc[(df[y] > y_min) & (df[y] < y_max)]
+    if std is not None:
+        df = df.loc[df[y + '_u'] / df[y] < std]
+    print('%i / %i data are not reliable and removed' % (N-len(df), N))
     if ratio is not None:
         unique_smiles_list = df.SMILES.unique().tolist()
         random_smiles_list = np.random.choice(unique_smiles_list, int(len(unique_smiles_list) * ratio), replace=False)
@@ -399,15 +426,16 @@ def get_TP_extreme(df, P=True, T=True):
     return df_
 
 
-def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233):
+def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233, y_min=None,
+                     y_max=None, std=None):
     if not os.path.exists('data'):
         os.mkdir('data')
-    original_filename = re.split('\.', file)[0]+'.pkl'
+    original_filename = re.split('\.', file)[0] + '.pkl'
     if 'data' in original_filename:
         pkl_file = original_filename
-    else: 
+    else:
         pkl_file = os.path.join('data', original_filename)
-    
+
     if os.path.exists(pkl_file):
         print('reading existing data file: %s' % pkl_file)
         df = pd.read_pickle(pkl_file)
@@ -416,7 +444,8 @@ def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextr
         df['graph'] = df['SMILES'].apply(smiles2graph)
         df.to_pickle(pkl_file)
 
-    df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles, seed=seed)
+    df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles, seed=seed, y=kernel_config.property, y_min=y_min,
+                    y_max=y_max, std=std)
     # only select the data with extreme temperature and pressure
     if TPextreme:
         df = get_TP_extreme(df, T=kernel_config.T, P=kernel_config.P)

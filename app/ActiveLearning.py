@@ -145,7 +145,7 @@ class ActiveLearner:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
-            print('hyperparameter: ', model.kernel_.hyperparameters)
+            print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
             if train_x.shape[0] == self.nystrom_size:
                 if self.group_by_mol:
                     self.core_graphs = self.train_graphs
@@ -483,7 +483,3 @@ class ActiveLearner:
     def __str__(self):
         return 'parameter of current active learning checkpoint:\n' + \
                         'current_size:%s  max_size:%s  learning_mode:%s  add_mode:%s  search_size:%d  pool_size:%d  add_size:%d\n'  % (self.current_size, self.max_size, self.learning_mode, self.add_mode, self.search_size, self.pool_size, self.add_size)
-
-
-
-        

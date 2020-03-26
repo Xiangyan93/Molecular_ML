@@ -43,6 +43,12 @@ class GPR(GaussianProcessRegressor):
                 * RBF(1.0, length_scale_bounds="fixed")
         else:
             self.kernel_ = clone(self.kernel)
+            if hasattr(self.kernel, 'kernel_list'):
+                self.kernel_.kernel_list[0].graphs = self.kernel.kernel_list[0].graphs
+                self.kernel_.kernel_list[0].K = self.kernel.kernel_list[0].K
+            else:
+                self.kernel_.graphs = self.kernel.graphs
+                self.kernel_.K = self.kernel.K
 
         self._rng = check_random_state(self.random_state)
 
@@ -139,8 +145,8 @@ class GPR(GaussianProcessRegressor):
             N = X.shape[0]
             y_mean = np.array([])
             y_std = np.array([])
-            for i in range(math.ceil(N / 5000)):
-                X_ = X[i*5000:(i+1)*5000]
+            for i in range(math.ceil(N / 1000)):
+                X_ = X[i*1000:(i+1)*1000]
                 if return_std:
                     y_mean_, y_std_ = super().predict(X_, return_std=return_std, return_cov=return_cov)
                     y_std = np.r_[y_std, y_std_]
@@ -180,6 +186,7 @@ class GPR(GaussianProcessRegressor):
             self.kernel = self.kernel.clone_with_theta(theta)
             self.kernel_ = self.kernel
 
+
 class RobustFitGaussianProcessRegressor(GPR):
     def __init__(self, y_scale=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -206,6 +213,7 @@ class RobustFitGaussianProcessRegressor(GPR):
             return result
 
     def fit_robust(self, X, y, core_predict=True):
+        self.fit(X, y, core_predict=core_predict)
         while self.alpha < 100:
             try:
                 print('Try to fit the data with alpha = %f' % self.alpha)
@@ -397,8 +405,8 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
             N = X.shape[0]
             y_mean = np.array([])
             y_std = np.array([])
-            for i in range(math.ceil(N / 5000)):
-                X_ = X[i*5000:(i+1)*5000]
+            for i in range(math.ceil(N / 1000)):
+                X_ = X[i*1000:(i+1)*1000]
                 if return_std:
                     y_mean_, y_std_ = super().nystrom_predict(X_, return_std=return_std, return_cov=return_cov)
                     y_std = np.r_[y_std, y_std_]
