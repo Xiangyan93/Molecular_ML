@@ -59,17 +59,35 @@ def main():
 
     if optimizer is None:
         print('***\tStart: Pre-calculate of graph kernels\t***\n')
-        if test_X is None and test_Y is None:
-            X = train_X
-        else:
-            X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
-                                                       y_max=args.y_max, std=args.y_std)
+        if not args.continued:
+            if test_X is None and test_Y is None:
+                X = train_X
+            else:
+                X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
+                                                        y_max=args.y_max, std=args.y_std)
+        result_dir = 'result-%s' % args.name
         if kernel_config.T:
-            X = X.graph.unique()
-            kernel_config.kernel.kernel_list[0].PreCalculate(X)
+            if args.continued:
+                kernel_config.kernel.kernel_list[0].graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
+                kernel_config.kernel.kernel_list[0].K = pickle.load(open(os.path.join('K.pkl'),'rb'))
+            else:
+                X = X.graph.unique()
+                kernel_config.kernel.kernel_list[0].PreCalculate(X)
+                with open(os.path.join('graph.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.kernel_list[0].graphs, file)
+                with open(os.path.join('K.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.kernel_list[0].K, file)
         else:
-            X = X.unique()
-            kernel_config.kernel.PreCalculate(X)
+            if args.continued:
+                kernel_config.kernel.graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
+                kernel_config.kernel.K = pickle.load(open(os.path.join('K.pkl'),'rb'))
+            else:
+                X = X.unique()
+                kernel_config.kernel.PreCalculate(X)
+                with open(os.path.join('graph.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.graphs, file)
+                with open(os.path.join('K.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.K, file)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
 
     activelearner = ActiveLearner(train_X, train_Y, kernel_config, args.learning_mode, args.add_mode, args.init_size,
@@ -94,7 +112,9 @@ def main():
                 print('\n**\tstart evaluate\t**\n')
                 activelearner.evaluate()
                 activelearner.write_training_plot()
-                activelearner.save()
+                if activelearner.current_size % (5 * activelearner.stride) == 0:
+                    print('\n**\tstart saving checkpoint\t**\n')
+                    activelearner.save()
             else:
                 activelearner.y_pred = None
                 activelearner.y_std = None
@@ -102,7 +122,7 @@ def main():
             print('Training failed for all alpha')
         if activelearner.stop_sign():
             break
-        print('**\tstart add samples & saving\t**\n')
+        print('**\tstart add samples**\n')
         activelearner.add_samples()
 
     print('\n***\tEnd: active learning\t***\n')

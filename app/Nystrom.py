@@ -161,12 +161,12 @@ class GPR(GaussianProcessRegressor):
     def save(self, result_dir):
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
-        model_save_dir = os.path.join(result_dir,'model.pkl')
         store_dict = self.__dict__.copy()
         if 'kernel' in store_dict.keys():
             store_dict.pop('kernel')
         if 'kernel_' in store_dict.keys():
             store_dict.pop('kernel_')
+        model_save_dir = os.path.join(result_dir,'model.pkl')    
         with open(model_save_dir, 'wb') as file:
             pickle.dump(store_dict, file)
         theta_save_dir = os.path.join(result_dir,'theta.pkl')
