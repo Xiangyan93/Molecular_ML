@@ -41,6 +41,7 @@ def main():
     parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
                         action='store_true')
     parser.add_argument('--continued', help='whether continue training', action='store_true')
+    parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
     parser.add_argument('--y_min', type=float, help='', default=None)
     parser.add_argument('--y_max', type=float, help='', default=None)
     parser.add_argument('--y_std', type=float, help='', default=None)
@@ -59,7 +60,7 @@ def main():
 
     if optimizer is None:
         print('***\tStart: Pre-calculate of graph kernels\t***\n')
-        if not args.continued:
+        if not (args.continued or args.precompute) :
             if test_X is None and test_Y is None:
                 X = train_X
             else:
@@ -67,7 +68,7 @@ def main():
                                                         y_max=args.y_max, std=args.y_std)
         result_dir = 'result-%s' % args.name
         if kernel_config.T:
-            if args.continued:
+            if args.continued or args.precompute:
                 kernel_config.kernel.kernel_list[0].graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
                 kernel_config.kernel.kernel_list[0].K = pickle.load(open(os.path.join('K.pkl'),'rb'))
             else:
@@ -78,7 +79,7 @@ def main():
                 with open(os.path.join('K.pkl'),'wb') as file:
                     pickle.dump(kernel_config.kernel.kernel_list[0].K, file)
         else:
-            if args.continued:
+            if args.continued or args.precompute:
                 kernel_config.kernel.graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
                 kernel_config.kernel.K = pickle.load(open(os.path.join('K.pkl'),'rb'))
             else:
