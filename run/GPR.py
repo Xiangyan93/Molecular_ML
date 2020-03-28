@@ -33,13 +33,13 @@ def main():
     if Config.TrainingSetSelectRule.ASSIGNED and args.train is not None:
         df = pd.read_csv(args.train, sep='\s+', header=0)
         train_smiles_list = df.SMILES.unique().tolist()
-        train_X, train_Y = get_XY_from_file(args.train, kernel_config, seed=args.seed)
-        test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed)
+        train_X, train_Y = get_XYU_from_file(args.train, kernel_config, seed=args.seed)
+        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed)
     elif Config.TrainingSetSelectRule.RANDOM:
-        train_X, train_Y, train_smiles_list = get_XY_from_file(args.input, kernel_config,
-                                                               ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
-                                                               seed=args.seed)
-        test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list)
+        train_X, train_Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config,
+                                                                ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
+                                                                seed=args.seed)
+        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_smiles=train_smiles_list)
     print('***\tEnd: Reading input.\t***\n')
     if args.size != 0:
         train_X, train_Y = train_X[:args.size], train_Y[:args.size]
@@ -49,7 +49,7 @@ def main():
         if test_X is None and test_Y is None:
             X = train_X
         else:
-            X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None)
+            X, Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config, ratio=None)
         if kernel_config.T:
             X = X.graph.unique()
             kernel_config.kernel.kernel_list[0].PreCalculate(X)

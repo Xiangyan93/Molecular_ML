@@ -426,8 +426,8 @@ def get_TP_extreme(df, P=True, T=True):
     return df_
 
 
-def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233, y_min=None,
-                     y_max=None, std=None):
+def get_XYU_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233, y_min=None,
+                      y_max=None, std=None, uncertainty=False):
     if not os.path.exists('data'):
         os.mkdir('data')
     original_filename = re.split('\.', file)[0] + '.pkl'
@@ -458,9 +458,12 @@ def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextr
         X = df['graph']
 
     Y = df[kernel_config.property]
+
     if df.size == 0:
         X = Y = None
     output = [X, Y]
+    if uncertainty:
+        output.append(df[kernel_config.property + '_u'])
     if remove_smiles is None:
         output.append(df.SMILES.unique())
     return output

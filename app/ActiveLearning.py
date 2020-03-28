@@ -19,10 +19,10 @@ from config import Config
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
-    def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, max_size,
-                 search_size, pool_size, threshold, name, nystrom_size=3000, nystrom_add_size=3000, test_X=None,
-                 test_Y=None, group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
-                 nystrom_active=False, nystrom_predict=False):
+    def __init__(self, train_X, train_Y, alpha, kernel_config, learning_mode, add_mode, initial_size, add_size,
+                 max_size, search_size, pool_size, threshold, name, nystrom_size=3000, nystrom_add_size=3000,
+                 test_X=None, test_Y=None, group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
+                 nystrom_active=False, nystrom_predict=False, reset_alpha=False):
         '''
         search_size: Random chose samples from untrained samples. And are predicted based on current model.
         pool_size: The largest mse or std samples in search_size.
@@ -35,10 +35,10 @@ class ActiveLearner:
         self.train_Y = train_Y
         self.test_X = test_X
         self.test_Y = test_Y
-
+        self.init_alpha = alpha
+        self.reset_alpha = reset_alpha
         self.kernel_config = kernel_config
         self.kernel_mol = kernel_config.kernel.kernel_list[0] if kernel_config.T else kernel_config.kernel
-
         self.learning_mode = learning_mode
         self.add_mode = add_mode
         self.current_size = initial_size
@@ -59,9 +59,8 @@ class ActiveLearner:
             self.nystrom_size = self.max_size + 1000
             self.nystrom_out = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': []})
         self.std_logging = False  # for debugging
-        #self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
-        self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': [],
-                                     'search_size': []})
+        # self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
+        self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'K_core': [], 'search_size': []})
         self.group_by_mol = group_by_mol
         self.stride = stride
         self.seed = seed
@@ -82,8 +81,6 @@ class ActiveLearner:
                 self.train_idx = get_core_idx(self.train_X, self.kernel_config.kernel, off_diagonal_cutoff=0.95,
                                               core_max=initial_size)
         self.optimizer = optimizer
-        self.y_pred = None
-        self.y_std = None
 
     def stop_sign(self):
         if self.current_size >= self.max_size or self.current_size == len(self.train_X):
@@ -95,10 +92,12 @@ class ActiveLearner:
         if self.group_by_mol:
             train_x = self.train_X[self.train_X.graph.isin(self.train_graphs)]
             train_y = self.train_Y[self.train_X.graph.isin(self.train_graphs)]
+            alpha = self.init_alpha[self.train_X.graph.isin(self.train_graphs)]
         else:
             train_x = self.train_X[self.train_X.index.isin(self.train_idx)]
             train_y = self.train_Y[self.train_Y.index.isin(self.train_idx)]
-        return train_x, train_y
+            alpha = self.init_alpha[self.init_alpha.index.isin(self.train_idx)]
+        return train_x, train_y, alpha
 
     def __get_untrain_X_y(self, full=True):
         if self.group_by_mol:
@@ -125,14 +124,14 @@ class ActiveLearner:
             train_y = self.train_Y[self.train_Y.index.isin(self.core_idx)]
         return train_x, train_y
 
-    def train(self, alpha=0.5):
+    def train(self):
         # continue needs to be added soon
         np.random.seed(self.seed)
         print('%s' % (time.asctime(time.localtime(time.time()))))
-        #self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
-        #self.logger.write('Start Training, training size = %i:\n' % self.current_size)
+        # self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
+        # self.logger.write('Start Training, training size = %i:\n' % self.current_size)
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
-        train_x, train_y = self.__get_train_X_y()
+        train_x, train_y, alpha = self.__get_train_X_y()
         self.train_x = train_x
         self.train_y = train_y
         print('unique molecule: %d' % len(self.__to_df(train_x).graph.unique()))
@@ -145,6 +144,12 @@ class ActiveLearner:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
+            if self.reset_alpha:
+                pred_y = model.predict(train_x)
+                alpha = (abs(pred_y - train_y) / train_y) ** 2
+                model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
+                                                          optimizer=self.optimizer, normalize_y=True, alpha=alpha).\
+                    fit_robust(train_x, train_y)
             print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
             if train_x.shape[0] == self.nystrom_size:
                 if self.group_by_mol:
@@ -174,7 +179,7 @@ class ActiveLearner:
         if model is not None:
             self.model = model
             self.alpha = self.model.alpha
-            #self.logger.write('training complete, alpha=%3g\n' % self.alpha)
+            # self.logger.write('training complete, alpha=%3g\n' % self.alpha)
             return True
         else:
             return False
@@ -190,12 +195,9 @@ class ActiveLearner:
         print('%s' % (time.asctime(time.localtime(time.time()))))
         import warnings
         warnings.filterwarnings("ignore")
-        #if self.y_pred is None and self.y_std is None:
         untrain_x, untrain_y = self.__get_untrain_X_y(full=False)
-        #else:
-        #    untrain_x, untrain_y = self.__get_untrain_X_y(full=True)
         if self.learning_mode == 'supervised':
-            y_pred = self.model.predict(untrain_x) if self.y_pred is None else self.y_pred
+            y_pred = self.model.predict(untrain_x)
             untrain_x = self.__to_df(untrain_x)
             untrain_x.loc[:, 'mse'] = abs(y_pred - untrain_y)
             if self.group_by_mol:
@@ -250,7 +252,7 @@ class ActiveLearner:
         else:
             raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
         # self.train_smiles = list(set(self.train_smiles))
-        #self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
+        # self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
 
     def _get_samples_idx(self, df, target):
         ''' get a sample idx list from the pooling set using add mode method 
@@ -364,13 +366,15 @@ class ActiveLearner:
         else:
             return 0
 
-    def evaluate(self, train_output=True):
+    def evaluate(self, train_output=True, debug=True):
         print('%s' % (time.asctime(time.localtime(time.time()))))
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
             Y = self.test_Y
         else:
-            X, Y = self.__get_untrain_X_y()
+            X = self.train_X
+            Y = self.train_Y
+            # X, Y = self.__get_untrain_X_y()
         if self.nystrom_predict:
             y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
                                                                              self.train_X, X, self.train_Y,
@@ -384,13 +388,6 @@ class ActiveLearner:
             self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var
         y_pred, y_std = self.model.predict(X, return_std=True)
 
-        if self.test_X is not None and self.test_Y is not None:
-            self.y_pred = None
-            self.y_std = None
-        else:
-            self.y_pred = y_pred
-            self.y_std = y_std
-
         # R2
         r2 = r2_score(y_pred, Y)
         # MSE
@@ -398,9 +395,9 @@ class ActiveLearner:
         # variance explained
         ex_var = explained_variance_score(y_pred, Y)
         print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        #self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()\
-            , self.search_size
+        # self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
+        self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.__get_K_core_length(), \
+                                              self.search_size
 
         _X = self.__to_df(X)
 
@@ -414,6 +411,8 @@ class ActiveLearner:
             return pd.concat([out, x.drop(columns='graph')], axis=1)
 
         out = get_df(_X, Y, y_pred, y_std)
+        if debug:
+            self.model.kernel_(X, self.model.X_train_)
         out.sort_values(by='rel_dev', ascending=False). \
             to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
 
@@ -450,7 +449,7 @@ class ActiveLearner:
             store_dict.pop('kernel_config')
         if 'kernel_mol' in store_dict.keys():
             store_dict.pop('kernel_mol')
-            
+
         # store model
         if hasattr(self, 'model'):
             if isinstance(self.model, NystromGaussianProcessRegressor):
@@ -460,9 +459,9 @@ class ActiveLearner:
             self.model.save(os.path.join(self.result_dir))
         with open(os.path.join(self.result_dir, 'activelearner_param.pkl'), 'wb') as file:
             pickle.dump(store_dict, file)
-    
+
     def load(self, kernel_config):
-        #restore params
+        # restore params
         self.kernel_config = kernel_config
         self.kernel_mol = kernel_config.kernel.kernel_list[0] if kernel_config.T else kernel_config.kernel
         with open(os.path.join(self.result_dir, 'activelearner_param.pkl'), 'rb') as file:
@@ -472,14 +471,18 @@ class ActiveLearner:
         if hasattr(self, 'model_class'):
             if self.model_class == 'nystrom':
                 self.model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=self.seed,
-                                                    optimizer=self.optimizer, normalize_y=True, alpha=self.alpha)
+                                                             optimizer=self.optimizer, normalize_y=True,
+                                                             alpha=self.alpha)
                 self.model.load(self.result_dir)
             elif self.model_class == 'normal':
                 self.model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=self.seed,
-                                                      optimizer=self.optimizer,
-                                                      normalize_y=True, alpha=self.alpha)
+                                                               optimizer=self.optimizer,
+                                                               normalize_y=True, alpha=self.alpha)
                 self.model.load(self.result_dir)
-    
+
     def __str__(self):
         return 'parameter of current active learning checkpoint:\n' + \
-                        'current_size:%s  max_size:%s  learning_mode:%s  add_mode:%s  search_size:%d  pool_size:%d  add_size:%d\n'  % (self.current_size, self.max_size, self.learning_mode, self.add_mode, self.search_size, self.pool_size, self.add_size)
+               'current_size:%s  max_size:%s  learning_mode:%s  add_mode:%s  search_size:%d  pool_size:%d  add_size:%d\n' % (
+                   self.current_size, self.max_size, self.learning_mode, self.add_mode, self.search_size,
+                   self.pool_size,
+                   self.add_size)

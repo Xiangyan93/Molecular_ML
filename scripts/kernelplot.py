@@ -12,7 +12,7 @@ def main():
     args = parser.parse_args()
 
     kernel_config = KernelConfig(save_mem=False, property=args.property)
-    X, Y, remove_smiles = get_XY_from_file(args.input, kernel_config)
+    X, Y, remove_smiles = get_XYU_from_file(args.input, kernel_config)
     kernel = kernel_config.kernel
     K = kernel(X)
     # plt.imshow(K, cmap=plt.cm.gray)
