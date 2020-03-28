@@ -212,7 +212,7 @@ class ActiveLearner:
                 self.current_size = self.train_graphs.size
             else:
                 add_idx = self._get_samples_idx(untrain_x, 'mse')
-                self.add_core(add_idx)
+                self._add_core(add_idx)
                 self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'unsupervised':
@@ -231,7 +231,7 @@ class ActiveLearner:
                 self.current_size = self.train_graphs.size
             else:
                 add_idx = self._get_samples_idx(untrain_x, 'std')
-                self.add_core(add_idx)
+                self._add_core(add_idx)
                 self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'random':
@@ -246,7 +246,7 @@ class ActiveLearner:
                 self.current_size = self.train_graphs.size
             else:
                 untrain_idx = self.train_X.index[~self.train_X.index.isin(self.train_idx)]
-                self.add_core(add_idx)
+                self._add_core(add_idx)
                 if untrain_idx.shape[0] < self.add_size:
                     self.train_idx = np.r_[self.train_idx, untrain_idx]
                 else:
@@ -257,14 +257,14 @@ class ActiveLearner:
         # self.train_smiles = list(set(self.train_smiles))
         #self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
 
-    def add_core(self, add_idx):
+    def _add_core(self, add_idx):
         ''' add samples that are far from core set into core set 
         '''
         if self.core_idx is None: # do nothing at ordinary GPR stage
             return
         add_x = self.train_X[self.train_X.index.isin(add_idx)]
-        train_x, _ = self.__get_train_X_y()
-        add_core_idx_idx = np.amax(self.model.kernel(train_x, add_x), axis=0) < self.core_threshold
+        core_x, _ = self.__get_core_X_y()
+        add_core_idx_idx = np.amax(self.model.kernel(core_x, add_x), axis=0) < self.core_threshold
         add_core_idx = add_idx[add_core_idx_idx]
         self.core_idx =  np.r_[self.core_idx, add_core_idx]
 
