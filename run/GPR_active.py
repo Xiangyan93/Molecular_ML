@@ -68,6 +68,8 @@ def main():
                 X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
                                                         y_max=args.y_max, std=args.y_std)
         result_dir = 'result-%s' % args.name
+        if not os.path.exists(self.result_dir):
+            os.mkdir(self.result_dir)
         if kernel_config.T:
             if args.continued or args.precompute:
                 kernel_config.kernel.kernel_list[0].graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
