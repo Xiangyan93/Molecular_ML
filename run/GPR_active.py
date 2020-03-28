@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--pool_size', type=int, help='Pool size for active learning, 0 for pooling from all searched '
                                                       'samples', default=200)
     parser.add_argument('--threshold', type=float, help='threshold', default=0.1)
+    parser.add_argument('--core_threshold', type=float, help='kernel threshold that will add samples into core set when using nystrom', default=0.5)
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name',
                         default='default')
     parser.add_argument('--stride', type=int, help='output stride', default=100)
@@ -96,7 +97,7 @@ def main():
                                   args.name, test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol,
                                   optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
                                   nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
-                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size)
+                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size, core_threshold=args.core_threshold)
     if args.continued:
         print('**\tLoading checkpoint\t**\n')
         activelearner.load(kernel_config)
