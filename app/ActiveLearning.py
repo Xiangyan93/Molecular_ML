@@ -246,11 +246,14 @@ class ActiveLearner:
                 self.current_size = self.train_graphs.size
             else:
                 untrain_idx = self.train_X.index[~self.train_X.index.isin(self.train_idx)]
-                self._add_core(add_idx)
                 if untrain_idx.shape[0] < self.add_size:
-                    self.train_idx = np.r_[self.train_idx, untrain_idx]
+                    add_idx = untrain_idx
+                    self._add_core(add_idx)
+                    self.train_idx = np.r_[self.train_idx, add_idx]
                 else:
-                    self.train_idx = np.r_[self.train_idx, np.random.choice(untrain_idx, self.add_size, replace=False)]
+                    add_idx = np.random.choice(untrain_idx, self.add_size, replace=False)
+                    self._add_core(add_idx)
+                    self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         else:
             raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
