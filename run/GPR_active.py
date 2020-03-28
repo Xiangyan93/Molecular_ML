@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--pool_size', type=int, help='Pool size for active learning, 0 for pooling from all searched '
                                                       'samples', default=200)
     parser.add_argument('--threshold', type=float, help='threshold', default=0.1)
+    parser.add_argument('--core_threshold', type=float, help='kernel threshold that will add samples into core set when using nystrom', default=0.5)
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name',
                         default='default')
     parser.add_argument('--stride', type=int, help='output stride', default=100)
@@ -41,6 +42,7 @@ def main():
     parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
                         action='store_true')
     parser.add_argument('--continued', help='whether continue training', action='store_true')
+    parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
     parser.add_argument('--y_min', type=float, help='', default=None)
     parser.add_argument('--y_max', type=float, help='', default=None)
     parser.add_argument('--y_std', type=float, help='', default=None)
@@ -59,7 +61,7 @@ def main():
 
     if optimizer is None:
         print('***\tStart: Pre-calculate of graph kernels\t***\n')
-        if not args.continued:
+        if not (args.continued or args.precompute) :
             if test_X is None and test_Y is None:
                 X = train_X
             else:
@@ -67,7 +69,7 @@ def main():
                                                         y_max=args.y_max, std=args.y_std)
         result_dir = 'result-%s' % args.name
         if kernel_config.T:
-            if args.continued:
+            if args.continued or args.precompute:
                 kernel_config.kernel.kernel_list[0].graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
                 kernel_config.kernel.kernel_list[0].K = pickle.load(open(os.path.join('K.pkl'),'rb'))
             else:
@@ -78,7 +80,7 @@ def main():
                 with open(os.path.join('K.pkl'),'wb') as file:
                     pickle.dump(kernel_config.kernel.kernel_list[0].K, file)
         else:
-            if args.continued:
+            if args.continued or args.precompute:
                 kernel_config.kernel.graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
                 kernel_config.kernel.K = pickle.load(open(os.path.join('K.pkl'),'rb'))
             else:
@@ -95,7 +97,7 @@ def main():
                                   args.name, test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol,
                                   optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
                                   nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
-                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size)
+                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size, core_threshold=args.core_threshold)
     if args.continued:
         print('**\tLoading checkpoint\t**\n')
         activelearner.load(kernel_config)
