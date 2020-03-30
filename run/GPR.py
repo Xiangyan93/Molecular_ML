@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
     parser.add_argument('--continued', help='whether continue training', action='store_true')
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name', default='default')
+    parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -40,6 +41,9 @@ def main():
                                                                 ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
                                                                 seed=args.seed)
         test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_smiles=train_smiles_list)
+    if args.ylog:
+        train_Y = np.log(train_Y)
+        test_Y = np.log(test_Y)
     print('***\tEnd: Reading input.\t***\n')
     if args.size != 0:
         train_X, train_Y = train_X[:args.size], train_Y[:args.size]
@@ -86,10 +90,19 @@ def main():
     print('***\tEnd: hyperparameters optimization.\t***\n')
 
     print('***\tStart: test set prediction.\t***\n')
-    train_pred_value_list = model.predict(train_X, return_std=False)
+    train_pred_value_list, train_pred_std_list = model.predict(train_X, return_std=True)
+    if args.ylog:
+        train_Y = np.exp(train_Y)
+        train_pred_value_list = np.exp(train_pred_value_list)
+    df_train = ActiveLearner.evaluate_df(train_X, train_Y, train_pred_value_list, train_pred_std_list, model=model,
+                                         debug=True)
+    df_train.to_csv('train.txt', index=False, sep='\t', float_format='%10.5f')
     pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
-    df_test = pd.DataFrame({'#sim': test_Y, 'predict': pred_value_list, 'uncertainty': pred_std_list})
-    df_test.to_csv('out-%.3f.txt' % alpha, index=False, sep=' ')
+    if args.ylog:
+        test_Y = np.exp(test_Y)
+        pred_value_list = np.exp(pred_value_list)
+    df_test = ActiveLearner.evaluate_df(test_X, test_Y, pred_value_list, pred_std_list, model=model, debug=True)
+    df_test.to_csv('test.txt', index=False, sep='\t', float_format='%10.5f')
     print('\nalpha = %.3f\n' % model.alpha)
     print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
     print('mean unsigned error: %.6f\n' % (abs(train_pred_value_list - train_Y) / train_Y).mean())

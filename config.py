@@ -12,12 +12,12 @@ class Config:
     DEBUG = False
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
-        v = 0.8
+        v = 0.75
         s = 1.0
         knode = TensorProduct(aromatic=KroneckerDelta(v),
                               charge=SquareExponential(0.5),
-                              element=KroneckerDelta(0.5),
-                              # hcount=SquareExponential(s),
+                              element=KroneckerDelta(0.25),
+                              hcount=SquareExponential(s),
                               chiral=KroneckerDelta(v),
                               smallest_ring=KroneckerDelta(v),
                               ring_number=KroneckerDelta(v),

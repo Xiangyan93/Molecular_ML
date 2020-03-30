@@ -22,7 +22,7 @@ class ActiveLearner:
     def __init__(self, train_X, train_Y, alpha, kernel_config, learning_mode, add_mode, initial_size, add_size,
                  max_size, search_size, pool_size, threshold, name, nystrom_size=3000, nystrom_add_size=3000,
                  test_X=None, test_Y=None, group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
-                 nystrom_active=False, nystrom_predict=False, reset_alpha=False):
+                 nystrom_active=False, nystrom_predict=False, reset_alpha=False, ylog=False):
         '''
         search_size: Random chose samples from untrained samples. And are predicted based on current model.
         pool_size: The largest mse or std samples in search_size.
@@ -81,6 +81,11 @@ class ActiveLearner:
                 self.train_idx = get_core_idx(self.train_X, self.kernel_config.kernel, off_diagonal_cutoff=0.95,
                                               core_max=initial_size)
         self.optimizer = optimizer
+        self.ylog = ylog
+        if self.ylog:
+            self.train_Y = np.log(train_Y)
+            if test_Y is not None:
+                self.test_Y = np.log(test_Y)
 
     def stop_sign(self):
         if self.current_size >= self.max_size or self.current_size == len(self.train_X):
@@ -368,6 +373,40 @@ class ActiveLearner:
         else:
             return 0
 
+    @staticmethod
+    def evaluate_df(x, y, y_pred, y_std, model=None, debug=True):
+        def get_smiles(graph):
+            return graph.smiles
+
+        _x = ActiveLearner.__to_df(x)
+        out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
+                            'rel_dev': abs((y - y_pred) / y)})
+        _x.loc[:, 'smiles'] = _x.graph.apply(get_smiles)
+        out = pd.concat([out, _x.drop(columns='graph')], axis=1)
+        if debug:
+            K = model.kernel_(x, model.X_train_)
+            info_list = []
+            kindex = np.argsort(-K)[:, :5]
+            for s in np.copy(model.X_train_):
+                if not np.iterable(s):
+                    s = np.array([s])
+                s[0] = get_smiles(s[0])
+                s = list(map(str, s))
+                info_list.append(','.join(s))
+            info_list = np.array(info_list)
+            similar_data = []
+            for i, index in enumerate(kindex):
+                info = info_list[index]
+
+                def round5(x):
+                    return ',%.5f' % x
+
+                k = list(map(round5, K[i][index]))
+                info = ';'.join(list(map(str.__add__, info, k)))
+                similar_data.append(info)
+            out.loc[:, 'similar_mols'] = similar_data
+        return out.sort_values(by='rel_dev', ascending=False)
+
     def evaluate(self, train_output=True, debug=True):
         print('%s' % (time.asctime(time.localtime(time.time()))))
         if self.test_X is not None and self.test_Y is not None:
@@ -388,6 +427,7 @@ class ActiveLearner:
             # variance explained
             ex_var = explained_variance_score(y_pred, Y)
             self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var
+
         y_pred, y_std = self.model.predict(X, return_std=True)
 
         # R2
@@ -401,50 +441,20 @@ class ActiveLearner:
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.__get_K_core_length(), \
                                               self.search_size
 
-        def get_smiles(graph):
-            return graph.smiles
-
-        def get_df(x, y, y_pred, y_std, debug=True):
-            _x = self.__to_df(x)
-            out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
-                                'rel_dev': abs((y - y_pred) / y)})
-            _x.loc[:, 'smiles'] = _x.graph.apply(get_smiles)
-            out = pd.concat([out, _x.drop(columns='graph')], axis=1)
-            if debug:
-                K = self.model.kernel_(x, self.model.X_train_)
-                info_list = []
-                kindex = np.argsort(-K)[:, :5]
-                for s in np.copy(self.model.X_train_):
-                    if not np.iterable(s):
-                        s = np.array([s])
-                    s[0] = get_smiles(s[0])
-                    s = list(map(str, s))
-                    info_list.append(','.join(s))
-                info_list = np.array(info_list)
-                similar_data = []
-                for i, index in enumerate(kindex):
-                    info = info_list[index]
-
-                    def round5(x):
-                        return ',%.5f' % x
-
-                    k = list(map(round5, K[i][index]))
-                    info = ';'.join(list(map(str.__add__, info, k)))
-                    similar_data.append(info)
-                out.loc[:, 'similar_mols'] = similar_data
-            return out
-
-        out = get_df(X, Y, y_pred, y_std, debug=debug)
-
-        out.sort_values(by='rel_dev', ascending=False). \
-            to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
+        if self.ylog:
+            out = self.evaluate_df(X, np.exp(Y), np.exp(y_pred), y_std, model=self.model, debug=debug)
+        else:
+            out = self.evaluate_df(X, Y, y_pred, y_std, model=self.model, debug=debug)
+        out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
 
         if train_output:
             train_x, train_y = self.train_x, self.train_y
             y_pred, y_std = self.model.predict(train_x, return_std=True)
-            out = get_df(train_x, train_y, y_pred, y_std, debug=debug)
-            out.sort_values(by='rel_dev', ascending=False). \
-                to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
+            if self.ylog:
+                out = self.evaluate_df(train_x, np.exp(train_y), np.exp(y_pred), y_std, model=self.model, debug=debug)
+            else:
+                out = self.evaluate_df(train_x, train_y, y_pred, y_std, model=self.model, debug=debug)
+            out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
                        float_format='%10.5f')
 
     def write_training_plot(self):

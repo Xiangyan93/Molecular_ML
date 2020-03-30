@@ -110,12 +110,13 @@ class HashGraph(Graph):
 
 
 def smiles2graph(smiles):
+    smiles = get_canonical_smiles(smiles)
     mol = Chem.MolFromSmiles(smiles)
     if mol is not None:
         g = nx.Graph()
         morgan_info = dict()
         atomidx_hash_dict = dict()
-        radius = 0
+        radius = 2
         Chem.GetMorganFingerprint(mol, radius, bitInfo=morgan_info, useChirality=True)
         while len(atomidx_hash_dict) != mol.GetNumAtoms():
             for key in morgan_info.keys():

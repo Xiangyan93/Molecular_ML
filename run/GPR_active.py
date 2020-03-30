@@ -41,6 +41,7 @@ def main():
     parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
                         action='store_true')
     parser.add_argument('--continued', help='whether continue training', action='store_true')
+    parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
     parser.add_argument('--y_min', type=float, help='', default=None)
     parser.add_argument('--y_max', type=float, help='', default=None)
     parser.add_argument('--y_std', type=float, help='', default=None)
@@ -88,7 +89,7 @@ def main():
                                   optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
                                   nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
                                   stride=args.stride, nystrom_add_size=args.nystrom_add_size,
-                                  reset_alpha=args.reset_alpha)
+                                  reset_alpha=args.reset_alpha, ylog=args.ylog)
     if args.continued:
         print('**\tLoading checkpoint\t**\n')
         activelearner.load(kernel_config)
