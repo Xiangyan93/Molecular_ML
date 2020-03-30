@@ -50,7 +50,6 @@ def main():
     optimizer = None if args.optimizer == 'None' else args.optimizer
     print('***\tStart: Reading input.\t***\n')
     kernel_config = KernelConfig(save_mem=False, property=args.property)
-
     if args.alpha == 'std':
         train_X, train_Y, train_U, train_smiles_list = \
             get_XYU_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
@@ -77,10 +76,10 @@ def main():
                                                         y_max=args.y_max, std=args.y_std)
         if kernel_config.T:
             X = X.graph.unique()
-            kernel_config.kernel.kernel_list[0].PreCalculate(X)
+            kernel_config.kernel.kernel_list[0].PreCalculate(X, args.input)
         else:
             X = X.unique()
-            kernel_config.kernel.PreCalculate(X)
+            kernel_config.kernel.PreCalculate(X, args.input)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
 
     activelearner = ActiveLearner(train_X, train_Y, alpha, kernel_config, args.learning_mode, args.add_mode, args.init_size,

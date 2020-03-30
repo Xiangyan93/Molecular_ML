@@ -52,10 +52,10 @@ def main():
             X, Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config, ratio=None)
         if kernel_config.T:
             X = X.graph.unique()
-            kernel_config.kernel.kernel_list[0].PreCalculate(X)
+            kernel_config.kernel.kernel_list[0].PreCalculate(X, args.input)
         else:
             X = X.unique()
-            kernel_config.kernel.PreCalculate(X)
+            kernel_config.kernel.PreCalculate(X, args.input)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
         
     print('***\tStart: hyperparameters optimization.\t***\n')

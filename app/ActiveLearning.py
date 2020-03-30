@@ -148,7 +148,7 @@ class ActiveLearner:
                 pred_y = model.predict(train_x)
                 alpha = (abs(pred_y - train_y) / train_y) ** 2
                 model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
-                                                          optimizer=self.optimizer, normalize_y=True, alpha=alpha).\
+                                                          optimizer=self.optimizer, normalize_y=True, alpha=alpha). \
                     fit_robust(train_x, train_y)
             print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
             if train_x.shape[0] == self.nystrom_size:
@@ -188,6 +188,8 @@ class ActiveLearner:
     def __to_df(x):
         if x.__class__ == pd.Series:
             return pd.DataFrame({x.name: x})
+        elif x.__class__ == np.ndarray:
+            return pd.DataFrame({'graph': x})
         else:
             return x
 
@@ -399,28 +401,48 @@ class ActiveLearner:
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.__get_K_core_length(), \
                                               self.search_size
 
-        _X = self.__to_df(X)
-
         def get_smiles(graph):
             return graph.smiles
 
-        def get_df(x, y, y_pred, y_std):
+        def get_df(x, y, y_pred, y_std, debug=True):
+            _x = self.__to_df(x)
             out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
                                 'rel_dev': abs((y - y_pred) / y)})
-            x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
-            return pd.concat([out, x.drop(columns='graph')], axis=1)
+            _x.loc[:, 'smiles'] = _x.graph.apply(get_smiles)
+            out = pd.concat([out, _x.drop(columns='graph')], axis=1)
+            if debug:
+                K = self.model.kernel_(x, self.model.X_train_)
+                info_list = []
+                kindex = np.argsort(-K)[:, :5]
+                for s in np.copy(self.model.X_train_):
+                    if not np.iterable(s):
+                        s = np.array([s])
+                    s[0] = get_smiles(s[0])
+                    s = list(map(str, s))
+                    info_list.append(','.join(s))
+                info_list = np.array(info_list)
+                similar_data = []
+                for i, index in enumerate(kindex):
+                    info = info_list[index]
 
-        out = get_df(_X, Y, y_pred, y_std)
-        if debug:
-            self.model.kernel_(X, self.model.X_train_)
+                    def round5(x):
+                        return ',%.5f' % x
+
+                    k = list(map(round5, K[i][index]))
+                    info = ';'.join(list(map(str.__add__, info, k)))
+                    similar_data.append(info)
+                out.loc[:, 'similar_mols'] = similar_data
+            return out
+
+        out = get_df(X, Y, y_pred, y_std, debug=debug)
+
         out.sort_values(by='rel_dev', ascending=False). \
             to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
 
         if train_output:
             train_x, train_y = self.train_x, self.train_y
             y_pred, y_std = self.model.predict(train_x, return_std=True)
-            train_x = self.__to_df(train_x)
-            out = get_df(train_x, train_y, y_pred, y_std)
+            out = get_df(train_x, train_y, y_pred, y_std, debug=debug)
             out.sort_values(by='rel_dev', ascending=False). \
                 to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
                        float_format='%10.5f')

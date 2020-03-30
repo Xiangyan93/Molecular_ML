@@ -113,9 +113,21 @@ def smiles2graph(smiles):
     mol = Chem.MolFromSmiles(smiles)
     if mol is not None:
         g = nx.Graph()
+        morgan_info = dict()
+        atomidx_hash_dict = dict()
+        radius = 0
+        Chem.GetMorganFingerprint(mol, radius, bitInfo=morgan_info, useChirality=True)
+        while len(atomidx_hash_dict) != mol.GetNumAtoms():
+            for key in morgan_info.keys():
+                if morgan_info[key][0][1] != radius:
+                    continue
+                for a in morgan_info[key]:
+                    if a[0] not in atomidx_hash_dict:
+                        atomidx_hash_dict[a[0]] = key
+            radius -= 1
 
         for i, atom in enumerate(mol.GetAtoms()):
-            g.add_node(i)
+            g.add_node(atom.GetIdx())
             g.nodes[i]['element'] = atom.GetAtomicNum()
             g.nodes[i]['charge'] = atom.GetFormalCharge()
             g.nodes[i]['hcount'] = atom.GetTotalNumHs()
@@ -124,6 +136,7 @@ def smiles2graph(smiles):
             g.nodes[i]['chiral'] = atom.GetChiralTag()
             g.nodes[i]['ring_number'] = mol.GetRingInfo().NumAtomRings(atom.GetIdx())
             g.nodes[i]['smallest_ring'] = mol.GetRingInfo().MinAtomRingSize(atom.GetIdx())
+            g.nodes[i]['morgan_hash'] = atomidx_hash_dict[atom.GetIdx()]
 
         for bond in mol.GetBonds():
             ij = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
