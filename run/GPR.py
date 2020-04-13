@@ -25,6 +25,8 @@ def main():
     parser.add_argument('--continued', help='whether continue training', action='store_true')
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name', default='default')
     parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
+    parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
+    
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -50,16 +52,35 @@ def main():
         
     if optimizer is None:
         print('***\tStart: Pre-calculate of graph kernels\t***\n')
-        if test_X is None and test_Y is None:
-            X = train_X
-        else:
-            X, Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config, ratio=None)
+        if not (args.continued or args.precompute) :
+            if test_X is None and test_Y is None:
+                X = train_X
+            else:
+                X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
+                                                        y_max=args.y_max, std=args.y_std)
+        result_dir = 'result-%s' % args.name
         if kernel_config.T:
-            X = X.graph.unique()
-            kernel_config.kernel.kernel_list[0].PreCalculate(X, args.input)
+            if args.continued or args.precompute:
+                kernel_config.kernel.kernel_list[0].graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
+                kernel_config.kernel.kernel_list[0].K = pickle.load(open(os.path.join('K.pkl'),'rb'))
+            else:
+                X = X.graph.unique()
+                kernel_config.kernel.kernel_list[0].PreCalculate(X)
+                with open(os.path.join('graph.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.kernel_list[0].graphs, file)
+                with open(os.path.join('K.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.kernel_list[0].K, file)
         else:
-            X = X.unique()
-            kernel_config.kernel.PreCalculate(X, args.input)
+            if args.continued or args.precompute:
+                kernel_config.kernel.graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
+                kernel_config.kernel.K = pickle.load(open(os.path.join('K.pkl'),'rb'))
+            else:
+                X = X.unique()
+                kernel_config.kernel.PreCalculate(X)
+                with open(os.path.join('graph.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.graphs, file)
+                with open(os.path.join('K.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.K, file)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
         
     print('***\tStart: hyperparameters optimization.\t***\n')

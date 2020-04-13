@@ -22,7 +22,7 @@ class ActiveLearner:
     def __init__(self, train_X, train_Y, alpha, kernel_config, learning_mode, add_mode, initial_size, add_size,
                  max_size, search_size, pool_size, threshold, name, nystrom_size=3000, nystrom_add_size=3000,
                  test_X=None, test_Y=None, group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
-                 nystrom_active=False, nystrom_predict=False, reset_alpha=False, ylog=False):
+                 nystrom_active=False, nystrom_predict=False, reset_alpha=False, ylog=False, core_threshold=0.5):
         '''
         search_size: Random chose samples from untrained samples. And are predicted based on current model.
         pool_size: The largest mse or std samples in search_size.
@@ -47,6 +47,7 @@ class ActiveLearner:
         self.search_size = search_size
         self.pool_size = pool_size
         self.threshold = threshold
+        self.core_threshold = core_threshold
         self.name = name
         self.result_dir = 'result-%s' % name
         if not os.path.exists(self.result_dir):
@@ -86,6 +87,9 @@ class ActiveLearner:
             self.train_Y = np.log(train_Y)
             if test_Y is not None:
                 self.test_Y = np.log(test_Y)
+        self.y_pred = None
+        self.y_std = None
+        self.core_idx = None
 
     def stop_sign(self):
         if self.current_size >= self.max_size or self.current_size == len(self.train_X):
@@ -219,6 +223,7 @@ class ActiveLearner:
                 self.current_size = self.train_graphs.size
             else:
                 add_idx = self._get_samples_idx(untrain_x, 'mse')
+                self._add_core(add_idx)
                 self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'unsupervised':
@@ -237,6 +242,7 @@ class ActiveLearner:
                 self.current_size = self.train_graphs.size
             else:
                 add_idx = self._get_samples_idx(untrain_x, 'std')
+                self._add_core(add_idx)
                 self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         elif self.learning_mode == 'random':
@@ -252,14 +258,29 @@ class ActiveLearner:
             else:
                 untrain_idx = self.train_X.index[~self.train_X.index.isin(self.train_idx)]
                 if untrain_idx.shape[0] < self.add_size:
-                    self.train_idx = np.r_[self.train_idx, untrain_idx]
+                    add_idx = untrain_idx
+                    self._add_core(add_idx)
+                    self.train_idx = np.r_[self.train_idx, add_idx]
                 else:
-                    self.train_idx = np.r_[self.train_idx, np.random.choice(untrain_idx, self.add_size, replace=False)]
+                    add_idx = np.random.choice(untrain_idx, self.add_size, replace=False)
+                    self._add_core(add_idx)
+                    self.train_idx = np.r_[self.train_idx, add_idx]
                 self.current_size = self.train_idx.size
         else:
             raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
         # self.train_smiles = list(set(self.train_smiles))
         # self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
+
+    def _add_core(self, add_idx):
+        ''' add samples that are far from core set into core set 
+        '''
+        if self.core_idx is None: # do nothing at ordinary GPR stage
+            return
+        add_x = self.train_X[self.train_X.index.isin(add_idx)]
+        core_x, _ = self.__get_core_X_y()
+        add_core_idx_idx = np.amax(self.model.kernel(core_x, add_x), axis=0) < self.core_threshold
+        add_core_idx = add_idx[add_core_idx_idx]
+        self.core_idx =  np.r_[self.core_idx, add_core_idx]
 
     def _get_samples_idx(self, df, target):
         ''' get a sample idx list from the pooling set using add mode method 

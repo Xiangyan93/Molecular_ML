@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--pool_size', type=int, help='Pool size for active learning, 0 for pooling from all searched '
                                                       'samples', default=200)
     parser.add_argument('--threshold', type=float, help='threshold', default=0.1)
+    parser.add_argument('--core_threshold', type=float, help='kernel threshold that will add samples into core set when using nystrom', default=0.5)
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name',
                         default='default')
     parser.add_argument('--stride', type=int, help='output stride', default=100)
@@ -42,6 +43,7 @@ def main():
                         action='store_true')
     parser.add_argument('--continued', help='whether continue training', action='store_true')
     parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
+    parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
     parser.add_argument('--y_min', type=float, help='', default=None)
     parser.add_argument('--y_max', type=float, help='', default=None)
     parser.add_argument('--y_std', type=float, help='', default=None)
@@ -70,17 +72,37 @@ def main():
 
     if optimizer is None:
         print('***\tStart: Pre-calculate of graph kernels\t***\n')
-        if test_X is None and test_Y is None:
-            X = train_X
-        else:
-            X, Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
+        if not (args.continued or args.precompute) :
+            if test_X is None and test_Y is None:
+                X = train_X
+            else:
+                X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
                                                         y_max=args.y_max, std=args.y_std)
+        result_dir = 'result-%s' % args.name
+        if not os.path.exists(result_dir):
+            os.mkdir(result_dir)
         if kernel_config.T:
-            X = X.graph.unique()
-            kernel_config.kernel.kernel_list[0].PreCalculate(X, args.input)
+            if args.continued or args.precompute:
+                kernel_config.kernel.kernel_list[0].graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
+                kernel_config.kernel.kernel_list[0].K = pickle.load(open(os.path.join('K.pkl'),'rb'))
+            else:
+                X = X.graph.unique()
+                kernel_config.kernel.kernel_list[0].PreCalculate(X)
+                with open(os.path.join('graph.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.kernel_list[0].graphs, file)
+                with open(os.path.join('K.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.kernel_list[0].K, file)
         else:
-            X = X.unique()
-            kernel_config.kernel.PreCalculate(X, args.input)
+            if args.continued or args.precompute:
+                kernel_config.kernel.graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
+                kernel_config.kernel.K = pickle.load(open(os.path.join('K.pkl'),'rb'))
+            else:
+                X = X.unique()
+                kernel_config.kernel.PreCalculate(X)
+                with open(os.path.join('graph.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.graphs, file)
+                with open(os.path.join('K.pkl'),'wb') as file:
+                    pickle.dump(kernel_config.kernel.K, file)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
 
     activelearner = ActiveLearner(train_X, train_Y, alpha, kernel_config, args.learning_mode, args.add_mode, args.init_size,
@@ -88,8 +110,9 @@ def main():
                                   args.name, test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol,
                                   optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
                                   nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
-                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size,
+                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size, core_threshold=args.core_threshold,
                                   reset_alpha=args.reset_alpha, ylog=args.ylog)
+    
     if args.continued:
         print('**\tLoading checkpoint\t**\n')
         activelearner.load(kernel_config)
@@ -106,7 +129,9 @@ def main():
                 print('\n**\tstart evaluate\t**\n')
                 activelearner.evaluate()
                 activelearner.write_training_plot()
-                activelearner.save()
+                if activelearner.current_size % (5 * activelearner.stride) == 0:
+                    print('\n**\tstart saving checkpoint\t**\n')
+                    activelearner.save()
             else:
                 activelearner.y_pred = None
                 activelearner.y_std = None
@@ -114,7 +139,7 @@ def main():
             print('Training failed for all alpha')
         if activelearner.stop_sign():
             break
-        print('**\tstart add samples & saving\t**\n')
+        print('**\tstart add samples**\n')
         activelearner.add_samples()
 
     print('\n***\tEnd: active learning\t***\n')

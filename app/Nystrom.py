@@ -144,8 +144,8 @@ class GPR(GaussianProcessRegressor):
             N = X.shape[0]
             y_mean = np.array([])
             y_std = np.array([])
-            for i in range(math.ceil(N / 5000)):
-                X_ = X[i*5000:(i+1)*5000]
+            for i in range(math.ceil(N / 1000)):
+                X_ = X[i*1000:(i+1)*1000]
                 if return_std:
                     y_mean_, y_std_ = super().predict(X_, return_std=return_std, return_cov=return_cov)
                     y_std = np.r_[y_std, y_std_]
@@ -160,12 +160,12 @@ class GPR(GaussianProcessRegressor):
     def save(self, result_dir):
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
-        model_save_dir = os.path.join(result_dir,'model.pkl')
         store_dict = self.__dict__.copy()
         if 'kernel' in store_dict.keys():
             store_dict.pop('kernel')
         if 'kernel_' in store_dict.keys():
             store_dict.pop('kernel_')
+        model_save_dir = os.path.join(result_dir,'model.pkl')    
         with open(model_save_dir, 'wb') as file:
             pickle.dump(store_dict, file)
         theta_save_dir = os.path.join(result_dir,'theta.pkl')
@@ -402,8 +402,8 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
             N = X.shape[0]
             y_mean = np.array([])
             y_std = np.array([])
-            for i in range(math.ceil(N / 5000)):
-                X_ = X[i*5000:(i+1)*5000]
+            for i in range(math.ceil(N / 1000)):
+                X_ = X[i*1000:(i+1)*1000]
                 if return_std:
                     y_mean_, y_std_ = super().nystrom_predict(X_, return_std=return_std, return_cov=return_cov)
                     y_std = np.r_[y_std, y_std_]
