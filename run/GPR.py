@@ -56,8 +56,8 @@ def main():
             if test_X is None and test_Y is None:
                 X = train_X
             else:
-                X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
-                                                        y_max=args.y_max, std=args.y_std)
+                X, Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
+                                                            y_max=args.y_max, std=args.y_std)
         result_dir = 'result-%s' % args.name
         if kernel_config.T:
             if args.continued or args.precompute:

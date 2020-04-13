@@ -114,18 +114,9 @@ class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
         self.K = None
         super().__init__(*args, **kwargs)
 
-    def PreCalculate(self, X, file):
-        name = re.split('\.', file)[0]
-        graph_file = os.path.join('data', '%s-graph.npy' % name)
-        K_file = os.path.join('data', '%s-K.npy' % name)
-        if os.path.exists(graph_file) and os.path.exists(K_file):
-            self.graphs = np.load(graph_file, allow_pickle=True)
-            self.K = np.load(K_file)
-        else:
-            self.graphs = np.sort(X)
-            self.K = self(self.graphs)
-            np.save(graph_file, self.graphs, allow_pickle=True)
-            np.save(K_file, self.K)
+    def PreCalculate(self, X):
+        self.graphs = np.sort(X)
+        self.K = self(self.graphs)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if self.K is None or eval_gradient:
