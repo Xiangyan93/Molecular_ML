@@ -26,6 +26,7 @@ class Config:
         kedge = TensorProduct(order=SquareExponential(s),
                               stereo=KroneckerDelta(v),
                               conjugated=KroneckerDelta(v),
+                              ringstereo=KroneckerDelta(v),
                               )
 
         stop_prob = 0.05
