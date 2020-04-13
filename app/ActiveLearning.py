@@ -466,7 +466,7 @@ class ActiveLearner:
             out = self.evaluate_df(X, np.exp(Y), np.exp(y_pred), y_std, model=self.model, debug=debug)
         else:
             out = self.evaluate_df(X, Y, y_pred, y_std, model=self.model, debug=debug)
-        out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
+        out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%15.10f')
 
         if train_output:
             train_x, train_y = self.train_x, self.train_y
@@ -476,7 +476,7 @@ class ActiveLearner:
             else:
                 out = self.evaluate_df(train_x, train_y, y_pred, y_std, model=self.model, debug=debug)
             out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
-                       float_format='%10.5f')
+                       float_format='%15.10f')
 
     def write_training_plot(self):
         self.plotout.reset_index().drop(columns='index'). \
