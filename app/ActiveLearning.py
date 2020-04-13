@@ -19,10 +19,10 @@ from config import Config
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
-    def __init__(self, train_X, train_Y, kernel_config, learning_mode, add_mode, initial_size, add_size, max_size,
-                 search_size, pool_size, threshold, name, nystrom_size=3000, nystrom_add_size=3000, test_X=None,
-                 test_Y=None, group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
-                 nystrom_active=False, nystrom_predict=False, core_threshold=0.5):
+    def __init__(self, train_X, train_Y, alpha, kernel_config, learning_mode, add_mode, initial_size, add_size,
+                 max_size, search_size, pool_size, threshold, name, nystrom_size=3000, nystrom_add_size=3000,
+                 test_X=None, test_Y=None, group_by_mol=False, random_init=True, optimizer=None, stride=100, seed=233,
+                 nystrom_active=False, nystrom_predict=False, reset_alpha=False, ylog=False, core_threshold=0.5):
         '''
         search_size: Random chose samples from untrained samples. And are predicted based on current model.
         pool_size: The largest mse or std samples in search_size.
@@ -35,10 +35,10 @@ class ActiveLearner:
         self.train_Y = train_Y
         self.test_X = test_X
         self.test_Y = test_Y
-
+        self.init_alpha = alpha
+        self.reset_alpha = reset_alpha
         self.kernel_config = kernel_config
         self.kernel_mol = kernel_config.kernel.kernel_list[0] if kernel_config.T else kernel_config.kernel
-
         self.learning_mode = learning_mode
         self.add_mode = add_mode
         self.current_size = initial_size
@@ -60,9 +60,8 @@ class ActiveLearner:
             self.nystrom_size = self.max_size + 1000
             self.nystrom_out = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': []})
         self.std_logging = False  # for debugging
-        #self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
-        self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'alpha': [], 'K_core': [],
-                                     'search_size': []})
+        # self.logger = open(os.path.join(self.result_dir, 'active_learning.log'), 'w')
+        self.plotout = pd.DataFrame({'#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'K_core': [], 'search_size': []})
         self.group_by_mol = group_by_mol
         self.stride = stride
         self.seed = seed
@@ -83,6 +82,11 @@ class ActiveLearner:
                 self.train_idx = get_core_idx(self.train_X, self.kernel_config.kernel, off_diagonal_cutoff=0.95,
                                               core_max=initial_size)
         self.optimizer = optimizer
+        self.ylog = ylog
+        if self.ylog:
+            self.train_Y = np.log(train_Y)
+            if test_Y is not None:
+                self.test_Y = np.log(test_Y)
         self.y_pred = None
         self.y_std = None
         self.core_idx = None
@@ -97,10 +101,12 @@ class ActiveLearner:
         if self.group_by_mol:
             train_x = self.train_X[self.train_X.graph.isin(self.train_graphs)]
             train_y = self.train_Y[self.train_X.graph.isin(self.train_graphs)]
+            alpha = self.init_alpha[self.train_X.graph.isin(self.train_graphs)]
         else:
             train_x = self.train_X[self.train_X.index.isin(self.train_idx)]
             train_y = self.train_Y[self.train_Y.index.isin(self.train_idx)]
-        return train_x, train_y
+            alpha = self.init_alpha[self.init_alpha.index.isin(self.train_idx)]
+        return train_x, train_y, alpha
 
     def __get_untrain_X_y(self, full=True):
         if self.group_by_mol:
@@ -127,14 +133,14 @@ class ActiveLearner:
             train_y = self.train_Y[self.train_Y.index.isin(self.core_idx)]
         return train_x, train_y
 
-    def train(self, alpha=0.5):
+    def train(self):
         # continue needs to be added soon
         np.random.seed(self.seed)
         print('%s' % (time.asctime(time.localtime(time.time()))))
-        #self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
-        #self.logger.write('Start Training, training size = %i:\n' % self.current_size)
+        # self.logger.write('%s\n' % (time.asctime(time.localtime(time.time()))))
+        # self.logger.write('Start Training, training size = %i:\n' % self.current_size)
         # self.logger.write('training smiles: %s\n' % ' '.join(self.train_smiles))
-        train_x, train_y = self.__get_train_X_y()
+        train_x, train_y, alpha = self.__get_train_X_y()
         self.train_x = train_x
         self.train_y = train_y
         print('unique molecule: %d' % len(self.__to_df(train_x).graph.unique()))
@@ -147,6 +153,12 @@ class ActiveLearner:
             model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                       optimizer=self.optimizer,
                                                       normalize_y=True, alpha=alpha).fit_robust(train_x, train_y)
+            if self.reset_alpha:
+                pred_y = model.predict(train_x)
+                alpha = (abs(pred_y - train_y) / train_y) ** 2
+                model = RobustFitGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
+                                                          optimizer=self.optimizer, normalize_y=True, alpha=alpha). \
+                    fit_robust(train_x, train_y)
             print('hyperparameter: ', model.kernel_.hyperparameters, '\n')
             if train_x.shape[0] == self.nystrom_size:
                 if self.group_by_mol:
@@ -176,7 +188,7 @@ class ActiveLearner:
         if model is not None:
             self.model = model
             self.alpha = self.model.alpha
-            #self.logger.write('training complete, alpha=%3g\n' % self.alpha)
+            # self.logger.write('training complete, alpha=%3g\n' % self.alpha)
             return True
         else:
             return False
@@ -185,6 +197,8 @@ class ActiveLearner:
     def __to_df(x):
         if x.__class__ == pd.Series:
             return pd.DataFrame({x.name: x})
+        elif x.__class__ == np.ndarray:
+            return pd.DataFrame({'graph': x})
         else:
             return x
 
@@ -192,12 +206,9 @@ class ActiveLearner:
         print('%s' % (time.asctime(time.localtime(time.time()))))
         import warnings
         warnings.filterwarnings("ignore")
-        #if self.y_pred is None and self.y_std is None:
         untrain_x, untrain_y = self.__get_untrain_X_y(full=False)
-        #else:
-        #    untrain_x, untrain_y = self.__get_untrain_X_y(full=True)
         if self.learning_mode == 'supervised':
-            y_pred = self.model.predict(untrain_x) if self.y_pred is None else self.y_pred
+            y_pred = self.model.predict(untrain_x)
             untrain_x = self.__to_df(untrain_x)
             untrain_x.loc[:, 'mse'] = abs(y_pred - untrain_y)
             if self.group_by_mol:
@@ -258,7 +269,7 @@ class ActiveLearner:
         else:
             raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
         # self.train_smiles = list(set(self.train_smiles))
-        #self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
+        # self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
 
     def _add_core(self, add_idx):
         ''' add samples that are far from core set into core set 
@@ -383,13 +394,49 @@ class ActiveLearner:
         else:
             return 0
 
-    def evaluate(self, train_output=True):
+    @staticmethod
+    def evaluate_df(x, y, y_pred, y_std, model=None, debug=True):
+        def get_smiles(graph):
+            return graph.smiles
+
+        _x = ActiveLearner.__to_df(x)
+        out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
+                            'rel_dev': abs((y - y_pred) / y)})
+        _x.loc[:, 'smiles'] = _x.graph.apply(get_smiles)
+        out = pd.concat([out, _x.drop(columns='graph')], axis=1)
+        if debug:
+            K = model.kernel_(x, model.X_train_)
+            info_list = []
+            kindex = np.argsort(-K)[:, :5]
+            for s in np.copy(model.X_train_):
+                if not np.iterable(s):
+                    s = np.array([s])
+                s[0] = get_smiles(s[0])
+                s = list(map(str, s))
+                info_list.append(','.join(s))
+            info_list = np.array(info_list)
+            similar_data = []
+            for i, index in enumerate(kindex):
+                info = info_list[index]
+
+                def round5(x):
+                    return ',%.5f' % x
+
+                k = list(map(round5, K[i][index]))
+                info = ';'.join(list(map(str.__add__, info, k)))
+                similar_data.append(info)
+            out.loc[:, 'similar_mols'] = similar_data
+        return out.sort_values(by='rel_dev', ascending=False)
+
+    def evaluate(self, train_output=True, debug=True):
         print('%s' % (time.asctime(time.localtime(time.time()))))
         if self.test_X is not None and self.test_Y is not None:
             X = self.test_X
             Y = self.test_Y
         else:
-            X, Y = self.__get_untrain_X_y()
+            X = self.train_X
+            Y = self.train_Y
+            # X, Y = self.__get_untrain_X_y()
         if self.nystrom_predict:
             y_pred, y_std = NystromGaussianProcessRegressor._nystrom_predict(self.model.kernel_, self.train_x,
                                                                              self.train_X, X, self.train_Y,
@@ -401,14 +448,8 @@ class ActiveLearner:
             # variance explained
             ex_var = explained_variance_score(y_pred, Y)
             self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var
-        y_pred, y_std = self.model.predict(X, return_std=True)
 
-        if self.test_X is not None and self.test_Y is not None:
-            self.y_pred = None
-            self.y_std = None
-        else:
-            self.y_pred = y_pred
-            self.y_std = y_std
+        y_pred, y_std = self.model.predict(X, return_std=True)
 
         # R2
         r2 = r2_score(y_pred, Y)
@@ -417,32 +458,24 @@ class ActiveLearner:
         # variance explained
         ex_var = explained_variance_score(y_pred, Y)
         print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        #self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.alpha, self.__get_K_core_length()\
-            , self.search_size
+        # self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
+        self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.__get_K_core_length(), \
+                                              self.search_size
 
-        _X = self.__to_df(X)
-
-        def get_smiles(graph):
-            return graph.smiles
-
-        def get_df(x, y, y_pred, y_std):
-            out = pd.DataFrame({'#sim': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
-                                'rel_dev': abs((y - y_pred) / y)})
-            x.loc[:, 'smiles'] = x.graph.apply(get_smiles)
-            return pd.concat([out, x.drop(columns='graph')], axis=1)
-
-        out = get_df(_X, Y, y_pred, y_std)
-        out.sort_values(by='rel_dev', ascending=False). \
-            to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
+        if self.ylog:
+            out = self.evaluate_df(X, np.exp(Y), np.exp(y_pred), y_std, model=self.model, debug=debug)
+        else:
+            out = self.evaluate_df(X, Y, y_pred, y_std, model=self.model, debug=debug)
+        out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%10.5f')
 
         if train_output:
             train_x, train_y = self.train_x, self.train_y
             y_pred, y_std = self.model.predict(train_x, return_std=True)
-            train_x = self.__to_df(train_x)
-            out = get_df(train_x, train_y, y_pred, y_std)
-            out.sort_values(by='rel_dev', ascending=False). \
-                to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
+            if self.ylog:
+                out = self.evaluate_df(train_x, np.exp(train_y), np.exp(y_pred), y_std, model=self.model, debug=debug)
+            else:
+                out = self.evaluate_df(train_x, train_y, y_pred, y_std, model=self.model, debug=debug)
+            out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
                        float_format='%10.5f')
 
     def write_training_plot(self):
@@ -469,7 +502,7 @@ class ActiveLearner:
             store_dict.pop('kernel_config')
         if 'kernel_mol' in store_dict.keys():
             store_dict.pop('kernel_mol')
-            
+
         # store model
         if hasattr(self, 'model'):
             if isinstance(self.model, NystromGaussianProcessRegressor):
@@ -479,9 +512,9 @@ class ActiveLearner:
             self.model.save(os.path.join(self.result_dir))
         with open(os.path.join(self.result_dir, 'activelearner_param.pkl'), 'wb') as file:
             pickle.dump(store_dict, file)
-    
+
     def load(self, kernel_config):
-        #restore params
+        # restore params
         self.kernel_config = kernel_config
         self.kernel_mol = kernel_config.kernel.kernel_list[0] if kernel_config.T else kernel_config.kernel
         with open(os.path.join(self.result_dir, 'activelearner_param.pkl'), 'rb') as file:
@@ -491,14 +524,18 @@ class ActiveLearner:
         if hasattr(self, 'model_class'):
             if self.model_class == 'nystrom':
                 self.model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=self.seed,
-                                                    optimizer=self.optimizer, normalize_y=True, alpha=self.alpha)
+                                                             optimizer=self.optimizer, normalize_y=True,
+                                                             alpha=self.alpha)
                 self.model.load(self.result_dir)
             elif self.model_class == 'normal':
                 self.model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=self.seed,
-                                                      optimizer=self.optimizer,
-                                                      normalize_y=True, alpha=self.alpha)
+                                                               optimizer=self.optimizer,
+                                                               normalize_y=True, alpha=self.alpha)
                 self.model.load(self.result_dir)
-    
+
     def __str__(self):
         return 'parameter of current active learning checkpoint:\n' + \
-                        'current_size:%s  max_size:%s  learning_mode:%s  add_mode:%s  search_size:%d  pool_size:%d  add_size:%d\n'  % (self.current_size, self.max_size, self.learning_mode, self.add_mode, self.search_size, self.pool_size, self.add_size)
+               'current_size:%s  max_size:%s  learning_mode:%s  add_mode:%s  search_size:%d  pool_size:%d  add_size:%d\n' % (
+                   self.current_size, self.max_size, self.learning_mode, self.add_mode, self.search_size,
+                   self.pool_size,
+                   self.add_size)

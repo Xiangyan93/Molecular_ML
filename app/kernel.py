@@ -114,9 +114,18 @@ class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
         self.K = None
         super().__init__(*args, **kwargs)
 
-    def PreCalculate(self, X):
-        self.graphs = np.sort(X)
-        self.K = self(self.graphs)
+    def PreCalculate(self, X, file):
+        name = re.split('\.', file)[0]
+        graph_file = os.path.join('data', '%s-graph.npy' % name)
+        K_file = os.path.join('data', '%s-K.npy' % name)
+        if os.path.exists(graph_file) and os.path.exists(K_file):
+            self.graphs = np.load(graph_file, allow_pickle=True)
+            self.K = np.load(K_file)
+        else:
+            self.graphs = np.sort(X)
+            self.K = self(self.graphs)
+            np.save(graph_file, self.graphs, allow_pickle=True)
+            np.save(K_file, self.K)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if self.K is None or eval_gradient:
@@ -426,8 +435,8 @@ def get_TP_extreme(df, P=True, T=True):
     return df_
 
 
-def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233, y_min=None,
-                     y_max=None, std=None):
+def get_XYU_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233, y_min=None,
+                      y_max=None, std=None, uncertainty=False):
     if not os.path.exists('data'):
         os.mkdir('data')
     original_filename = re.split('\.', file)[0] + '.pkl'
@@ -458,9 +467,12 @@ def get_XY_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextr
         X = df['graph']
 
     Y = df[kernel_config.property]
+
     if df.size == 0:
         X = Y = None
     output = [X, Y]
+    if uncertainty:
+        output.append(df[kernel_config.property + '_u'])
     if remove_smiles is None:
         output.append(df.SMILES.unique())
     return output

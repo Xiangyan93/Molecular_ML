@@ -32,9 +32,9 @@ def main():
             Y = df[opt.property]
         else:
             print('embedding')
-            from app.kernel import get_XY_from_file
+            from app.kernel import get_XYU_from_file
             # get graphs
-            X, Y, remove_smiles = get_XY_from_file(opt.input, kernel_config, TPextreme=opt.TPextreme)
+            X, Y, remove_smiles = get_XYU_from_file(opt.input, kernel_config, TPextreme=opt.TPextreme)
             R = kernel_config.kernel(X)
 
             d = R.diagonal() ** -0.5

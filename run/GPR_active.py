@@ -16,7 +16,7 @@ def main():
                                                  'active learning')
     parser.add_argument('-i', '--input', type=str, help='Input data.')
     parser.add_argument('-p', '--property', type=str, help='Target property.')
-    parser.add_argument('--alpha', type=float, help='Initial alpha value.', default=0.5)
+    parser.add_argument('--alpha', type=str, help='Initial alpha value.', default='0.5')
     parser.add_argument('--learning_mode', type=str, help='supervised/unsupervised/random', default='unsupervised')
     parser.add_argument('--add_mode', type=str, help='random/cluster/nlargest/threshold', default='cluster')
     parser.add_argument('--init_size', type=int, help='Initial size for active learning', default=100)
@@ -42,21 +42,32 @@ def main():
     parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
                         action='store_true')
     parser.add_argument('--continued', help='whether continue training', action='store_true')
+    parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
     parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
     parser.add_argument('--y_min', type=float, help='', default=None)
     parser.add_argument('--y_max', type=float, help='', default=None)
     parser.add_argument('--y_std', type=float, help='', default=None)
+    parser.add_argument('--reset_alpha', help='reset alpha based on training set prediction.', action='store_true')
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
     print('***\tStart: Reading input.\t***\n')
     kernel_config = KernelConfig(save_mem=False, property=args.property)
+    if args.alpha == 'std':
+        train_X, train_Y, train_U, train_smiles_list = \
+            get_XYU_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
+                              ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std,
+                              uncertainty=True)
+        alpha = (train_U / train_Y) ** 2
+    else:
+        train_X, train_Y, train_smiles_list = \
+            get_XYU_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
+                              ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std)
 
-    train_X, train_Y, train_smiles_list = \
-        get_XY_from_file(args.input, kernel_config, ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'],
-                         seed=args.seed, y_min=args.y_min, y_max=args.y_max, std=args.y_std)
-    test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed,
-                                      y_min=args.y_min, y_max=args.y_max, std=args.y_std)
+        alpha = pd.DataFrame({'alpha': np.ones(len(train_X)) * float(args.alpha)})['alpha']
+        alpha.index = train_X.index
+    test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed,
+                                       y_min=args.y_min, y_max=args.y_max, std=args.y_std)
     print('***\tEnd: Reading input.\t***\n')
 
     if optimizer is None:
@@ -94,12 +105,14 @@ def main():
                     pickle.dump(kernel_config.kernel.K, file)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
 
-    activelearner = ActiveLearner(train_X, train_Y, kernel_config, args.learning_mode, args.add_mode, args.init_size,
+    activelearner = ActiveLearner(train_X, train_Y, alpha, kernel_config, args.learning_mode, args.add_mode, args.init_size,
                                   args.add_size, args.max_size, args.search_size, args.pool_size, args.threshold,
                                   args.name, test_X=test_X, test_Y=test_Y, group_by_mol=args.group_by_mol,
                                   optimizer=optimizer, seed=args.seed, nystrom_active=args.nystrom_active,
                                   nystrom_size=args.nystrom_size, nystrom_predict=args.nystrom_predict,
-                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size, core_threshold=args.core_threshold)
+                                  stride=args.stride, nystrom_add_size=args.nystrom_add_size, core_threshold=args.core_threshold,
+                                  reset_alpha=args.reset_alpha, ylog=args.ylog)
+    
     if args.continued:
         print('**\tLoading checkpoint\t**\n')
         activelearner.load(kernel_config)
@@ -110,7 +123,7 @@ def main():
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' % activelearner.current_size)
         print('**\tStart train\t**\n')
-        if activelearner.train(alpha=args.alpha):
+        if activelearner.train():
             if activelearner.current_size % activelearner.stride == 0 \
                     or activelearner.current_size > activelearner.nystrom_size:
                 print('\n**\tstart evaluate\t**\n')
