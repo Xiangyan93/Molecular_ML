@@ -54,19 +54,20 @@ def main():
     print('***\tStart: Reading input.\t***\n')
     kernel_config = KernelConfig(save_mem=False, property=args.property)
     if args.alpha == 'std':
-        train_X, train_Y, train_U, train_smiles_list = \
+        train_X, train_Y, train_U, train_inchi_list = \
             get_XYU_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
                               ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std,
                               uncertainty=True)
         alpha = (train_U / train_Y) ** 2
     else:
-        train_X, train_Y, train_smiles_list = \
+        train_X, train_Y, train_inchi_list = \
             get_XYU_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
-                              ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std)
+                              ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std,
+                              uncertainty=False)
 
         alpha = pd.DataFrame({'alpha': np.ones(len(train_X)) * float(args.alpha)})['alpha']
         alpha.index = train_X.index
-    test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed,
+    test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_inchi_list, seed=args.seed,
                                        y_min=args.y_min, y_max=args.y_max, std=args.y_std)
     print('***\tEnd: Reading input.\t***\n')
 
@@ -76,33 +77,36 @@ def main():
             if test_X is None and test_Y is None:
                 X = train_X
             else:
-                X, Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
-                                                            y_max=args.y_max, std=args.y_std)
+                X, Y, train_inchi_list = get_XYU_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
+                                                           y_max=args.y_max, std=args.y_std)
         result_dir = 'result-%s' % args.name
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
 
+        graph_file = os.path.join(result_dir, 'graph.pkl')
+        K_file = os.path.join(result_dir, 'K.pkl')
         if kernel_config.T:
+
             if args.continued or args.precompute:
-                kernel_config.kernel.kernel_list[0].graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
-                kernel_config.kernel.kernel_list[0].K = pickle.load(open(os.path.join('K.pkl'),'rb'))
+                kernel_config.kernel.kernel_list[0].graphs = pickle.load(open(graph_file, 'rb'))
+                kernel_config.kernel.kernel_list[0].K = pickle.load(open(K_file, 'rb'))
             else:
                 X = X.graph.unique()
                 kernel_config.kernel.kernel_list[0].PreCalculate(X)
-                with open(os.path.join('graph.pkl'),'wb') as file:
+                with open(graph_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.kernel_list[0].graphs, file)
-                with open(os.path.join('K.pkl'),'wb') as file:
+                with open(K_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.kernel_list[0].K, file)
         else:
             if args.continued or args.precompute:
-                kernel_config.kernel.graphs = pickle.load(open(os.path.join('graph.pkl'),'rb'))
-                kernel_config.kernel.K = pickle.load(open(os.path.join('K.pkl'),'rb'))
+                kernel_config.kernel.graphs = pickle.load(open(graph_file, 'rb'))
+                kernel_config.kernel.K = pickle.load(open(K_file, 'rb'))
             else:
                 X = X.unique()
                 kernel_config.kernel.PreCalculate(X)
-                with open(os.path.join('graph.pkl'),'wb') as file:
+                with open(graph_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.graphs, file)
-                with open(os.path.join('K.pkl'),'wb') as file:
+                with open(K_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.K, file)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
 

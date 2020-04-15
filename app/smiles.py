@@ -10,13 +10,12 @@ sys.path.append('..')
 from config import *
 
 sys.path.append(Config.MS_TOOLS_DIR)
-from mstools.smiles.smiles import get_canonical_smiles
 
 
 class HashGraph(Graph):
     def __init__(self, smiles, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.smiles = get_canonical_smiles(smiles)
+        self.smiles = smiles
 
     def __eq__(self, other):
         if self.smiles == other.smiles:
@@ -218,11 +217,17 @@ def GetStereoOfRingBond(mol, bond, atom_ring, bond_orientation_dict):
     else:
         return 0
 
-
+'''
 def smiles2graph(smiles):
     mol = Chem.MolFromSmiles(smiles)
     inchi = Chem.inchi.MolToInchi(mol)
+    return inchi2graph(inchi)
+'''
+
+
+def inchi2graph(inchi):
     mol = Chem.MolFromInchi(inchi)
+    smiles = Chem.MolToSmiles(mol)
     if mol is not None:
         g = nx.Graph()
         morgan_info = dict()

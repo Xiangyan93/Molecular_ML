@@ -389,7 +389,7 @@ class KernelConfig(PropertyConfig):
         return '%s,graph_kernel' % self.property
 
 
-def datafilter(df, ratio=None, remove_smiles=None, seed=233, y=None, y_min=None, y_max=None, std=None):
+def datafilter(df, ratio=None, remove_inchi=None, seed=233, y=None, y_min=None, y_max=None, std=None):
     np.random.seed(seed)
     N = len(df)
     if y_min is not None and y_max is not None:
@@ -398,11 +398,11 @@ def datafilter(df, ratio=None, remove_smiles=None, seed=233, y=None, y_min=None,
         df = df.loc[df[y + '_u'] / df[y] < std]
     print('%i / %i data are not reliable and removed' % (N-len(df), N))
     if ratio is not None:
-        unique_smiles_list = df.SMILES.unique().tolist()
-        random_smiles_list = np.random.choice(unique_smiles_list, int(len(unique_smiles_list) * ratio), replace=False)
-        df = df[df.SMILES.isin(random_smiles_list)]
-    elif remove_smiles is not None:
-        df = df[~df.SMILES.isin(remove_smiles)]
+        unique_inchi_list = df.inchi.unique().tolist()
+        random_inchi_list = np.random.choice(unique_inchi_list, int(len(unique_inchi_list) * ratio), replace=False)
+        df = df[df.inchi.isin(random_inchi_list)]
+    elif remove_inchi is not None:
+        df = df[~df.inchi.isin(remove_inchi)]
     return df
 
 
@@ -426,7 +426,7 @@ def get_TP_extreme(df, P=True, T=True):
     return df_
 
 
-def get_XYU_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPextreme=False, seed=233, y_min=None,
+def get_XYU_from_file(file, kernel_config, ratio=None, remove_inchi=None, TPextreme=False, seed=233, y_min=None,
                       y_max=None, std=None, uncertainty=False):
     if not os.path.exists('data'):
         os.mkdir('data')
@@ -441,10 +441,10 @@ def get_XYU_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPext
         df = pd.read_pickle(pkl_file)
     else:
         df = pd.read_csv(file, sep='\s+', header=0)
-        df['graph'] = df['SMILES'].apply(smiles2graph)
+        df['graph'] = df['inchi'].apply(inchi2graph)
         df.to_pickle(pkl_file)
 
-    df = datafilter(df, ratio=ratio, remove_smiles=remove_smiles, seed=seed, y=kernel_config.property, y_min=y_min,
+    df = datafilter(df, ratio=ratio, remove_inchi=remove_inchi, seed=seed, y=kernel_config.property, y_min=y_min,
                     y_max=y_max, std=std)
     # only select the data with extreme temperature and pressure
     if TPextreme:
@@ -464,8 +464,8 @@ def get_XYU_from_file(file, kernel_config, ratio=None, remove_smiles=None, TPext
     output = [X, Y]
     if uncertainty:
         output.append(df[kernel_config.property + '_u'])
-    if remove_smiles is None:
-        output.append(df.SMILES.unique())
+    if remove_inchi is None:
+        output.append(df.inchi.unique())
     return output
 
 
