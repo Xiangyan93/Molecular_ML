@@ -170,9 +170,16 @@ class FunctionalGroup:
 def get_EZ_stereo(mol, atom, bond_orientation_dict, atom_ring=None):
     mol.GetRingInfo()
     up_atom = down_atom = None
+    ring_updown = None
+    if len(atom.GetNeighbors()) == 2:
+        return 0
     for bond in atom.GetBonds():
+        if bond.GetBondType() != Chem.BondType.SINGLE and atom.GetAtomicNum() == 6:
+            return 0
         ij = (bond.GetBeginAtom().GetIdx(), bond.GetEndAtom().GetIdx())
         if bond.GetBeginAtom().GetIdx() in atom_ring and bond.GetEndAtom().GetIdx() in atom_ring:
+            if bond_orientation_dict.get(ij) != 0:
+                ring_updown = bond_orientation_dict.get(ij)
             continue
         if bond_orientation_dict.get(ij) == 1:
             if up_atom is not None:
@@ -189,7 +196,12 @@ def get_EZ_stereo(mol, atom, bond_orientation_dict, atom_ring=None):
             down_atomidx = temp[0]
             down_atom = mol.GetAtomWithIdx(down_atomidx)
     if up_atom is None and down_atom is None:
-        return 0
+        if ring_updown == 1:
+            return 1
+        elif ring_updown == 6:
+            return -1
+        else:
+            return 0
     elif up_atom is None:
         return -1
     elif down_atom is None:
@@ -203,26 +215,6 @@ def get_EZ_stereo(mol, atom, bond_orientation_dict, atom_ring=None):
             return -1
         else:
             return 0
-
-
-def GetStereoOfRingBond(mol, bond, atom_ring, bond_orientation_dict):
-    if bond.IsInRing() and bond.GetBondType() == Chem.rdchem.BondType.SINGLE:
-        begin_atom = bond.GetBeginAtom()
-        end_atom = bond.GetEndAtom()
-        if begin_atom.GetIdx() not in atom_ring or end_atom.GetIdx() not in atom_ring:
-            raise Exception('error of input bond and atom_ring')
-        bEZ = get_EZ_stereo(mol, begin_atom, bond_orientation_dict, atom_ring=atom_ring)
-        eEZ = get_EZ_stereo(mol, end_atom, bond_orientation_dict, atom_ring=atom_ring)
-        return bEZ * eEZ
-    else:
-        return 0
-
-'''
-def smiles2graph(smiles):
-    mol = Chem.MolFromSmiles(smiles)
-    inchi = Chem.inchi.MolToInchi(mol)
-    return inchi2graph(inchi)
-'''
 
 
 def inchi2graph(inchi):
@@ -295,3 +287,9 @@ def inchi2graph(inchi):
         return graph
     else:
         return None
+
+
+def smiles2graph(smiles):
+    mol = Chem.MolFromSmiles(smiles)
+    inchi = Chem.MolToInchi(mol)
+    return inchi2graph(inchi)
