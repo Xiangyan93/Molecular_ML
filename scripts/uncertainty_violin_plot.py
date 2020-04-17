@@ -28,6 +28,8 @@ def main():
     fig, axe = plt.subplots(figsize=(12, 8))
     axe.violinplot(all_data, pos, points=20, widths=0.05, showextrema=True, showmedians=True)
     plt.savefig(args.output)
+    for i, data in enumerate(all_data):
+        plt.text(pos[i], -0.05, '%d' % len(data), size=15, alpha=0.2)
 
 
 if __name__ == '__main__':
