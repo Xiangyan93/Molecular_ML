@@ -22,6 +22,7 @@ def main():
         e = (i + 1) * du
         data = df_untrain[(df_untrain.uncertainty > b) & (df_untrain.uncertainty < e)]
         if len(data) > 0:
+            print(b, e, len(data))
             pos.append((e-b)/2+b)
             all_data.append(data.rel_dev.to_numpy())
     fig, axe = plt.subplots(figsize=(12, 8))
