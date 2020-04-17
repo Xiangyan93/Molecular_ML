@@ -20,9 +20,10 @@ def main():
     for i in range(N):
         b = i * du
         e = (i + 1) * du
-        pos.append((e-b)/2+b)
         data = df_untrain[(df_untrain.uncertainty > b) & (df_untrain.uncertainty < e)]
-        all_data.append(data.abs_dev.to_numpy())
+        if len(data) > 0:
+            pos.append((e-b)/2+b)
+            all_data.append(data.abs_dev.to_numpy())
     fig, axe = plt.subplots(figsize=(12, 8))
     axe.violinplot(all_data, pos, points=20, widths=0.05, showextrema=True, showmedians=True)
     plt.savefig(args.output)
