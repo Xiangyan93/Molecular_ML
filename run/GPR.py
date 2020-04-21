@@ -25,10 +25,13 @@ def main():
     parser.add_argument('--continued', help='whether continue training', action='store_true')
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name', default='default')
     parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
+    parser.add_argument('--loocv', help='compute the loocv for this dataset', action='store_true')
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
     result_dir = 'result-%s' % args.name
+    if not os.path.exists(result_dir):
+        os.mkdir(result_dir)
     print('***\tStart: Reading input.\t***\n')
     kernel_config = KernelConfig(save_mem=False, property=args.property)
     if Config.TrainingSetSelectRule.ASSIGNED and args.train is not None:
@@ -81,7 +84,13 @@ def main():
     print('***\tStart: hyperparameters optimization.\t***\n')
     
     alpha = args.alpha
-    if args.nystrom:
+    if args.loocv: # directly calculate the LOOCV
+        model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0,
+                                                      optimizer=optimizer, normalize_y=True, alpha=alpha)
+        y_pred_loocv = model.predict_loocv(train_X, train_Y)
+        df = pd.DataFrame({'y_pred':y_pred_loocv, 'y':train_Y, 'X':train_X})
+        df.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False)
+    elif args.nystrom:
         for i in range(Config.NystromPara.loop):
             model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, normalize_y=True,
                                                     alpha=alpha, optimizer=optimizer,
@@ -106,17 +115,22 @@ def main():
     print('***\tEnd: hyperparameters optimization.\t***\n')
 
     print('***\tStart: test set prediction.\t***\n')
-    train_pred_value_list = model.predict(train_X, return_std=False)
-    pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
-    df_test = pd.DataFrame({'#sim': test_Y, 'predict': pred_value_list, 'uncertainty': pred_std_list})
-    df_test.to_csv('out-%.3f.txt' % alpha, index=False, sep=' ')
-    print('\nalpha = %.3f\n' % model.alpha)
-    print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
-    print('mean unsigned error: %.6f\n' % (abs(train_pred_value_list - train_Y) / train_Y).mean())
-    print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
-    print('mean unsigned error: %.6f\n' % (abs(pred_value_list - test_Y) / test_Y).mean())
-    print('***\tEnd: test set prediction.\t***\n')
-    model.save(result_dir)
+    if args.loocv:
+        print('LOOCV set:\nscore: %.6f\n' % r2_score(y_pred_loocv, train_Y))
+        print('MSE: %.6f\n' % mean_squared_error(pred_value_list, train_Y) )
+        print('***\tEnd: test set prediction.\t***\n')
+    else:
+        train_pred_value_list = model.predict(train_X, return_std=False)
+        pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
+        df_test = pd.DataFrame({'#sim': test_Y, 'predict': pred_value_list, 'uncertainty': pred_std_list})
+        df_test.to_csv('out-%.3f.txt' % alpha, index=False, sep=' ')
+        print('\nalpha = %.3f\n' % model.alpha)
+        print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
+        print('MSE: %.6f\n' % mean_squared_error(train_pred_value_list, train_Y))
+        print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
+        print('MSE: %.6f\n' % mean_squared_error(pred_value_list, train_Y))
+        print('***\tEnd: test set prediction.\t***\n')
+        model.save(result_dir)
 
 
 if __name__ == '__main__':

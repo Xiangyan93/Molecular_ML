@@ -27,6 +27,7 @@ from sklearn.gaussian_process._gpr import *
 from sklearn.cluster import SpectralClustering
 from sklearn.preprocessing import StandardScaler
 from numpy.linalg import eigh
+import scipy
 import pandas as pd
 import math
 import pickle
@@ -230,7 +231,13 @@ class RobustFitGaussianProcessRegressor(GPR):
             return None
         else:
             return self
-
+    def predict_loocv(self, X, y): # return loocv prediction
+        K = self.kernel(X)
+        K[np.diag_indices_from(K)] += self.alpha
+        I_mat = np.eye(K.shape[0])
+        K_inv = scipy.linalg.cho_solve(scipy.linalg.cho_factor(K,lower=True), I_mat)
+        y_pred = y - K_inv.dot(y) / K_inv.diagonal()
+        return y_pred
 
 # This class cannot be used directly.
 class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
