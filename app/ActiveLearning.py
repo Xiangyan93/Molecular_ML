@@ -450,20 +450,27 @@ class ActiveLearner:
             self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var
 
         y_pred, y_std = self.model.predict(X, return_std=True)
-        # R2
-        r2 = r2_score(y_pred, Y)
-        # MSE
-        mse = mean_squared_error(y_pred, Y)
-        # variance explained
-        ex_var = explained_variance_score(y_pred, Y)
-        print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
+
         # self.logger.write("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
-        self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.__get_K_core_length(), self.search_size
 
         if self.ylog:
+            # R2
+            r2 = r2_score(np.exp(y_pred), np.exp(Y))
+            # MSE
+            mse = mean_squared_error(np.exp(y_pred), np.exp(Y))
+            # variance explained
+            ex_var = explained_variance_score(np.exp(y_pred), np.exp(Y))
             out = self.evaluate_df(X, np.exp(Y), np.exp(y_pred), y_std, model=self.model, debug=debug)
         else:
+            # R2
+            r2 = r2_score(y_pred, Y)
+            # MSE
+            mse = mean_squared_error(y_pred, Y)
+            # variance explained
+            ex_var = explained_variance_score(y_pred, Y)
             out = self.evaluate_df(X, Y, y_pred, y_std, model=self.model, debug=debug)
+        print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
+        self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.__get_K_core_length(), self.search_size
         out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%15.10f')
 
         if train_output:
