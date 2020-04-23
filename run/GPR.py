@@ -94,8 +94,8 @@ def main():
         if args.continued:
             print('load original model\n')
             model.load(result_dir)
-        y_pred_loocv = model.predict_loocv(train_X, train_Y)
-        df = pd.DataFrame({'y_pred':y_pred_loocv, 'y':train_Y, 'X':train_X})
+        y_pred_loocv, y_std_loocv = model.predict_loocv(train_X, train_Y, True)
+        df = pd.DataFrame({ 'y':train_Y, 'y_pred':y_pred_loocv, 'y_std': y_std_loocv, 'X': list(map(lambda x: x.smiles, train_X))})
         df.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False)
     elif args.nystrom:
         for i in range(Config.NystromPara.loop):
@@ -131,7 +131,7 @@ def main():
         train_pred_value_list = model.predict(train_X, return_std=False)
         pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
         df_test = pd.DataFrame({'#sim': test_Y, 'predict': pred_value_list, 'uncertainty': pred_std_list})
-        df_test.to_csv('out-%.3f.txt' % alpha, index=False, sep=' ')
+        df_test.to_csv('%s/out.txt' % result_dir, index=False, sep=' ')
         print('\nalpha = %.3f\n' % model.alpha)
         print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
         print('MSE: %.6f\n' % mean_squared_error(train_pred_value_list, train_Y))

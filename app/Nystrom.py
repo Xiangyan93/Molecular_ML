@@ -231,7 +231,7 @@ class RobustFitGaussianProcessRegressor(GPR):
             return None
         else:
             return self
-    def predict_loocv(self, X, y): # return loocv prediction
+    def predict_loocv(self, X, y, std=False): # return loocv prediction
         if not hasattr(self,'kernel_'):
             self.kernel_ = self.kernel
         K = self.kernel_(X)
@@ -239,7 +239,11 @@ class RobustFitGaussianProcessRegressor(GPR):
         I_mat = np.eye(K.shape[0])
         K_inv = scipy.linalg.cho_solve(scipy.linalg.cho_factor(K,lower=True), I_mat)
         y_pred = y - K_inv.dot(y) / K_inv.diagonal()
-        return y_pred
+        if std:
+            y_std = 1/ K_inv.diagonal()
+            return y_pred, y_std
+        else:
+            return y_pred
 
 # This class cannot be used directly.
 class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
