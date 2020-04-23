@@ -33,6 +33,7 @@ def main():
     axe.violinplot(all_data, pos, points=20, widths=0.05, showextrema=True, showmedians=True)
     for i, data in enumerate(all_data):
         plt.text(pos[i], -0.02, '%d' % len(data), size=15)
+    plt.ylim(0, 1)
     plt.savefig(args.output)
 
 
