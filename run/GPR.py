@@ -136,7 +136,7 @@ def main():
         print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
         print('MSE: %.6f\n' % mean_squared_error(train_pred_value_list, train_Y))
         print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
-        print('MSE: %.6f\n' % mean_squared_error(pred_value_list, train_Y))
+        print('MSE: %.6f\n' % mean_squared_error(pred_value_list, test_Y))
         print('***\tEnd: test set prediction.\t***\n')
         model.save(result_dir)
 
