@@ -8,11 +8,15 @@ def main():
     parser.add_argument('--log', type=str, help='log file.')
     parser.add_argument('--train', type=str, help='log file of training set.')
     parser.add_argument('--output', type=str, help='output file.')
+    parser.add_argument('--trainplot', action='store_true', help='plot training set data.')
     args = parser.parse_args()
 
     df = pd.read_csv(args.log, sep='\s+')
     df_train = pd.read_csv(args.train, sep='\s+')
-    df_untrain = df[~df.smiles.isin(df_train.smiles)]
+    if args.trainplot:
+        df_untrain = df_train
+    else:
+        df_untrain = df[~df.smiles.isin(df_train.smiles)]
     N = 20
     du = 1 / N
     all_data = []
