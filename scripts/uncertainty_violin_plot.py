@@ -5,16 +5,16 @@ import matplotlib.pyplot as plt
 def main():
     import argparse
     parser = argparse.ArgumentParser(description='tSNE analysis')
-    parser.add_argument('--log', dest='list', nargs='+', type=str, help='log file list.')
+    parser.add_argument('--list', dest='list', nargs='+', help='log file list.')
     # parser.add_argument('--train', type=str, help='log file of training set.')
     parser.add_argument('--output', type=str, help='output file.')
     # parser.add_argument('--trainplot', action='store_true', help='plot training set data.')
     args = parser.parse_args()
     
     df_list = []
-    for log in args.log:
+    for log in args.list:
         df_list.append(pd.read_csv(log, sep='\s+'))
-    df = pd.concate(df_list).reset_index().drop(columns='index')
+    df = pd.concat(df_list).reset_index().drop(columns='index')
     # df_train = pd.read_csv(args.train, sep='\s+')
     # if args.trainplot:
         # df_untrain = df_train
