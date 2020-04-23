@@ -232,7 +232,9 @@ class RobustFitGaussianProcessRegressor(GPR):
         else:
             return self
     def predict_loocv(self, X, y): # return loocv prediction
-        K = self.kernel(X)
+        if not hasattr(self,'kernel_'):
+            self.kernel_ = self.kernel
+        K = self.kernel_(X)
         K[np.diag_indices_from(K)] += self.alpha
         I_mat = np.eye(K.shape[0])
         K_inv = scipy.linalg.cho_solve(scipy.linalg.cho_factor(K,lower=True), I_mat)

@@ -26,6 +26,10 @@ def main():
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name', default='default')
     parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
     parser.add_argument('--loocv', help='compute the loocv for this dataset', action='store_true')
+    parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
+    parser.add_argument('--y_min', type=float, help='', default=None)
+    parser.add_argument('--y_max', type=float, help='', default=None)
+    parser.add_argument('--y_std', type=float, help='', default=None)
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -87,6 +91,9 @@ def main():
     if args.loocv: # directly calculate the LOOCV
         model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0,
                                                       optimizer=optimizer, normalize_y=True, alpha=alpha)
+        if args.continued:
+            print('load original model\n')
+            model.load(result_dir)
         y_pred_loocv = model.predict_loocv(train_X, train_Y)
         df = pd.DataFrame({'y_pred':y_pred_loocv, 'y':train_Y, 'X':train_X})
         df.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False)
@@ -117,8 +124,9 @@ def main():
     print('***\tStart: test set prediction.\t***\n')
     if args.loocv:
         print('LOOCV set:\nscore: %.6f\n' % r2_score(y_pred_loocv, train_Y))
-        print('MSE: %.6f\n' % mean_squared_error(pred_value_list, train_Y) )
+        print('MSE: %.6f\n' % mean_squared_error(y_pred_loocv, train_Y) )
         print('***\tEnd: test set prediction.\t***\n')
+        model.save(result_dir)
     else:
         train_pred_value_list = model.predict(train_X, return_std=False)
         pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
