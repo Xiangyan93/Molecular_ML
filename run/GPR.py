@@ -130,7 +130,8 @@ def main():
     else:
         train_pred_value_list = model.predict(train_X, return_std=False)
         pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
-        df_test = pd.DataFrame({'#sim': test_Y, 'predict': pred_value_list, 'uncertainty': pred_std_list})
+        df_test = pd.DataFrame({'#sim': test_Y, 'predict': pred_value_list, 'uncertainty': pred_std_list,  'X': list(map(lambda x: x.smiles, test_X))})
+        
         df_test.to_csv('%s/out.txt' % result_dir, index=False, sep=' ')
         print('\nalpha = %.3f\n' % model.alpha)
         print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
