@@ -24,12 +24,14 @@ def main():
     parser.add_argument('--optimizer', type=str, help='Optimizer used in GPR.', default="fmin_l_bfgs_b")
     parser.add_argument('--continued', help='whether continue training', action='store_true')
     parser.add_argument('--name', type=str, help='All the output file will be save in folder result-name', default='default')
+    parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
     parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
     parser.add_argument('--loocv', help='compute the loocv for this dataset', action='store_true')
     parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
     parser.add_argument('--y_min', type=float, help='', default=None)
     parser.add_argument('--y_max', type=float, help='', default=None)
     parser.add_argument('--y_std', type=float, help='', default=None)
+
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -41,13 +43,16 @@ def main():
     if Config.TrainingSetSelectRule.ASSIGNED and args.train is not None:
         df = pd.read_csv(args.train, sep='\s+', header=0)
         train_smiles_list = df.SMILES.unique().tolist()
-        train_X, train_Y = get_XY_from_file(args.train, kernel_config, seed=args.seed)
-        test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed)
+        train_X, train_Y = get_XYU_from_file(args.train, kernel_config, seed=args.seed)
+        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_smiles=train_smiles_list, seed=args.seed)
     elif Config.TrainingSetSelectRule.RANDOM:
-        train_X, train_Y, train_smiles_list = get_XY_from_file(args.input, kernel_config,
-                                                               ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
-                                                               seed=args.seed)
-        test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_smiles=train_smiles_list)
+        train_X, train_Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config,
+                                                                ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
+                                                                seed=args.seed)
+        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_smiles=train_smiles_list)
+    if args.ylog:
+        train_Y = np.log(train_Y)
+        test_Y = np.log(test_Y)
     print('***\tEnd: Reading input.\t***\n')
     if args.size != 0:
         train_X, train_Y = train_X[:args.size], train_Y[:args.size]
@@ -58,8 +63,8 @@ def main():
             if test_X is None and test_Y is None:
                 X = train_X
             else:
-                X, Y, train_smiles_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
-                                                        y_max=args.y_max, std=args.y_std)
+                X, Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
+                                                            y_max=args.y_max, std=args.y_std)
         result_dir = 'result-%s' % args.name
         if kernel_config.T:
             if args.continued or args.precompute:
@@ -122,24 +127,33 @@ def main():
     print('***\tEnd: hyperparameters optimization.\t***\n')
 
     print('***\tStart: test set prediction.\t***\n')
+
     if args.loocv:
         print('LOOCV set:\nscore: %.6f\n' % r2_score(y_pred_loocv, train_Y))
         print('MSE: %.6f\n' % mean_squared_error(y_pred_loocv, train_Y) )
         print('***\tEnd: test set prediction.\t***\n')
         model.save(result_dir)
     else:
-        train_pred_value_list = model.predict(train_X, return_std=False)
-        pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
-        df_test = pd.DataFrame({'#sim': test_Y, 'predict': pred_value_list, 'uncertainty': pred_std_list,  'X': list(map(lambda x: x.smiles, test_X))})
-        
-        df_test.to_csv('%s/out.txt' % result_dir, index=False, sep=' ')
-        print('\nalpha = %.3f\n' % model.alpha)
-        print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
-        print('MSE: %.6f\n' % mean_squared_error(train_pred_value_list, train_Y))
-        print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
-        print('MSE: %.6f\n' % mean_squared_error(pred_value_list, test_Y))
-        print('***\tEnd: test set prediction.\t***\n')
-        model.save(result_dir)
+      train_pred_value_list, train_pred_std_list = model.predict(train_X, return_std=True)
+      if args.ylog:
+          train_Y = np.exp(train_Y)
+          train_pred_value_list = np.exp(train_pred_value_list)
+      df_train = ActiveLearner.evaluate_df(train_X, train_Y, train_pred_value_list, train_pred_std_list, model=model,
+                                           debug=True)
+      df_train.to_csv('train.txt', index=False, sep='\t', float_format='%10.5f')
+      pred_value_list, pred_std_list = model.predict(test_X, return_std=True)
+      if args.ylog:
+          test_Y = np.exp(test_Y)
+          pred_value_list = np.exp(pred_value_list)
+      df_test = ActiveLearner.evaluate_df(test_X, test_Y, pred_value_list, pred_std_list, model=model, debug=True)
+      df_test.to_csv('test.txt', index=False, sep='\t', float_format='%10.5f')
+      print('\nalpha = %.3f\n' % model.alpha)
+      print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
+      print('mean unsigned error: %.6f\n' % (abs(train_pred_value_list - train_Y) / train_Y).mean())
+      print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
+      print('mean unsigned error: %.6f\n' % (abs(pred_value_list - test_Y) / test_Y).mean())
+      print('***\tEnd: test set prediction.\t***\n')
+      model.save(result_dir)
 
 
 if __name__ == '__main__':

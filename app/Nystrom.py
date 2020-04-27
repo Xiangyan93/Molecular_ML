@@ -67,7 +67,6 @@ class GPR(GaussianProcessRegressor):
             y = y - self._y_train_mean
         else:
             self._y_train_mean = np.zeros(1)
-
         if np.iterable(self.alpha) \
            and self.alpha.shape[0] != y.shape[0]:
             if self.alpha.shape[0] == 1:
@@ -213,24 +212,23 @@ class RobustFitGaussianProcessRegressor(GPR):
         else:
             return result
 
-    def fit_robust(self, X, y, core_predict=True):
+    def fit_robust(self, X, y, core_predict=True, cycle=1):
         self.fit(X, y, core_predict=core_predict)
-        while self.alpha < 100:
+        for i in range(cycle):
             try:
-                print('Try to fit the data with alpha = %f' % self.alpha)
+                print('Try to fit the data with alpha = ')
                 self.fit(X, y, core_predict=core_predict)
-                print('Success fit the data with alpha = %f' % self.alpha)
+                print('Success fit the data with %i-th cycle alpha = ' % (i+1))
             except Exception as e:
                 print('error info: ', e)
                 self.alpha *= 1.1
+                if i == cycle - 1:
+                    print('Attempted alpha failed in %i-th cycle. The training is terminated for unstable numerical '
+                          'issues may occur.' % (cycle+1))
+                    return None
             else:
-                break
-        if self.alpha > 100:
-            print(
-                'Attempted alpha larger than 100. The training is terminated for unstable numerical issues may occur.')
-            return None
-        else:
-            return self
+                 return self
+
     def predict_loocv(self, X, y, std=False): # return loocv prediction
         if not hasattr(self,'kernel_'):
             self.kernel_ = self.kernel
@@ -246,6 +244,7 @@ class RobustFitGaussianProcessRegressor(GPR):
             return y_pred, y_std
         else:
             return y_pred
+
 
 # This class cannot be used directly.
 class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
