@@ -235,11 +235,12 @@ class RobustFitGaussianProcessRegressor(GPR):
         if not hasattr(self,'kernel_'):
             self.kernel_ = self.kernel
         K = self.kernel_(X)
+        y_ = y - y.mean()
         K[np.diag_indices_from(K)] += self.alpha
         I_mat = np.eye(K.shape[0])
         #K_inv = scipy.linalg.cho_solve(scipy.linalg.cho_factor(K,lower=True), I_mat)
         K_inv = np.linalg.inv(K) 
-        y_pred = y - K_inv.dot(y) / K_inv.diagonal()
+        y_pred = y_ - K_inv.dot(y_) / K_inv.diagonal() + y.mean()
         if std:
             y_std = np.sqrt(1/ K_inv.diagonal())
             return y_pred, y_std
