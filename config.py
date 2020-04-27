@@ -46,7 +46,7 @@ class Config:
 
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
-            'ratio': 0.8
+            'ratio': None
         }
 
         ACTIVE_LEARNING_Para = {
