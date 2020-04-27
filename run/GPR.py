@@ -27,6 +27,10 @@ def main():
     parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
     parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
     parser.add_argument('--loocv', help='compute the loocv for this dataset', action='store_true')
+    parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
+    parser.add_argument('--y_min', type=float, help='', default=None)
+    parser.add_argument('--y_max', type=float, help='', default=None)
+    parser.add_argument('--y_std', type=float, help='', default=None)
 
     args = parser.parse_args()
 
@@ -92,8 +96,11 @@ def main():
     if args.loocv: # directly calculate the LOOCV
         model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0,
                                                       optimizer=optimizer, normalize_y=True, alpha=alpha)
-        y_pred_loocv = model.predict_loocv(train_X, train_Y)
-        df = pd.DataFrame({'y_pred':y_pred_loocv, 'y':train_Y, 'X':train_X})
+        if args.continued:
+            print('load original model\n')
+            model.load(result_dir)
+        y_pred_loocv, y_std_loocv = model.predict_loocv(train_X, train_Y, True)
+        df = pd.DataFrame({ 'y':train_Y, 'y_pred':y_pred_loocv, 'y_std': y_std_loocv, 'X': list(map(lambda x: x.smiles, train_X))})
         df.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False)
     elif args.nystrom:
         for i in range(Config.NystromPara.loop):
@@ -123,8 +130,9 @@ def main():
 
     if args.loocv:
         print('LOOCV set:\nscore: %.6f\n' % r2_score(y_pred_loocv, train_Y))
-        print('MSE: %.6f\n' % mean_squared_error(pred_value_list, train_Y) )
+        print('MSE: %.6f\n' % mean_squared_error(y_pred_loocv, train_Y) )
         print('***\tEnd: test set prediction.\t***\n')
+        model.save(result_dir)
     else:
       train_pred_value_list, train_pred_std_list = model.predict(train_X, return_std=True)
       if args.ylog:
@@ -146,7 +154,6 @@ def main():
       print('mean unsigned error: %.6f\n' % (abs(pred_value_list - test_Y) / test_Y).mean())
       print('***\tEnd: test set prediction.\t***\n')
       model.save(result_dir)
-
 
 
 if __name__ == '__main__':
