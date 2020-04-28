@@ -53,13 +53,16 @@ def main():
                                            y_max=args.y_max, std=args.y_std)
     if args.ylog:
         train_Y = np.log(train_Y)
-        test_Y = np.log(test_Y)
+        if test_Y is not None:
+            test_Y = np.log(test_Y)
     print('***\tEnd: Reading input.\t***\n')
     if args.size != 0:
         train_X, train_Y = train_X[:args.size], train_Y[:args.size]
         
     if optimizer is None:
         print('***\tStart: Pre-calculate of graph kernels\t***\n')
+        graph_file = os.path.join(result_dir, 'graph.pkl')
+        K_file = os.path.join(result_dir, 'K.pkl')
         if not (args.continued or args.precompute) :
             if test_X is None and test_Y is None:
                 X = train_X
@@ -74,9 +77,9 @@ def main():
             else:
                 X = X.graph.unique()
                 kernel_config.kernel.kernel_list[0].PreCalculate(X)
-                with open(os.path.join('graph.pkl'),'wb') as file:
+                with open(graph_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.kernel_list[0].graphs, file)
-                with open(os.path.join('K.pkl'),'wb') as file:
+                with open(K_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.kernel_list[0].K, file)
         else:
             if args.continued or args.precompute:
@@ -85,9 +88,9 @@ def main():
             else:
                 X = X.unique()
                 kernel_config.kernel.PreCalculate(X)
-                with open(os.path.join('graph.pkl'),'wb') as file:
+                with open(graph_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.graphs, file)
-                with open(os.path.join('K.pkl'),'wb') as file:
+                with open(K_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.K, file)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
         
