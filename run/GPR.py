@@ -133,8 +133,8 @@ def main():
     print('***\tStart: test set prediction.\t***\n')
 
     if args.loocv:
-        print('LOOCV set:\nscore: %.6f\n' % r2_score(y_pred_loocv, train_Y))
-        print('MSE: %.6f\n' % mean_squared_error(y_pred_loocv, train_Y) )
+        print('LOOCV set:\nscore: %.6f\n' % r2_score(train_Y, y_pred_loocv))
+        print('MSE: %.6f\n' % mean_squared_error(train_Y, y_pred_loocv) )
         print('***\tEnd: test set prediction.\t***\n')
         model.save(result_dir)
     else:
@@ -152,9 +152,9 @@ def main():
         df_test = ActiveLearner.evaluate_df(test_X, test_Y, pred_value_list, pred_std_list, model=model, debug=True)
         df_test.to_csv('test.txt', index=False, sep='\t', float_format='%10.5f')
         print('\nalpha = %.3f\n' % model.alpha)
-        print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
+        print('Training set:\nscore: %.6f\n' % r2_score(train_Y, train_pred_value_list))
         print('mean unsigned error: %.6f\n' % (abs(train_pred_value_list - train_Y) / train_Y).mean())
-        print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
+        print('Test set:\nscore: %.6f\n' % r2_score(test_Y, pred_value_list))
         print('mean unsigned error: %.6f\n' % (abs(pred_value_list - test_Y) / test_Y).mean())
         print('***\tEnd: test set prediction.\t***\n')
         model.save(result_dir)
