@@ -41,14 +41,16 @@ def main():
     kernel_config = KernelConfig(save_mem=False, property=args.property)
     if Config.TrainingSetSelectRule.ASSIGNED and args.train is not None:
         df = pd.read_csv(args.train, sep='\s+', header=0)
-        train_smiles_list = df.SMILES.unique().tolist()
+        train_inchi_list = df.inchi.unique().tolist()
         train_X, train_Y = get_XYU_from_file(args.train, kernel_config, seed=args.seed)
-        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_smiles_list, seed=args.seed)
+        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_inchi_list, seed=args.seed)
     elif Config.TrainingSetSelectRule.RANDOM:
-        train_X, train_Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config,
-                                                                ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
-                                                                seed=args.seed)
-        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_smiles_list)
+        train_X, train_Y, train_inchi_list = get_XYU_from_file(args.input, kernel_config, seed=args.seed,
+                                                               ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
+                                                               y_min=args.y_min, y_max=args.y_max, std=args.y_std,
+                                                               uncertainty=False)
+        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_inchi_list, y_min=args.y_min,
+                                           y_max=args.y_max, std=args.y_std)
     if args.ylog:
         train_Y = np.log(train_Y)
         test_Y = np.log(test_Y)
