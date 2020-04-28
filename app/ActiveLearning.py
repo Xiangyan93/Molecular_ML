@@ -370,7 +370,7 @@ class ActiveLearner:
         return add_idx
 
     def _find_add_idx_cluster(self, gram_matrix):
-        ''' find representative samples from a pool using clustering method
+        ''' find representative samp-les from a pool using clustering method
         :gram_matrix: gram matrix of the pool samples
         :return: list of idx
         '''
@@ -395,7 +395,7 @@ class ActiveLearner:
             return 0
 
     @staticmethod
-    def evaluate_df(x, y, y_pred, y_std, model=None, debug=True):
+    def evaluate_df(x, y, y_pred, y_std, kernel=None, X_train=None, debug=True):
         def get_smiles(graph):
             return graph.smiles
 
@@ -405,10 +405,10 @@ class ActiveLearner:
         _x.loc[:, 'smiles'] = _x.graph.apply(get_smiles)
         out = pd.concat([out, _x.drop(columns='graph')], axis=1)
         if debug:
-            K = model.kernel_(x, model.X_train_)
+            K = kernel(x, X_train)
             info_list = []
             kindex = np.argsort(-K)[:, :5]
-            for s in np.copy(model.X_train_):
+            for s in np.copy(X_train):
                 if not np.iterable(s):
                     s = np.array([s])
                 s[0] = get_smiles(s[0])
@@ -442,11 +442,11 @@ class ActiveLearner:
                                                                              self.train_X, X, self.train_Y,
                                                                              alpha=Config.NystromPara.alpha,
                                                                              return_std=True)
-            r2 = r2_score(y_pred, Y)
+            r2 = r2_score(Y, y_pred)
             # MSE
-            mse = mean_squared_error(y_pred, Y)
+            mse = mean_squared_error(Y, y_pred)
             # variance explained
-            ex_var = explained_variance_score(y_pred, Y)
+            ex_var = explained_variance_score(Y, y_pred)
             self.nystrom_out.loc[self.current_size] = self.current_size, r2, mse, ex_var
 
         y_pred, y_std = self.model.predict(X, return_std=True)
@@ -455,20 +455,22 @@ class ActiveLearner:
 
         if self.ylog:
             # R2
-            r2 = r2_score(np.exp(y_pred), np.exp(Y))
+            r2 = r2_score(np.exp(Y), np.exp(y_pred))
             # MSE
-            mse = mean_squared_error(np.exp(y_pred), np.exp(Y))
+            mse = mean_squared_error(np.exp(Y), np.exp(y_pred))
             # variance explained
-            ex_var = explained_variance_score(np.exp(y_pred), np.exp(Y))
-            out = self.evaluate_df(X, np.exp(Y), np.exp(y_pred), y_std, model=self.model, debug=debug)
+            ex_var = explained_variance_score(np.exp(Y), np.exp(y_pred))
+            out = self.evaluate_df(X, np.exp(Y), np.exp(y_pred), y_std, kernel=self.model.kernel_,
+                                   X_train=self.model.X_train_, debug=debug)
         else:
             # R2
-            r2 = r2_score(y_pred, Y)
+            r2 = r2_score(Y, y_pred)
             # MSE
-            mse = mean_squared_error(y_pred, Y)
+            mse = mean_squared_error(Y, y_pred)
             # variance explained
-            ex_var = explained_variance_score(y_pred, Y)
-            out = self.evaluate_df(X, Y, y_pred, y_std, model=self.model, debug=debug)
+            ex_var = explained_variance_score(Y, y_pred)
+            out = self.evaluate_df(X, Y, y_pred, y_std, kernel=self.model.kernel_,
+                                   X_train=self.model.X_train_, debug=debug)
         print("R-square:%.3f\tMSE:%.3g\texplained_variance:%.3f\n" % (r2, mse, ex_var))
         self.plotout.loc[self.current_size] = self.current_size, r2, mse, ex_var, self.__get_K_core_length(), self.search_size
         out.to_csv('%s/%i.log' % (self.result_dir, self.current_size), sep='\t', index=False, float_format='%15.10f')
@@ -477,9 +479,11 @@ class ActiveLearner:
             train_x, train_y = self.train_x, self.train_y
             y_pred, y_std = self.model.predict(train_x, return_std=True)
             if self.ylog:
-                out = self.evaluate_df(train_x, np.exp(train_y), np.exp(y_pred), y_std, model=self.model, debug=debug)
+                out = self.evaluate_df(train_x, np.exp(train_y), np.exp(y_pred), y_std, kernel=self.model.kernel_,
+                                       X_train=self.model.X_train_, debug=debug)
             else:
-                out = self.evaluate_df(train_x, train_y, y_pred, y_std, model=self.model, debug=debug)
+                out = self.evaluate_df(train_x, train_y, y_pred, y_std, kernel=self.model.kernel_,
+                                       X_train=self.model.X_train_, debug=debug)
             out.to_csv('%s/%i-train.log' % (self.result_dir, self.current_size), sep='\t', index=False,
                        float_format='%15.10f')
 
