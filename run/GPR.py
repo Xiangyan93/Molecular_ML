@@ -41,23 +41,28 @@ def main():
     kernel_config = KernelConfig(save_mem=False, property=args.property)
     if Config.TrainingSetSelectRule.ASSIGNED and args.train is not None:
         df = pd.read_csv(args.train, sep='\s+', header=0)
-        train_smiles_list = df.SMILES.unique().tolist()
+        train_inchi_list = df.inchi.unique().tolist()
         train_X, train_Y = get_XYU_from_file(args.train, kernel_config, seed=args.seed)
-        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_smiles_list, seed=args.seed)
+        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_inchi_list, seed=args.seed)
     elif Config.TrainingSetSelectRule.RANDOM:
-        train_X, train_Y, train_smiles_list = get_XYU_from_file(args.input, kernel_config,
-                                                                ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
-                                                                seed=args.seed)
-        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_smiles_list)
+        train_X, train_Y, train_inchi_list = get_XYU_from_file(args.input, kernel_config, seed=args.seed,
+                                                               ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
+                                                               y_min=args.y_min, y_max=args.y_max, std=args.y_std,
+                                                               uncertainty=False)
+        test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_inchi_list, y_min=args.y_min,
+                                           y_max=args.y_max, std=args.y_std)
     if args.ylog:
         train_Y = np.log(train_Y)
-        test_Y = np.log(test_Y)
+        if test_Y is not None:
+            test_Y = np.log(test_Y)
     print('***\tEnd: Reading input.\t***\n')
     if args.size != 0:
         train_X, train_Y = train_X[:args.size], train_Y[:args.size]
         
     if optimizer is None:
         print('***\tStart: Pre-calculate of graph kernels\t***\n')
+        graph_file = os.path.join(result_dir, 'graph.pkl')
+        K_file = os.path.join(result_dir, 'K.pkl')
         if not (args.continued or args.precompute) :
             if test_X is None and test_Y is None:
                 X = train_X
@@ -72,9 +77,9 @@ def main():
             else:
                 X = X.graph.unique()
                 kernel_config.kernel.kernel_list[0].PreCalculate(X)
-                with open(os.path.join('graph.pkl'),'wb') as file:
+                with open(graph_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.kernel_list[0].graphs, file)
-                with open(os.path.join('K.pkl'),'wb') as file:
+                with open(K_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.kernel_list[0].K, file)
         else:
             if args.continued or args.precompute:
@@ -83,9 +88,9 @@ def main():
             else:
                 X = X.unique()
                 kernel_config.kernel.PreCalculate(X)
-                with open(os.path.join('graph.pkl'),'wb') as file:
+                with open(graph_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.graphs, file)
-                with open(os.path.join('K.pkl'),'wb') as file:
+                with open(K_file, 'wb') as file:
                     pickle.dump(kernel_config.kernel.K, file)
         print('\n***\tEnd: Pre-calculate of graph kernels\t***\n')
         
@@ -131,8 +136,8 @@ def main():
     print('***\tStart: test set prediction.\t***\n')
 
     if args.loocv:
-        print('LOOCV set:\nscore: %.6f\n' % r2_score(y_pred_loocv, train_Y))
-        print('MSE: %.6f\n' % mean_squared_error(y_pred_loocv, train_Y) )
+        print('LOOCV set:\nscore: %.6f\n' % r2_score(train_Y, y_pred_loocv))
+        print('MSE: %.6f\n' % mean_squared_error(train_Y, y_pred_loocv) )
         print('***\tEnd: test set prediction.\t***\n')
         model.save(result_dir)
     else:
@@ -150,9 +155,9 @@ def main():
         df_test = ActiveLearner.evaluate_df(test_X, test_Y, pred_value_list, pred_std_list, model=model, debug=True)
         df_test.to_csv('test.txt', index=False, sep='\t', float_format='%10.5f')
         print('\nalpha = %.3f\n' % model.alpha)
-        print('Training set:\nscore: %.6f\n' % r2_score(train_pred_value_list, train_Y))
+        print('Training set:\nscore: %.6f\n' % r2_score(train_Y, train_pred_value_list))
         print('mean unsigned error: %.6f\n' % (abs(train_pred_value_list - train_Y) / train_Y).mean())
-        print('Test set:\nscore: %.6f\n' % r2_score(pred_value_list, test_Y))
+        print('Test set:\nscore: %.6f\n' % r2_score(test_Y, pred_value_list))
         print('mean unsigned error: %.6f\n' % (abs(pred_value_list - test_Y) / test_Y).mean())
         print('***\tEnd: test set prediction.\t***\n')
         model.save(result_dir)

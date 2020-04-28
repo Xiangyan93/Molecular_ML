@@ -21,7 +21,7 @@ class Config:
                               chiral=KroneckerDelta(v),
                               smallest_ring=KroneckerDelta(v),
                               ring_number=KroneckerDelta(v),
-                              morgan_hash=KroneckerDelta(v),
+                              # morgan_hash=KroneckerDelta(v),
                               )
         kedge = TensorProduct(order=SquareExponential(s),
                               stereo=KroneckerDelta(v),
