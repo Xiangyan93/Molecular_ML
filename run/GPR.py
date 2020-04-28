@@ -94,14 +94,16 @@ def main():
     alpha = args.alpha
     if args.loocv: # directly calculate the LOOCV
         model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0,
-                                                      optimizer=optimizer, normalize_y=True, alpha=alpha)
+                                                  optimizer=optimizer, normalize_y=True, alpha=alpha)
         if args.continued:
             print('load original model\n')
             model.load(result_dir)
         y_pred_loocv, y_std_loocv = model.predict_loocv(train_X, train_Y, True)
-        df = pd.DataFrame({ 'y':train_Y, 'y_pred':y_pred_loocv, 'uncertainty': y_std_loocv, 'X': list(map(lambda x: x.smiles, train_X))})
-        df['rel_dev'] = abs(df['y']-df['y_pred']) / df['y']
-        df.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False)
+        out = ActiveLearner.evaluate_df(train_X, train_Y, y_pred_loocv, y_std_loocv, kernel=kernel_config.kernel,
+                                        X_train=train_X)
+        # df = pd.DataFrame({ 'y':train_Y, 'y_pred':y_pred_loocv, 'uncertainty': y_std_loocv, 'X': list(map(lambda x: x.smiles, train_X))})
+        # df['rel_dev'] = abs(df['y']-df['y_pred']) / df['y']
+        out.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False)
     elif args.nystrom:
         for i in range(Config.NystromPara.loop):
             model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=0, normalize_y=True,
