@@ -279,10 +279,10 @@ class ActiveLearner:
         if self.core_idx is None: # do nothing at ordinary GPR stage
             return
         add_x = self.train_X[self.train_X.index.isin(add_idx)]
-        core_x, _ = self.__get_core_X_y()
+        core_x, _, alpha = self.__get_core_X_y()
         add_core_idx_idx = np.amax(self.model.kernel(core_x, add_x), axis=0) < self.core_threshold
         add_core_idx = add_idx[add_core_idx_idx]
-        self.core_idx =  np.r_[self.core_idx, add_core_idx]
+        self.core_idx = np.r_[self.core_idx, add_core_idx]
 
     def _get_samples_idx(self, df, target):
         ''' get a sample idx list from the pooling set using add mode method 
