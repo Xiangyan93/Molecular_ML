@@ -128,10 +128,12 @@ class ActiveLearner:
         if self.group_by_mol:
             train_x = self.train_X[self.train_X.graph.isin(self.core_graphs)]
             train_y = self.train_Y[self.train_X.graph.isin(self.core_graphs)]
+            alpha = self.init_alpha[self.train_X.graph.isin(self.core_graphs)]
         else:
             train_x = self.train_X[self.train_X.index.isin(self.core_idx)]
             train_y = self.train_Y[self.train_Y.index.isin(self.core_idx)]
-        return train_x, train_y
+            alpha = self.init_alpha[self.init_alpha.index.isin(self.core_idx)]
+        return train_x, train_y, alpha
 
     def train(self):
         # continue needs to be added soon
@@ -169,7 +171,7 @@ class ActiveLearner:
                 #if self.add_mode == 'cluster':
                 #    self.add_mode = 'nlargest'
         elif self.optimizer is None:
-            core_x, core_y = self.__get_core_X_y()
+            core_x, core_y, alpha = self.__get_core_X_y()
             model = NystromGaussianProcessRegressor(kernel=self.kernel_config.kernel, random_state=self.seed,
                                                     optimizer=self.optimizer, normalize_y=True, alpha=alpha). \
                 fit_robust(train_x, train_y, Xc=core_x, yc=core_y)
