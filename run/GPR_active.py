@@ -55,20 +55,20 @@ def main():
     kernel_config = KernelConfig(save_mem=False, property=args.property)
     if args.alpha == 'std':
         train_X, train_Y, train_U, train_inchi_list = \
-            get_XYU_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
-                              ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std,
-                              uncertainty=True)
+            get_XY_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
+                             ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std,
+                             uncertainty=True)
         alpha = (train_U / train_Y) ** 2
     else:
         train_X, train_Y, train_inchi_list = \
-            get_XYU_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
-                              ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std,
-                              uncertainty=False)
+            get_XY_from_file(args.input, kernel_config, seed=args.seed, y_min=args.y_min, y_max=args.y_max,
+                             ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio'], std=args.y_std,
+                             uncertainty=False)
 
         alpha = pd.DataFrame({'alpha': np.ones(len(train_X)) * float(args.alpha)})['alpha']
         alpha.index = train_X.index
-    test_X, test_Y = get_XYU_from_file(args.input, kernel_config, remove_inchi=train_inchi_list, seed=args.seed,
-                                       y_min=args.y_min, y_max=args.y_max, std=args.y_std)
+    test_X, test_Y = get_XY_from_file(args.input, kernel_config, remove_inchi=train_inchi_list, seed=args.seed,
+                                      y_min=args.y_min, y_max=args.y_max, std=args.y_std)
     print('***\tEnd: Reading input.\t***\n')
 
     if optimizer is None:
@@ -77,8 +77,8 @@ def main():
             if test_X is None and test_Y is None:
                 X = train_X
             else:
-                X, Y, train_inchi_list = get_XYU_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
-                                                           y_max=args.y_max, std=args.y_std)
+                X, Y, train_inchi_list = get_XY_from_file(args.input, kernel_config, ratio=None, y_min=args.y_min,
+                                                          y_max=args.y_max, std=args.y_std)
         result_dir = 'result-%s' % args.name
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)

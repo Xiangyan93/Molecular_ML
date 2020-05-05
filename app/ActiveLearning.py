@@ -16,6 +16,125 @@ from app.kernel import get_core_idx
 from config import Config
 
 
+def get_smiles(graph):
+    return graph.smiles
+
+
+class Learner:
+    def __init__(self, train_X, train_Y, test_X, test_Y, kernel, core_X=None, core_Y=None, seed=0, optimizer=None,
+                 alpha=0.01):
+        self.train_X = train_X
+        self.train_Y = train_Y
+        self.test_X = test_X
+        self.test_Y = test_Y
+        self.core_X = core_X
+        self.core_Y = core_Y
+        self.kernel = kernel
+        self.optimizer = optimizer
+        if core_X is None:
+            self.model = RobustFitGaussianProcessRegressor(kernel=kernel, random_state=seed, optimizer=optimizer,
+                                                           normalize_y=True, alpha=alpha)
+        else:
+            if optimizer is not None:
+                raise Exception('Nystrom can only be used with None optimizer')
+            self.model = NystromGaussianProcessRegressor(kernel=kernel, random_state=seed, optimizer=None, alpha=alpha,
+                                                         normalize_y=True)
+
+    def train(self):
+        if self.core_X is None:
+            self.model.fit_robust(self.train_X, self.train_Y)
+        else:
+            if self.optimizer is not None:
+                raise Exception('Nystrom can only be used with None optimizer')
+            self.model.fit_robust(self.train_X, self.train_Y, Xc=self.core_X, yc=self.core_Y)
+
+    @staticmethod
+    def get_x_df(x):
+        if x.__class__ == pd.Series:
+            return pd.DataFrame({x.name: x})
+        elif x.__class__ == np.ndarray:
+            if len(x.shape) == 1:
+                return pd.DataFrame({'graph': x})
+            elif len(x.shape) == 2:
+                df = pd.DataFrame({'graph': x[:, 0]})
+                if x.shape[1] > 1:
+                    df['T'] = x[:, 1]
+                if x.shape[1] > 2:
+                    df['P'] = x[:, 2]
+                return df
+        else:
+            return x
+
+    @staticmethod
+    def evaluate_df(x, y, y_pred, y_std, kernel=None, X_train=None, debug=True):
+        r2 = r2_score(y, y_pred)
+        ex_var = explained_variance_score(y, y_pred)
+        mse = mean_squared_error(y, y_pred)
+        if len(y.shape) == 1:
+            out = pd.DataFrame({'#target': y, 'predict': y_pred, 'uncertainty': y_std, 'abs_dev': abs(y - y_pred),
+                                'rel_dev': abs((y - y_pred) / y)})
+        else:
+            out = pd.DataFrame({})
+            for i in range(y.shape[1]):
+                out['c%i' % i] = y[:, i]
+                out['c%i_pred' % i] = y_pred[:, i]
+            out['uncertainty'] = y_std
+            out['abs_dev'] = abs(y - y_pred).mean(axis=1)
+            out['rel_dev'] = abs((y - y_pred) / y).mean(axis=1)
+
+        df_x = Learner.get_x_df(x)
+        df_x.loc[:, 'smiles'] = df_x.graph.apply(get_smiles)
+        out = pd.concat([out, df_x.drop(columns='graph')], axis=1)
+        if debug:
+            K = kernel(x, x)
+            info_list = []
+            kindex = np.argsort(-K)[:, :5]
+            for s in np.copy(X_train):
+                if not np.iterable(s):
+                    s = np.array([s])
+                s[0] = get_smiles(s[0])
+                s = list(map(str, s))
+                info_list.append(','.join(s))
+            info_list = np.array(info_list)
+            similar_data = []
+            for i, index in enumerate(kindex):
+                info = info_list[index]
+
+                def round5(x):
+                    return ',%.5f' % x
+
+                k = list(map(round5, K[i][index]))
+                info = ';'.join(list(map(str.__add__, info, k)))
+                similar_data.append(info)
+            out.loc[:, 'similar_mols'] = similar_data
+        return r2, ex_var, mse, out.sort_values(by='abs_dev', ascending=False)
+
+    def evaluate(self, x, y, ylog=False, debug=True, loocv=False):
+        if loocv:
+            y_pred, y_std = self.model.predict_loocv(x, y, return_std=True)
+        else:
+            y_pred, y_std = self.model.predict(x, return_std=True)
+        if ylog:
+            y = np.exp(y_pred)
+            y_pred = np.exp(y_pred)
+        return self.evaluate_df(x, y, y_pred, y_std, kernel=self.model.kernel_, X_train=self.train_X, debug=debug)
+
+    def evaluate_test(self, ylog=False, debug=True):
+        x = self.test_X
+        y = self.test_Y
+        return self.evaluate(x, y, ylog=ylog, debug=debug)
+
+    def evaluate_train(self, ylog=False, debug=True):
+        x = self.train_X
+        y = self.train_Y
+        return self.evaluate(x, y, ylog=ylog, debug=debug)
+
+    def evaluate_loocv(self, ylog=False, debug=True):
+        x = self.train_X
+        y = self.train_Y
+        return self.evaluate(x, y, ylog=ylog, debug=debug, loocv=True)
+
+
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 

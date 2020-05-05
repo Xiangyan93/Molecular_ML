@@ -42,8 +42,6 @@ class Config:
         alpha = 1e-8
 
     class TrainingSetSelectRule:
-        ASSIGNED = False
-
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
             'ratio': None

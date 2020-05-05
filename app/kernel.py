@@ -20,59 +20,6 @@ from sklearn.cluster import SpectralClustering
 from app.property import *
 
 
-# Original RBF only supported when Y is None.
-class NEWRBF(RBF):
-    def __call__(self, X, Y=None, eval_gradient=False):
-        X = np.atleast_2d(X)
-        length_scale = _check_length_scale(X, self.length_scale)
-        if Y is None:
-            dists = pdist(X / length_scale, metric='sqeuclidean')
-            K = np.exp(-.5 * dists)
-            # convert from upper-triangular matrix to square matrix
-            K = squareform(K)
-            np.fill_diagonal(K, 1)
-            dists = squareform(dists)
-            Y = X
-        else:
-            dists = cdist(X / length_scale, Y / length_scale,
-                          metric='sqeuclidean')
-            K = np.exp(-.5 * dists)
-        if eval_gradient:
-            if self.hyperparameter_length_scale.fixed:
-                # Hyperparameter l kept fixed
-                return K, np.empty((X.shape[0], Y.shape[0], 0))
-            elif not self.anisotropic or length_scale.shape[0] == 1:
-                K_gradient = \
-                    (K * dists)[:, :, np.newaxis]
-                return K, K_gradient
-            elif self.anisotropic:
-                # We need to recompute the pairwise dimension-wise distances
-                K_gradient = (X[:, np.newaxis, :] - Y[np.newaxis, :, :]) ** 2 \
-                             / (length_scale ** 2)
-                K_gradient *= K[..., np.newaxis]
-                return K, K_gradient
-        else:
-            return K
-
-
-class NEWConstantKernel(ConstantKernel):
-    def __call__(self, X, Y=None, eval_gradient=False):
-        if Y is None:
-            Y = X
-
-        K = np.full((_num_samples(X), _num_samples(Y)), self.constant_value,
-                    dtype=np.array(self.constant_value).dtype)
-        if eval_gradient:
-            if not self.hyperparameter_constant_value.fixed:
-                return (K, np.full((_num_samples(X), _num_samples(Y), 1),
-                                   self.constant_value,
-                                   dtype=np.array(self.constant_value).dtype))
-            else:
-                return K, np.empty((_num_samples(X), _num_samples(Y), 0))
-        else:
-            return K
-
-
 class NormalizedGraphKernel(MarginalizedGraphKernel):
     def __normalize(self, X, Y, R):
         if Y is None:
@@ -108,11 +55,11 @@ class NormalizedGraphKernel(MarginalizedGraphKernel):
         return np.ones(len(X))
 
 
-class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
+class PreCalcMarginalizedGraphKernel(MarginalizedGraphKernel):
     def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.graphs = None
         self.K = None
-        super().__init__(*args, **kwargs)
 
     def PreCalculate(self, X):
         self.graphs = np.sort(X)
@@ -130,98 +77,26 @@ class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
                 return self.K[X_idx][:, X_idx]
 
 
-class ContractMarginalizedGraphKernel(MarginalizedGraphKernel):
-    def __init__(self, train_X=None, train_idx=[], *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.train_X = train_X
-        self.train_idx = train_idx
-
-    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
-        if Y is None:
-            if len(self.train_idx) != len(X):
-                X, Xidx = self.contract(X)
-                self.train_X = X
-                self.train_idx = Xidx
-            else:
-                X = self.train_X
-            output = super().__call__(X, Y, eval_gradient=eval_gradient, *args, **kwargs)
-            if eval_gradient:
-                return self.extract(X, self.train_idx, output[0]), self.extract(X, self.train_idx, output[1])
-            else:
-                return self.extract(X, self.train_idx, output)
-        else:
-            return super().__call__(X, Y, *args, **kwargs)
-
-    def get_params(self, deep=False):
-        return dict(
-            node_kernel=self.node_kernel,
-            edge_kernel=self.edge_kernel,
-            p=self.p,
-            q=self.q,
-            q_bounds=self.q_bounds,
-            backend=self.backend,
-            train_X=self.train_X,
-            train_idx=self.train_idx
-        )
-
-    # fast=True, the graphs is X must be arranged in blocks.
-    @staticmethod
-    def contract(X, fast=True):
-        print('contract input graphs start.')
-        X_ = []
-        idx = []
-        for x in X:
-            sys.stdout.write('\r%.2f %s' % (len(idx) / len(X) * 100, "%"))
-            if fast:
-                if not X_ or x != X_[-1]:
-                    X_.append(x)
-                idx.append(len(X_) - 1)
-            else:
-                if x not in X_:
-                    X_.append(x)
-                    idx.append(len(X_) - 1)
-                else:
-                    idx.append(X_.index(x))
-        print('contract input graphs end.')
-        return X_, idx
-
-    @staticmethod
-    def extract(_X, Xidx, output):
-        n = len(Xidx)
-        if len(output.shape) == 3:
-            _output = np.zeros((n, n, output.shape[2]))
-        else:
-            _output = np.zeros((n, n))
-        for i, idx1 in enumerate(Xidx):
-            for j, idx2 in enumerate(Xidx):
-                _output[i][j] = output[idx1][idx2]
-        return _output
-
-
-class ContractNormalizedKernel(ContractMarginalizedGraphKernel):
+class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.graphs = None
+        self.K = None
 
-    def __normalize(self, X, Y, R):
-        if type(R) is tuple:
-            d = np.diag(R[0]) ** -0.5
-            K = np.diag(d).dot(R[0]).dot(np.diag(d))
-            return K, R[1]
+    def PreCalculate(self, X):
+        self.graphs = np.sort(X)
+        self.K = self(self.graphs)
+
+    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
+        if self.K is None or eval_gradient:
+            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args, **kwargs)
         else:
-            if Y is None:
-                # square matrix
-                d = np.diag(R) ** -0.5
-                K = np.diag(d).dot(R).dot(np.diag(d))
+            X_idx = np.searchsorted(self.graphs, X)
+            if Y is not None:
+                Y_idx = np.searchsorted(self.graphs, Y)
+                return self.K[X_idx][:, Y_idx]
             else:
-                # rectangular matrix, must have X and Y
-                diag_X = super().diag(X) ** -0.5
-                diag_Y = super().diag(Y) ** -0.5
-                K = np.diag(diag_X).dot(R).dot(np.diag(diag_Y))
-            return K
-
-    def __call__(self, X, Y=None, *args, **kwargs):
-        R = super().__call__(X, Y, *args, **kwargs)
-        return self.__normalize(X, Y, R)
+                return self.K[X_idx][:, X_idx]
 
 
 class MultipleKernel:
@@ -240,8 +115,7 @@ class MultipleKernel:
         if X.__class__ == pd.DataFrame:
             X = X.to_numpy()
         X = X[:, s:e]
-        if self.kernel_list[i].__class__ in [ContractMarginalizedGraphKernel, ContractNormalizedKernel,
-                                             MarginalizedGraphKernel, NormalizedGraphKernel,
+        if self.kernel_list[i].__class__ in [MarginalizedGraphKernel, NormalizedGraphKernel,
                                              PreCalcNormalizedGraphKernel]:
             X = X.transpose().tolist()[0]
         return X
@@ -350,50 +224,37 @@ class MultipleKernel:
         )
 
 
-class KernelConfig(PropertyConfig):
-    def __init__(self, save_mem=False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.property in []:
-            NORMALIZED = False
-        else:
-            NORMALIZED = True
-
+class KernelConfig:
+    def __init__(self, NORMALIZED=True, T=False, P=False):
+        self.T = T
+        self.P = P
         # define node and edge kernelets
         knode = Config.Hyperpara.knode
         kedge = Config.Hyperpara.kedge
         stop_prob = Config.Hyperpara.stop_prob
         stop_prob_bound = Config.Hyperpara.stop_prob_bound
         if NORMALIZED:
-            if save_mem:
-                graph_kernel = ContractNormalizedKernel(None, [], knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
-            else:
-                graph_kernel = PreCalcNormalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
+            graph_kernel = PreCalcNormalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
         else:
-            if save_mem:
-                graph_kernel = ContractMarginalizedGraphKernel(None, [], knode, kedge, q=stop_prob,
-                                                               q_bounds=stop_prob_bound)
-            else:
-                graph_kernel = MarginalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
+            graph_kernel = PreCalcMarginalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
 
-        if self.P:
+        if P and T:
             self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(Config.Hyperpara.T, (1e-3, 1e3))
                                           * gp.kernels.RBF(Config.Hyperpara.P, (1e-3, 1e3))], [1, 2], 'product')
-        elif self.T:
+        elif T or P:
             self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(Config.Hyperpara.T, (1e-3, 1e3))]
                                          , [1, 1], 'product')
         else:
             self.kernel = graph_kernel
 
-    @property
-    def descriptor(self):
-        return '%s,graph_kernel' % self.property
-
-
+'''
 def datafilter(df, ratio=None, remove_inchi=None, seed=233, y=None, y_min=None, y_max=None, std=None):
     np.random.seed(seed)
     N = len(df)
-    if y_min is not None and y_max is not None:
-        df = df.loc[(df[y] > y_min) & (df[y] < y_max)]
+    if y_min is not None:
+        df = df.loc[df[y] > y_min]
+    if y_max is not None:
+        df = df.loc[df[y] < y_max]
     if std is not None:
         df = df.loc[df[y + '_u'] / df[y] < std]
     print('%i / %i data are not reliable and removed' % (N-len(df), N))
@@ -404,6 +265,10 @@ def datafilter(df, ratio=None, remove_inchi=None, seed=233, y=None, y_min=None, 
     elif remove_inchi is not None:
         df = df[~df.inchi.isin(remove_inchi)]
     return df
+
+
+def get_train_df(df):
+    return 1
 
 
 def get_TP_extreme(df, P=True, T=True):
@@ -426,8 +291,8 @@ def get_TP_extreme(df, P=True, T=True):
     return df_
 
 
-def get_XYU_from_file(file, kernel_config, ratio=None, remove_inchi=None, TPextreme=False, seed=233, y_min=None,
-                      y_max=None, std=None, uncertainty=False):
+def get_XY_from_file(file, kernel_config, property, ratio=None, remove_inchi=None, TPextreme=False, seed=233,
+                     y_min=None, y_max=None, std=None, coef=False):
     if not os.path.exists('data'):
         os.mkdir('data')
     original_filename = re.split('\.', file)[0] + '.pkl'
@@ -444,8 +309,8 @@ def get_XYU_from_file(file, kernel_config, ratio=None, remove_inchi=None, TPextr
         df['graph'] = df['inchi'].apply(inchi2graph)
         df.to_pickle(pkl_file)
 
-    df = datafilter(df, ratio=ratio, remove_inchi=remove_inchi, seed=seed, y=kernel_config.property, y_min=y_min,
-                    y_max=y_max, std=std)
+    df = datafilter(df, ratio=ratio, remove_inchi=remove_inchi, seed=seed, y=property, y_min=y_min, y_max=y_max,
+                    std=std)
     # only select the data with extreme temperature and pressure
     if TPextreme:
         df = get_TP_extreme(df, T=kernel_config.T, P=kernel_config.P)
@@ -457,16 +322,40 @@ def get_XYU_from_file(file, kernel_config, ratio=None, remove_inchi=None, TPextr
     else:
         X = df['graph']
 
-    Y = df[kernel_config.property]
+    if coef:
+        def fun(coef):
+            coef = list(map(float, coef.split(',')))
+            return coef
+        Y = np.array(df['coef'].apply(fun).to_list())
 
     if df.size == 0:
         X = Y = None
     output = [X, Y]
-    if uncertainty:
-        output.append(df[kernel_config.property + '_u'])
     if remove_inchi is None:
         output.append(df.inchi.unique())
     return output
+'''
+
+
+def get_XY_from_df(df, kernel_config, coef=False, property=None):
+    if kernel_config.P:
+        X = df[['graph', 'T', 'P']].to_numpy()
+    elif kernel_config.T:
+        X = df[['graph', 'T']].to_numpy()
+    else:
+        X = df['graph'].to_numpy()
+
+    if coef:
+        def fun(c):
+            return list(map(float, c.split(',')))
+        Y = np.array(df['coef'].apply(fun).to_list())
+    else:
+        Y = df[property].to_numpy()
+
+    if df.size == 0:
+        X = Y = None
+
+    return [X, Y]
 
 
 def get_subset_by_clustering(X, kernel, ncluster):
