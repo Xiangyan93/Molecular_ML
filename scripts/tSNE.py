@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 sys.path.append('..')
 from app.kernel import *
 # from app.VectorFingerprint import *
-from run.GPR import get_df
+from run.GPR import get_df, df_filter
 CWD = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -18,12 +18,17 @@ def main():
     parser.add_argument('-t', '--type', type=str, help='The type of molecular description.')
     parser.add_argument('--log', help='Using log value of proeprty value.', action='store_true')
     parser.add_argument('--TPextreme', help='Only use the data with extreme T P.', action='store_true')
+    parser.add_argument('--y_min', type=float, help='', default=None)
+    parser.add_argument('--y_max', type=float, help='', default=None)
+    parser.add_argument('--y_std', type=float, help='', default=None)
     args = parser.parse_args()
 
     if not os.path.exists(os.path.join(CWD, 'tSNE')):
         os.mkdir(os.path.join(CWD, 'tSNE'))
     if args.type == 'graph_kernel':
         df = get_df(args.input)
+        df = df_filter(df, seed=0, ratio=None, y_min=args.y_min, y_max=args.y_max, std=args.y_std,
+                       property=args.property)
         kernel_config = KernelConfig(NORMALIZED=True, T=df.get('T') is not None, P=df.get('P') is not None)
         descriptor = args.property
         if args.log:
