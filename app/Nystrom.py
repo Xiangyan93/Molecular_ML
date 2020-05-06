@@ -239,11 +239,11 @@ class RobustFitGaussianProcessRegressor(GPR):
         y_ = y - self._y_train_mean
         K[np.diag_indices_from(K)] += self.alpha
         I_mat = np.eye(K.shape[0])
-        # K_inv = scipy.linalg.cho_solve(scipy.linalg.cho_factor(K,lower=True), I_mat)
-        K_inv = np.linalg.inv(K)
-        y_pred = y_ - (K_inv.dot(y_).T / K_inv.diagonal()).T + self._y_train_mean
-        if return_std:
-            y_std = np.sqrt(1 / K_inv.diagonal())
+        K_inv = scipy.linalg.cho_solve(scipy.linalg.cho_factor(K,lower=True), I_mat)
+        #K_inv = np.linalg.inv(K) 
+        y_pred = y_ - K_inv.dot(y_) / K_inv.diagonal() + y.mean()
+        if std:
+            y_std = np.sqrt(1/ K_inv.diagonal())
             return y_pred, y_std
         else:
             return y_pred
