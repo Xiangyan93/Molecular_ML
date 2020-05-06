@@ -18,6 +18,7 @@ from graphdot.kernel.basekernel import SquareExponential
 from graphdot.kernel.basekernel import KroneckerDelta
 from sklearn.cluster import SpectralClustering
 from app.property import *
+import pickle
 
 
 class NormalizedGraphKernel(MarginalizedGraphKernel):
@@ -225,7 +226,7 @@ class MultipleKernel:
 
 
 class KernelConfig:
-    def __init__(self, NORMALIZED=True, T=False, P=False):
+    def __init__(self, NORMALIZED=True, T=False, P=False, theta=None):
         self.T = T
         self.P = P
         # define node and edge kernelets
@@ -246,6 +247,10 @@ class KernelConfig:
                                          , [1, 1], 'product')
         else:
             self.kernel = graph_kernel
+
+        if theta is not None:
+            print('Reading Existed kernel parameter %s' % theta)
+            self.kernel = self.kernel.clone_with_theta(pickle.load(theta))
 
 '''
 def datafilter(df, ratio=None, remove_inchi=None, seed=233, y=None, y_min=None, y_max=None, std=None):

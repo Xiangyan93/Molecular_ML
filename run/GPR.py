@@ -76,7 +76,8 @@ def main():
 
     print('***\tStart: Reading input.\t***')
     df = get_df(args.input)
-    kernel_config = KernelConfig(NORMALIZED=True, T=df.get('T') is not None, P=df.get('P') is not None)
+    theta = os.path.join(result_dir, 'theta.pkl') if args.continued else None
+    kernel_config = KernelConfig(NORMALIZED=True, T=df.get('T') is not None, P=df.get('P') is not None, theta=theta)
     df_train = df_filter(df, seed=args.seed, ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
                          y_min=args.y_min, y_max=args.y_max, std=args.y_std, property=args.property)
     df_test = df_filter(df, seed=args.seed, remove_inchi=df_train.inchi.unique(),
