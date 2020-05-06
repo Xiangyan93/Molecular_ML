@@ -29,7 +29,7 @@ def get_df(fn):
     return df
 
 
-def df_filter(df, ratio=None, remove_inchi=None, seed=0, property=None, y_min=None, y_max=None, std=None):
+def df_filter(df, ratio=None, remove_inchi=None, seed=0, property=None, y_min=None, y_max=None, std=None, score=None):
     np.random.seed(seed)
     N = len(df)
     if y_min is not None:
@@ -38,6 +38,8 @@ def df_filter(df, ratio=None, remove_inchi=None, seed=0, property=None, y_min=No
         df = df.loc[df[property] < y_max]
     if std is not None:
         df = df.loc[df[property + '_u'] / df[property] < std]
+    if score is not None:
+        df = df.loc[df['score'] > score]
     print('%i / %i data are not reliable and removed' % (N-len(df), N))
     if ratio is not None:
         unique_inchi_list = df.inchi.unique().tolist()
@@ -66,6 +68,7 @@ def main():
     parser.add_argument('--y_min', type=float, help='', default=None)
     parser.add_argument('--y_max', type=float, help='', default=None)
     parser.add_argument('--y_std', type=float, help='', default=None)
+    parser.add_argument('--score', type=float, help='', default=None)
     parser.add_argument('--coef', help='whether continue training', action='store_true')
 
     args = parser.parse_args()
@@ -78,9 +81,9 @@ def main():
     df = get_df(args.input)
     theta = os.path.join(result_dir, 'theta.pkl') if args.continued else None
     kernel_config = KernelConfig(NORMALIZED=True, T=df.get('T') is not None, P=df.get('P') is not None, theta=theta)
-    df_train = df_filter(df, seed=args.seed, ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'],
+    df_train = df_filter(df, seed=args.seed, ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'], score=args.score,
                          y_min=args.y_min, y_max=args.y_max, std=args.y_std, property=args.property)
-    df_test = df_filter(df, seed=args.seed, remove_inchi=df_train.inchi.unique(),
+    df_test = df_filter(df, seed=args.seed, remove_inchi=df_train.inchi.unique(), score=args.score,
                         y_min=args.y_min, y_max=args.y_max, std=args.y_std, property=args.property)
     if args.coef:
         train_X, train_Y = get_XY_from_df(df_train, kernel_config, coef=True)
@@ -137,6 +140,14 @@ def main():
         else:
             learner.train()
             learner.model.save(result_dir)
+        if args.coef and args.property == 'vis':
+            r2, ex_var, mse, out = learner.evaluate_loocv(ylog=args.ylog, vis_coef=True, t_min=df_train['t_min'],
+                                                          t_max=df_train['t_max'])
+            print('Loocv:')
+            print('score: %.5f' % r2)
+            print('explained variance score: %.5f' % ex_var)
+            print('mse: %.5f' % mse)
+            out.to_csv('%s/loocv-coef.log' % result_dir, sep='\t', index=False, float_format='%15.10f')
         r2, ex_var, mse, out = learner.evaluate_loocv(ylog=args.ylog)
         print('Loocv:')
         print('score: %.5f' % r2)

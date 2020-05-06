@@ -5,7 +5,7 @@ from sklearn.metrics import explained_variance_score
 from sklearn.metrics import r2_score
 from sklearn.cluster import SpectralClustering
 from sklearn.manifold import SpectralEmbedding
-import os
+import os, sys
 import time
 import random
 from sklearn.cluster import KMeans
@@ -66,7 +66,27 @@ class Learner:
             return x
 
     @staticmethod
-    def evaluate_df(x, y, y_pred, y_std, kernel=None, X_train=None, debug=True):
+    def evaluate_df(x, y, y_pred, y_std, kernel=None, X_train=None, debug=True, vis_coef=False, t_min=None, t_max=None):
+        if vis_coef:
+            def VTFval(t, coeff):
+                import numpy as np
+                return np.exp(coeff[0] + coeff[2] / (t - coeff[1]))
+            n = 10
+            t_list = np.linspace(t_min, t_max, n)
+            for i, _t_list in enumerate(t_list):
+                x_df = Learner.get_x_df(x)
+                x_df['T'] = _t_list
+                if i == 0:
+                    X = x_df.to_numpy()
+                    vis = VTFval(_t_list, y.T)
+                    vis_pred = VTFval(_t_list, y_pred.T)
+                    Y_std = y_std
+                else:
+                    X = np.r_[X, x_df.to_numpy()]
+                    vis = np.r_[vis, VTFval(_t_list, y.T)]
+                    vis_pred = np.r_[vis_pred, VTFval(_t_list, y_pred.T)]
+                    Y_std = np.r_[Y_std, y_std]
+            return Learner.evaluate_df(X, vis, vis_pred, Y_std, debug=False)
         r2 = r2_score(y, y_pred)
         ex_var = explained_variance_score(y, y_pred)
         mse = mean_squared_error(y, y_pred)
@@ -109,7 +129,7 @@ class Learner:
             out.loc[:, 'similar_mols'] = similar_data
         return r2, ex_var, mse, out.sort_values(by='abs_dev', ascending=False)
 
-    def evaluate(self, x, y, ylog=False, debug=True, loocv=False):
+    def evaluate(self, x, y, ylog=False, debug=True, loocv=False, vis_coef=False, t_min=None, t_max=None):
         if loocv:
             y_pred, y_std = self.model.predict_loocv(x, y, return_std=True)
         else:
@@ -117,7 +137,8 @@ class Learner:
         if ylog:
             y = np.exp(y_pred)
             y_pred = np.exp(y_pred)
-        return self.evaluate_df(x, y, y_pred, y_std, kernel=self.model.kernel_, X_train=self.train_X, debug=debug)
+        return self.evaluate_df(x, y, y_pred, y_std, kernel=self.model.kernel_, X_train=self.train_X, debug=debug,
+                                vis_coef=vis_coef, t_min=t_min, t_max=t_max)
 
     def evaluate_test(self, ylog=False, debug=True):
         x = self.test_X
@@ -129,10 +150,10 @@ class Learner:
         y = self.train_Y
         return self.evaluate(x, y, ylog=ylog, debug=debug)
 
-    def evaluate_loocv(self, ylog=False, debug=True):
+    def evaluate_loocv(self, ylog=False, debug=True, vis_coef=False, t_min=None, t_max=None):
         x = self.train_X
         y = self.train_Y
-        return self.evaluate(x, y, ylog=ylog, debug=debug, loocv=True)
+        return self.evaluate(x, y, ylog=ylog, debug=debug, loocv=True, vis_coef=vis_coef, t_min=t_min, t_max=t_max)
 
 
 class ActiveLearner:
