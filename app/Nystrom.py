@@ -434,3 +434,72 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
                 return y_mean, y_std
             else:
                 return y_mean
+
+class ConstriantGPR():
+    ''' perform constraint GPR w.r.t. boundness and monotonic constraint
+    totally new class that shares nothing with sklearn-gpr 
+    does not perform hyperparameter tuning
+    '''
+    def __init__(self, kernel, alpha, n_samples=1000, lower_bound=None, upper_bound=None, monotonicity=None):
+        '''
+        ::lower_bound:: float value of lower constant bound, could be -np.inf
+        ::upper_bound:: float value of upper constant bound, could be np.inf
+        ::monitonicity:: True for dF>0, False for dF<0, None for no constraint
+        '''
+        from apps.r_functions.python_wrappers import rtmvnorm
+        self.sol_tri = scipy.linalg.solve_triangular
+        self.multi_TN = rtmvnorm
+
+        self.kernel = kernel
+        self.alpha = alpha
+        self.lb = lower_bound
+        self.ub = upper_bound
+        self.monotinicity = monotonicity
+        self.n_samples = n_samples
+        
+        self.xv = None
+        self.x_train = None
+        self.y_train = None
+
+    def fit(X, y, Xv):
+        ''' calculate A1 B1 C_mean and generate samples for C '''
+        self.xv = xv
+        self.y_train = y
+        self.x_train = X
+        k_xx = drbf(x_train, x_train) + alpha * np.eye(len(x_train))
+        k_xv = drbf(x_train, x_v)
+        k_vv = drbf(x_v, x_v)
+        self.L = np.linalg.cholesky(k_xx) # lower triangle mat of cholesky decomposition
+        self.v1 = sol_tri(L, drbf.LK(x_train, x_v), lower=True)
+        self.A1 = sol_tri(L.T, v1).T
+        self.B1 = drbf.LKL(x_v) + alpha*np.eye(len(x_v)) - v1.T.dot(v1)
+        # compute constrained distribution C
+        self.C_mean = A1.dot(y_train)
+        self.LB, self.UB = np.full(Xv, self.lb).reshape(-1), np.full(Xv, self.ub).reshape(-1)
+        self.C_samples = self.multi_TN(n=self.n_samples, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').T
+        
+    def predict(x, return_std=False):
+        ''' calculate A2, B2, B3, A, B, Sigma, draw samples and calculate statistics '''
+        k_xs = drbf(x_train, x)
+        k_ss = drbf(x, x)
+        k_sv = drbf(x, x_v)
+        self.v2 = sol_tri(L, k_xs, lower=True)
+        self.A2 = sol_tri(L.T, v2).T
+        self.B2 = k_ss - v2.T.dot(v2)
+
+        self.L1 = np.linalg.cholesky(B1)
+        self.v3 = sol_tri(L1, B3.T, lower=True)
+        self.A = sol_tri(L1.T, v3).T
+        self.B = A2 - A.dot(A1)
+        Sigma = B2 - v3.T.dot(v3)
+        self.Sigma += alpha * np.eye(len(Sigma)) # stable numerial issue
+        normal_sample =  sp.stats.multivariate_normal(np.zeros(len(Sigma)), cov=Sigma).rvs(size=sample_size)
+        fs_sample = normal_sample.T
+
+        y_sample = A.dot(C_samples) + B.dot(y_train) + fs_sample
+        y_std_constr = y_sample.std(axis=1)
+        y_mean_constr = y_sample.mean(axis=1)
+        if return_std:
+            return y_mean_constr, y_mean_constr
+        else:
+            return y_mean_constr 
