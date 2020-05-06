@@ -250,7 +250,9 @@ class KernelConfig:
 
         if theta is not None:
             print('Reading Existed kernel parameter %s' % theta)
-            self.kernel = self.kernel.clone_with_theta(pickle.load(theta))
+            with open(theta, 'rb') as file:
+                theta = pickle.load(file)
+            self.kernel = self.kernel.clone_with_theta(theta)
 
 '''
 def datafilter(df, ratio=None, remove_inchi=None, seed=233, y=None, y_min=None, y_max=None, std=None):

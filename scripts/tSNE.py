@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 sys.path.append('..')
 from app.kernel import *
 from app.VectorFingerprint import *
+from run.GPR import get_df
 
 
 def main():
