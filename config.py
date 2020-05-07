@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from graphdot.kernel.basekernel import TensorProduct
 from graphdot.kernel.basekernel import SquareExponential
 from graphdot.kernel.basekernel import KroneckerDelta
@@ -44,7 +45,7 @@ class Config:
     class TrainingSetSelectRule:
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
-            'ratio': None
+            'ratio': 0.9
         }
 
         ACTIVE_LEARNING_Para = {
@@ -71,3 +72,9 @@ class Config:
             'nBits': 128,
             'radius': 2,
         }
+
+    class Constraint:
+        lower_bound = 125
+        upper_bound = 
+        monotonicity = None
+        n_samples = 500

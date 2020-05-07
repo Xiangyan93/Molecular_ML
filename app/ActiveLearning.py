@@ -11,7 +11,7 @@ import random
 from sklearn.cluster import KMeans
 import pickle
 
-from app.Nystrom import RobustFitGaussianProcessRegressor, NystromGaussianProcessRegressor
+from app.Nystrom import RobustFitGaussianProcessRegressor, NystromGaussianProcessRegressor, ConstraintGPR
 from app.kernel import get_core_idx
 from config import Config
 
@@ -22,7 +22,7 @@ def get_smiles(graph):
 
 class Learner:
     def __init__(self, train_X, train_Y, test_X, test_Y, kernel, core_X=None, core_Y=None, seed=0, optimizer=None,
-                 alpha=0.01):
+                 alpha=0.01, constraint=None):
         self.train_X = train_X
         self.train_Y = train_Y
         self.test_X = test_X
@@ -31,7 +31,11 @@ class Learner:
         self.core_Y = core_Y
         self.kernel = kernel
         self.optimizer = optimizer
-        if core_X is None:
+        self.constraint = constraint
+        if self.constraint is not None:
+            self.model = ConstraintGPR(kernel=kernel, alpha=alpha, n_samples=constraint.n_samples, lower_bound=constraint.lower_bound, 
+            upper_bound=constraint.upper_bound, monotonicity=constraint.monotonicity)
+        elif core_X is None:
             self.model = RobustFitGaussianProcessRegressor(kernel=kernel, random_state=seed, optimizer=optimizer,
                                                            normalize_y=True, alpha=alpha)
         else:
@@ -41,12 +45,16 @@ class Learner:
                                                          normalize_y=True)
 
     def train(self):
-        if self.core_X is None:
-            self.model.fit_robust(self.train_X, self.train_Y)
+        if self.constraint is not None: # constraint GPR
+            #assert( is not None, "Xv must be specified with constraint GPR!")
+            self.model.fit(self.train_X, self.train_Y, self.test_X) # impose constraint on test set
         else:
-            if self.optimizer is not None:
-                raise Exception('Nystrom can only be used with None optimizer')
-            self.model.fit_robust(self.train_X, self.train_Y, Xc=self.core_X, yc=self.core_Y)
+            if self.core_X is None:
+                self.model.fit_robust(self.train_X, self.train_Y)
+            else:
+                if self.optimizer is not None:
+                    raise Exception('Nystrom can only be used with None optimizer')
+                self.model.fit_robust(self.train_X, self.train_Y, Xc=self.core_X, yc=self.core_Y)
 
     @staticmethod
     def get_x_df(x):

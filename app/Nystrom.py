@@ -435,7 +435,7 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
             else:
                 return y_mean
 
-class ConstriantGPR():
+class ConstraintGPR():
     ''' perform constraint GPR w.r.t. boundness and monotonic constraint
     totally new class that shares nothing with sklearn-gpr 
     does not perform hyperparameter tuning
@@ -446,11 +446,12 @@ class ConstriantGPR():
         ::upper_bound:: float value of upper constant bound, could be np.inf
         ::monitonicity:: True for dF>0, False for dF<0, None for no constraint
         '''
-        from apps.r_functions.python_wrappers import rtmvnorm
+        from app.r_functions.python_wrappers import rtmvnorm, pmvnorm, mtmvnorm, moments_from_samples
         self.sol_tri = scipy.linalg.solve_triangular
         self.multi_TN = rtmvnorm
 
         self.kernel = kernel
+        self.kernel_ = kernel
         self.alpha = alpha
         self.lb = lower_bound
         self.ub = upper_bound
@@ -461,42 +462,43 @@ class ConstriantGPR():
         self.x_train = None
         self.y_train = None
 
-    def fit(X, y, Xv):
+    def fit(self, X, y, Xv):
         ''' calculate A1 B1 C_mean and generate samples for C '''
-        self.xv = xv
-        self.y_train = y
+        self.x_v = Xv
+        self.y_train = y.reshape(-1,1)
         self.x_train = X
-        k_xx = drbf(x_train, x_train) + alpha * np.eye(len(x_train))
-        k_xv = drbf(x_train, x_v)
-        k_vv = drbf(x_v, x_v)
+        k_xx = self.kernel(self.x_train, self.x_train) + self.alpha * np.eye(len(self.x_train))
+        k_xv = self.kernel(self.x_train, self.x_v)
+        k_vv = self.kernel(self.x_v, self.x_v)
         self.L = np.linalg.cholesky(k_xx) # lower triangle mat of cholesky decomposition
-        self.v1 = sol_tri(L, drbf.LK(x_train, x_v), lower=True)
-        self.A1 = sol_tri(L.T, v1).T
-        self.B1 = drbf.LKL(x_v) + alpha*np.eye(len(x_v)) - v1.T.dot(v1)
+        self.v1 = self.sol_tri(self.L, k_xv, lower=True)
+        self.A1 = self.sol_tri(self.L.T, self.v1).T
+        self.B1 = k_vv + self.alpha*np.eye(len(self.x_v)) - self.v1.T.dot(self.v1)
         # compute constrained distribution C
-        self.C_mean = A1.dot(y_train)
-        self.LB, self.UB = np.full(Xv, self.lb).reshape(-1), np.full(Xv, self.ub).reshape(-1)
+        self.C_mean = self.A1.dot(self.y_train)
+        self.LB, self.UB = np.full(Xv.shape, self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape, self.ub, dtype=np.float64).reshape(-1)
         self.C_samples = self.multi_TN(n=self.n_samples, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').T
-        
-    def predict(x, return_std=False):
+        a = 1
+    def predict(self, x, return_std=False):
         ''' calculate A2, B2, B3, A, B, Sigma, draw samples and calculate statistics '''
-        k_xs = drbf(x_train, x)
-        k_ss = drbf(x, x)
-        k_sv = drbf(x, x_v)
-        self.v2 = sol_tri(L, k_xs, lower=True)
-        self.A2 = sol_tri(L.T, v2).T
-        self.B2 = k_ss - v2.T.dot(v2)
+        k_xs = self.kernel(self.x_train, x)
+        k_ss = self.kernel(x, x)
+        k_sv = self.kernel(x, self.x_v)
+        self.v2 = self.sol_tri(self.L, k_xs, lower=True)
+        self.A2 = self.sol_tri(self.L.T, self.v2).T
+        self.B2 = k_ss - self.v2.T.dot(self.v2)
+        self.B3 = k_sv - self.v2.T.dot(self.v1)
 
-        self.L1 = np.linalg.cholesky(B1)
-        self.v3 = sol_tri(L1, B3.T, lower=True)
-        self.A = sol_tri(L1.T, v3).T
-        self.B = A2 - A.dot(A1)
-        Sigma = B2 - v3.T.dot(v3)
-        self.Sigma += alpha * np.eye(len(Sigma)) # stable numerial issue
-        normal_sample =  sp.stats.multivariate_normal(np.zeros(len(Sigma)), cov=Sigma).rvs(size=sample_size)
+        self.L1 = np.linalg.cholesky(self.B1)
+        self.v3 = self.sol_tri(self.L1, self.B3.T, lower=True)
+        self.A = self.sol_tri(self.L1.T, self.v3).T
+        self.B = self.A2 - self.A.dot(self.A1)
+        self.Sigma = self.B2 - self.v3.T.dot(self.v3)
+        self.Sigma += self.alpha * np.eye(len(self.Sigma)) # stable numerial issue
+        normal_sample =  scipy.stats.multivariate_normal(np.zeros(len(self.Sigma)), cov=self.Sigma).rvs(size=self.n_samples)
         fs_sample = normal_sample.T
 
-        y_sample = A.dot(C_samples) + B.dot(y_train) + fs_sample
+        y_sample = self.A.dot(self.C_samples) + self.B.dot(self.y_train) + fs_sample
         y_std_constr = y_sample.std(axis=1)
         y_mean_constr = y_sample.mean(axis=1)
         if return_std:
