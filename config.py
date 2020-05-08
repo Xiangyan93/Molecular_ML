@@ -33,7 +33,7 @@ class Config:
         stop_prob = 0.05
         stop_prob_bound = (1e-4, 1.0)
 
-        T = 300
+        T = 50
         P = 1000
 
     class NystromPara:
@@ -45,7 +45,7 @@ class Config:
     class TrainingSetSelectRule:
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
-            'ratio': 0.9
+            'ratio': 0.8
         }
 
         ACTIVE_LEARNING_Para = {
@@ -74,7 +74,9 @@ class Config:
         }
 
     class Constraint:
-        lower_bound = 125
-        upper_bound = 
-        monotonicity = None
+        bounded = False
+        lower_bound = -100
+        upper_bound = np.inf
+        monotonicity = False # True for dF>0, False for dF<0, None for no constraint
         n_samples = 500
+        i = 1 # take derivative w.r.t. the i-th component

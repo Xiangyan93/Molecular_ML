@@ -532,6 +532,6 @@ class ConstraintGPR():
         y_std_constr = y_sample.std(axis=1)
         y_mean_constr = y_sample.mean(axis=1)
         if return_std:
-            return y_mean_constr, y_mean_constr
+            return y_mean_constr, y_std_constr
         else:
             return y_mean_constr 

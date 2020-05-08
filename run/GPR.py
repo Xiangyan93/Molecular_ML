@@ -180,7 +180,7 @@ def main():
         print('mse: %.5f' % mse)
         out.to_csv('%s/train.log' % result_dir, sep='\t', index=False, float_format='%15.10f')
         if Config.TrainingSetSelectRule.RANDOM_Para.get('ratio') is not None:
-            r2, ex_var, mse, out = learner.evaluate_test(ylog=args.ylog)
+            r2, ex_var, mse, out = learner.evaluate_test(ylog=args.ylog, debug=False)
             print('Test set:')
             print('score: %.5f' % r2)
             print('explained variance score: %.5f' % ex_var)
