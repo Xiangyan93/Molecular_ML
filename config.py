@@ -75,8 +75,8 @@ class Config:
 
     class Constraint:
         bounded = True
-        lower_bound = -100
-        upper_bound = 100
+        lower_bound = -1000
+        upper_bound = 1000
         monotonicity = None # True for dF>0, False for dF<0, None for no constraint
         monotonicity_bound = 5e-5
         n_samples = 1000
