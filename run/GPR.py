@@ -80,6 +80,8 @@ def main():
 
     print('***\tStart: Reading input.\t***')
     df = get_df(args.input)
+    if args.size != 0:
+        df = df.sample(n=args.size)
     theta = os.path.join(result_dir, 'theta.pkl') if args.continued else None
     kernel_config = KernelConfig(NORMALIZED=True, T=df.get('T') is not None, P=df.get('P') is not None, theta=theta)
     df_train = df_filter(df, seed=args.seed, ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio'], score=args.score,
@@ -100,8 +102,8 @@ def main():
         train_Y = np.log(train_Y)
         test_Y = np.log(test_Y)
 
-    if args.size != 0:
-        train_X, train_Y = train_X[:args.size], train_Y[:args.size]
+    #if args.size != 0:
+    #    train_X, train_Y = train_X[:args.size], train_Y[:args.size]
         
     if optimizer is None:
         print('***\tStart: Graph kernels calculating\t***')
