@@ -78,5 +78,6 @@ class Config:
         lower_bound = -100
         upper_bound = np.inf
         monotonicity = False # True for dF>0, False for dF<0, None for no constraint
+        monotonicity_bound = 0.001
         n_samples = 500
         i = 1 # take derivative w.r.t. the i-th component

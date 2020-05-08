@@ -34,7 +34,7 @@ class Learner:
         self.constraint = constraint
         if self.constraint is not None:
             self.model = ConstraintGPR(kernel=kernel, alpha=alpha, n_samples=constraint.n_samples, bounded=constraint.bounded, lower_bound=constraint.lower_bound, 
-            upper_bound=constraint.upper_bound, monotonicity=constraint.monotonicity, i=constraint.i)
+            upper_bound=constraint.upper_bound, monotonicity=constraint.monotonicity, i=constraint.i, monotonicity_bound=constraint.monotonicity_bound)
         elif core_X is None:
             self.model = RobustFitGaussianProcessRegressor(kernel=kernel, random_state=seed, optimizer=optimizer,
                                                            normalize_y=True, alpha=alpha)

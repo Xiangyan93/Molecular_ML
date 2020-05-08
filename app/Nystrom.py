@@ -440,7 +440,7 @@ class ConstraintGPR():
     totally new class that shares nothing with sklearn-gpr 
     does not perform hyperparameter tuning
     '''
-    def __init__(self, kernel, alpha, n_samples=1000, bounded=None, lower_bound=None, upper_bound=None, monotonicity=None, i=None):
+    def __init__(self, kernel, alpha, n_samples=1000, bounded=None, lower_bound=None, upper_bound=None, monotonicity=None, i=None, monotonicity_bound=None):
         '''
         ::lower_bound:: float value of lower constant bound, could be -np.inf
         ::upper_bound:: float value of upper constant bound, could be np.inf
@@ -458,6 +458,7 @@ class ConstraintGPR():
         self.ub = upper_bound
         self.monotonicity = monotonicity
         self.n_samples = n_samples
+        self.monotonicity_bound = monotonicity_bound
         self.i = i
 
         self.xv = None
@@ -492,15 +493,15 @@ class ConstraintGPR():
             self.LB, self.UB = np.full(Xv.shape[0], self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.ub, dtype=np.float64).reshape(-1)
         elif (not self.bounded) and (self.monotonicity is not None): # only monocinicity constraint
             if self.monotonicity: # increasing function
-                self.LB, self.UB = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], np.inf, dtype=np.float64).reshape(-1)
+                self.LB, self.UB = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.monotonicity_bound, dtype=np.float64).reshape(-1)
             else: # decreasing function
-                self.LB, self.UB = np.full(Xv.shape[0], -np.inf, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)
+                self.LB, self.UB = np.full(Xv.shape[0], -self.monotonicity_bound dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)
         else: # double constraints
             LB_bound, UB_bound = np.full(Xv.shape[0], self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.ub, dtype=np.float64).reshape(-1)
             if self.monotonicity: # increasing function
-                LB_deriv, UB_deriv = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], np.inf, dtype=np.float64).reshape(-1)
+                LB_deriv, UB_deriv = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.monotonicity_bound, dtype=np.float64).reshape(-1)
             else: # decreasing function
-                LB_deriv, UB_deriv = np.full(Xv.shape[0], -np.inf, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)            
+                LB_deriv, UB_deriv = np.full(Xv.shape[0], -self.monotonicity_bound, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)            
             self.LB, self.UB = np.r_[LB_deriv, LB_bound], np.r_[UB_deriv, UB_bound]
         self.C_samples = self.multi_TN(n=self.n_samples, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').T
         return
