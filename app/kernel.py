@@ -154,6 +154,37 @@ class MultipleKernel:
                     covariance_matrix *= output
             return covariance_matrix
 
+    def _dK(self, x1, x2, i):
+        '''return dK/dx1_i where i is the i-th variable for multiple kernels ''' 
+        amend_term = (x1[:, i].reshape(-1, 1).astype(float) - x2[:, i].reshape(1,-1).astype(float)) * (-1) / (self.kernel_list[i].length_scale**2)
+        return self(x1, x2) * amend_term
+
+    def LK(self, x1, x2, i, right=True, both_constraint=False):
+        ''' compute LK or KL.T '''
+        if right:
+            dK = self._dK(x2, x1, i).T
+            if both_constraint: # return row vector [KL.T K] 
+                return np.block([dK, self(x1, x2)])
+        else:
+            dK = self._dK(x1, x2, i)
+            if both_constraint: # returnr col vector [KL.T K].T
+                return np.block([[dK],[self(x1, x2)]])
+        return dK
+
+    def LKL(self, x, i, both_constraint=False):
+        ''' calculate L*K*LT'''
+        x_ = x[:, i].reshape(-1, 1).astype(float)
+        if not both_constraint:
+            amend_term = (1 - 1 / (self.kernel_list[i].length_scale**2) * (x_ - x_.T)**2 ) 
+            return amend_term * self(x, x) / (self.kernel_list[i].length_scale**2)
+        else: # return  [ d^2K/dx1dx2 dK/dx2 
+              #              dK/dx1     I    ]
+            lt = self.LKL(x, i)
+            rb = self(x)
+            rt = self.LK(x, x,i, right=True)
+            lb = self.LK(x, x, i)
+            return np.block([[lt, rt], [lb, rb]])    
+    
     def diag(self, X):
         for i, kernel in enumerate(self.kernel_list):
             Xi = self.get_X_for_ith_kernel(X, i)

@@ -70,6 +70,7 @@ def main():
     parser.add_argument('--y_std', type=float, help='', default=None)
     parser.add_argument('--score', type=float, help='', default=None)
     parser.add_argument('--coef', help='whether continue training', action='store_true')
+    parser.add_argument('--constraint', help='use constraint GPR', action='store_true')
 
     args = parser.parse_args()
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -155,13 +156,20 @@ def main():
         print('mse: %.5f' % mse)
         out.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False, float_format='%15.10f')
     else:
-        learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
+        if args.constraint:
+            learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
+                          optimizer=optimizer, constraint=Config.Constraint)
+        else:
+            lernear = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
                           optimizer=optimizer)
         if args.continued:
             learner.model.load(result_dir)
         else:
-            learner.train()
-            learner.model.save(result_dir)
+            if args.constraint:
+                learner.train()
+            else:
+                learner.train()
+                learner.model.save(result_dir)
         print('alpha = %.5f' % learner.model.alpha)
         print('hyperparameter: ', learner.model.kernel_.hyperparameters)
         print('***\tEnd: hyperparameters optimization.\t***\n')

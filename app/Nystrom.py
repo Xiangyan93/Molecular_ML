@@ -440,7 +440,7 @@ class ConstraintGPR():
     totally new class that shares nothing with sklearn-gpr 
     does not perform hyperparameter tuning
     '''
-    def __init__(self, kernel, alpha, n_samples=1000, lower_bound=None, upper_bound=None, monotonicity=None):
+    def __init__(self, kernel, alpha, n_samples=1000, bounded=None, lower_bound=None, upper_bound=None, monotonicity=None, i=None):
         '''
         ::lower_bound:: float value of lower constant bound, could be -np.inf
         ::upper_bound:: float value of upper constant bound, could be np.inf
@@ -453,11 +453,13 @@ class ConstraintGPR():
         self.kernel = kernel
         self.kernel_ = kernel
         self.alpha = alpha
+        self.bounded = bounded
         self.lb = lower_bound
         self.ub = upper_bound
-        self.monotinicity = monotonicity
+        self.monotonicity = monotonicity
         self.n_samples = n_samples
-        
+        self.i = i
+
         self.xv = None
         self.x_train = None
         self.y_train = None
@@ -471,14 +473,38 @@ class ConstraintGPR():
         k_xv = self.kernel(self.x_train, self.x_v)
         k_vv = self.kernel(self.x_v, self.x_v)
         self.L = np.linalg.cholesky(k_xx) # lower triangle mat of cholesky decomposition
-        self.v1 = self.sol_tri(self.L, k_xv, lower=True)
+        if self.bounded and (self.monotonicity is None): # only bounded constraint 
+            self.v1 = self.sol_tri(self.L, k_xv, lower=True)
+        elif (not self.bounded) and (self.monotonicity is not None): # only monocinicity constraint
+            self.v1 =  self.sol_tri(self.L, self.kernel.LK(self.x_train, self.x_v , self.i), lower=True)
+        else: # double bounded
+            self.v1 =  self.sol_tri(self.L, self.kernel.LK(self.x_train, self.x_v , self.i, both_constraint=True), lower=True)
         self.A1 = self.sol_tri(self.L.T, self.v1).T
-        self.B1 = k_vv + self.alpha*np.eye(len(self.x_v)) - self.v1.T.dot(self.v1)
+        if self.bounded and (self.monotonicity is None): # only bounded 
+            self.B1 = k_vv + 10 * self.alpha*np.eye(len(self.x_v)) - self.v1.T.dot(self.v1)
+        elif (not self.bounded) and (self.monotonicity is not None): # only monocinicity constraint
+            self.B1 = self.kernel.LKL(self.x_v, self.i) + self.alpha*np.eye(len(self.x_v)) - self.v1.T.dot(self.v1)
+        else: # double constraints
+            self.B1 = self.kernel.LKL(self.x_v, self.i, True) + self.alpha*np.eye(len(self.x_v) * 2) - self.v1.T.dot(self.v1)
         # compute constrained distribution C
         self.C_mean = self.A1.dot(self.y_train)
-        self.LB, self.UB = np.full(Xv.shape, self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape, self.ub, dtype=np.float64).reshape(-1)
+        if self.bounded and (self.monotonicity is None): # only bounded 
+            self.LB, self.UB = np.full(Xv.shape[0], self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.ub, dtype=np.float64).reshape(-1)
+        elif (not self.bounded) and (self.monotonicity is not None): # only monocinicity constraint
+            if self.monotonicity: # increasing function
+                self.LB, self.UB = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], np.inf, dtype=np.float64).reshape(-1)
+            else: # decreasing function
+                self.LB, self.UB = np.full(Xv.shape[0], -np.inf, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)
+        else: # double constraints
+            LB_bound, UB_bound = np.full(Xv.shape[0], self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.ub, dtype=np.float64).reshape(-1)
+            if self.monotonicity: # increasing function
+                LB_deriv, UB_deriv = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], np.inf, dtype=np.float64).reshape(-1)
+            else: # decreasing function
+                LB_deriv, UB_deriv = np.full(Xv.shape[0], -np.inf, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)            
+            self.LB, self.UB = np.r_[LB_deriv, LB_bound], np.r_[UB_deriv, UB_bound]
         self.C_samples = self.multi_TN(n=self.n_samples, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').T
-        a = 1
+        return
+
     def predict(self, x, return_std=False):
         ''' calculate A2, B2, B3, A, B, Sigma, draw samples and calculate statistics '''
         k_xs = self.kernel(self.x_train, x)
@@ -487,8 +513,12 @@ class ConstraintGPR():
         self.v2 = self.sol_tri(self.L, k_xs, lower=True)
         self.A2 = self.sol_tri(self.L.T, self.v2).T
         self.B2 = k_ss - self.v2.T.dot(self.v2)
-        self.B3 = k_sv - self.v2.T.dot(self.v1)
-
+        if self.bounded and (self.monotonicity is None): # only bounded 
+            self.B3 = k_sv - self.v2.T.dot(self.v1)
+        elif (not self.bounded) and (self.monotonicity is not None): # only monocinicity constraint
+            self.B3 = self.kernel.LK(x, self.x_v, self.i) - self.v2.T.dot(self.v1)
+        else: # double constraints
+            self.B3 = self.kernel.LK(x, self.x_v, self.i, both_constraint=True) - self.v2.T.dot(self.v1)
         self.L1 = np.linalg.cholesky(self.B1)
         self.v3 = self.sol_tri(self.L1, self.B3.T, lower=True)
         self.A = self.sol_tri(self.L1.T, self.v3).T
