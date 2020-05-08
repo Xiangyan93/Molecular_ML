@@ -162,7 +162,7 @@ def main():
             learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
                           optimizer=optimizer, constraint=Config.Constraint)
         else:
-            lernear = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
+            learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
                           optimizer=optimizer)
         if args.continued:
             learner.model.load(result_dir)
