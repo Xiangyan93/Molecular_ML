@@ -495,7 +495,7 @@ class ConstraintGPR():
             if self.monotonicity: # increasing function
                 self.LB, self.UB = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.monotonicity_bound, dtype=np.float64).reshape(-1)
             else: # decreasing function
-                self.LB, self.UB = np.full(Xv.shape[0], -self.monotonicity_bound dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)
+                self.LB, self.UB = np.full(Xv.shape[0], -self.monotonicity_bound, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)
         else: # double constraints
             LB_bound, UB_bound = np.full(Xv.shape[0], self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.ub, dtype=np.float64).reshape(-1)
             if self.monotonicity: # increasing function
