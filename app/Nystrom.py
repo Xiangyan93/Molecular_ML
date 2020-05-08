@@ -526,6 +526,7 @@ class ConstraintGPR():
         self.B = self.A2 - self.A.dot(self.A1)
         self.Sigma = self.B2 - self.v3.T.dot(self.v3)
         self.Sigma += self.alpha * np.eye(len(self.Sigma)) # stable numerial issue
+        self.Sigma = self._nearest_psd(self.Sigma)
         normal_sample =  scipy.stats.multivariate_normal(np.zeros(len(self.Sigma)), cov=self.Sigma).rvs(size=self.n_samples)
         fs_sample = normal_sample.T
 
@@ -536,3 +537,47 @@ class ConstraintGPR():
             return y_mean_constr, y_std_constr
         else:
             return y_mean_constr 
+    
+    def _nearest_psd(self, x, epsilon=0):
+        '''
+        Calculates the nearest postive semi-definite matrix for a correlation/covariance matrix
+
+        Parameters
+        ----------
+        x : array_like
+        Covariance/correlation matrix
+        epsilon : float
+        Eigenvalue limit (usually set to zero to ensure positive definiteness)
+
+        Returns
+        -------
+        near_cov : array_like
+        closest positive definite covariance/correlation matrix
+
+        Notes
+        -----
+        Document source
+        http://www.quarchome.org/correlationmatrix.pdf
+
+        '''
+
+        if min(np.linalg.eigvals(x)) > epsilon:
+            return x
+
+        # Removing scaling factor of covariance matrix
+        n = x.shape[0]
+        var_list = np.array([np.sqrt(x[i,i]) for i in xrange(n)])
+        y = np.array([[x[i, j]/(var_list[i]*var_list[j]) for i in xrange(n)] for j in xrange(n)])
+
+        # getting the nearest correlation matrix
+        eigval, eigvec = np.linalg.eig(y)
+        val = np.matrix(np.maximum(eigval, epsilon))
+        vec = np.matrix(eigvec)
+        T = 1/(np.multiply(vec, vec) * val.T)
+        T = np.matrix(np.sqrt(np.diag(np.array(T).reshape((n)) )))
+        B = T * vec * np.diag(np.array(np.sqrt(val)).reshape((n)))
+        near_corr = B*B.T    
+
+        # returning the scaling factors
+        near_cov = np.array([[near_corr[i, j]*(var_list[i]*var_list[j]) for i in xrange(n)] for j in xrange(n)])
+        return near_cov
