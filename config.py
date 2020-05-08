@@ -74,10 +74,10 @@ class Config:
         }
 
     class Constraint:
-        bounded = False
+        bounded = True
         lower_bound = -100
-        upper_bound = np.inf
-        monotonicity = False # True for dF>0, False for dF<0, None for no constraint
+        upper_bound = 100
+        monotonicity = None # True for dF>0, False for dF<0, None for no constraint
         monotonicity_bound = 5e-5
-        n_samples = 500
+        n_samples = 1000
         i = 1 # take derivative w.r.t. the i-th component
