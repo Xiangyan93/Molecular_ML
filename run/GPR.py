@@ -70,7 +70,7 @@ def main():
     parser.add_argument('--y_std', type=float, help='', default=None)
     parser.add_argument('--score', type=float, help='', default=None)
     parser.add_argument('--coef', help='whether continue training', action='store_true')
-    parser.add_argument('--n_constraint', type=int, default=0, help='constrained GPR sample size')
+    parser.add_argument('--constraint',  default=0, help='use constrained GPR', action='store_true')
 
     args = parser.parse_args()
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -158,16 +158,16 @@ def main():
         print('mse: %.5f' % mse)
         out.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False, float_format='%15.10f')
     else:
-        if args.n_constraint != 0:
+        if args.constraint:
             learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
-                          optimizer=optimizer, constraint=Config.Constraint, n_samples = args.n_constraint)
+                          optimizer=optimizer, constraint=Config.Constraint)
         else:
             learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
                           optimizer=optimizer)
         if args.continued:
             learner.model.load(result_dir)
         else:
-            if args.n_constraint != 0:
+            if args.constraint != 0:
                 learner.train()
             else:
                 learner.train()
