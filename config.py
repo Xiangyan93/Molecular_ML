@@ -80,6 +80,6 @@ class Config:
         monotonicity = None # True for dF>0, False for dF<0, None for no constraint
         monotonicity_ub = 1.2e-4
         monotonicity_lb = 1e-5
-        n_samples = 50000000
-        xv_ratio = 1
+        n_samples = 1000000
+        xv_ratio = 0.25
         i = 1 # take derivative w.r.t. the i-th component
