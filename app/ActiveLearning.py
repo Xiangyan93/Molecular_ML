@@ -22,7 +22,7 @@ def get_smiles(graph):
 
 class Learner:
     def __init__(self, train_X, train_Y, test_X, test_Y, kernel, core_X=None, core_Y=None, seed=0, optimizer=None,
-                 alpha=0.01, constraint=None, n_samples=0):
+                 alpha=0.01, constraint=None):
         self.train_X = train_X
         self.train_Y = train_Y
         self.test_X = test_X
@@ -33,7 +33,7 @@ class Learner:
         self.optimizer = optimizer
         self.constraint = constraint
         if self.constraint is not None:
-            self.model = ConstraintGPR(kernel=kernel, alpha=alpha, n_samples=n_samples, bounded=constraint.bounded, lower_bound=constraint.lower_bound, 
+            self.model = ConstraintGPR(kernel=kernel, alpha=alpha, n_samples=constraint.n_samples, bounded=constraint.bounded, lower_bound=constraint.lower_bound, 
             upper_bound=constraint.upper_bound, monotonicity=constraint.monotonicity, i=constraint.i, monotonicity_ub=constraint.monotonicity_ub,  monotonicity_lb=constraint.monotonicity_lb)
         elif core_X is None:
             self.model = RobustFitGaussianProcessRegressor(kernel=kernel, random_state=seed, optimizer=optimizer,

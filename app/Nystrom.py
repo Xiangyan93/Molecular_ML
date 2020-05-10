@@ -511,7 +511,19 @@ class ConstraintGPR():
         # self.B1 = self._nearest_psd(self.B1)
         if self.n_samples > 5000:
             n = self.n_samples // 5000
-            self.C_samples = np.r_[[self.multi_TN(n=5000, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').mean(axis=0) for i in range(n)]].T
+            mean = self.multi_TN(n=5000, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').mean(axis=0)
+            C_samples_list = [mean]
+            n_sample_batch = 1
+            while 1:
+                new_samples = self.multi_TN(n=5000, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').mean(axis=0)
+                C_samples_list.append(new_samples)
+                converge, mean = self._converge_check(mean,  n_sample_batch, new_samples, epsilon=0.01)
+                n_sample_batch += 1
+                if converge and n_sample_batch > n:
+                    break
+            self.n_samples =  n_sample_batch * 5000
+            print('C_samples converge at size=%s' % self.n_samples)
+            self.C_samples = np.r_[C_samples_list].T
         else:
             self.C_samples = self.multi_TN(n=self.n_samples, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').T
         return
@@ -594,3 +606,22 @@ class ConstraintGPR():
         # returning the scaling factors
         near_cov = np.array([[near_corr[i, j]*(var_list[i]*var_list[j]) for i in range(n)] for j in range(n)])
         return near_cov
+    
+    def _converge_check(self, mean, n, new_samples, epsilon=0.01):
+        ''' if five consecutive difference are less that 1%% return True, else return false
+            return: converge, new_mean
+        '''
+        new_mean = (mean * n + new_samples ) / (n+1)
+        if (abs(new_mean - mean) / mean).mean() < epsilon:
+            if hasattr(self, 'count'):
+                self.count += 1
+                if self.count >4: 
+                    return (True, new_mean)
+                else:
+                    return (False, new_mean)
+            else:
+                self.count = 1
+                return (False, new_mean)
+        else:
+                self.count = 0
+                return (False, new_mean)

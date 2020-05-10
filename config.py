@@ -74,12 +74,12 @@ class Config:
         }
 
     class Constraint:
-        bounded = True
-        lower_bound = -100
-        upper_bound = 100
-        monotonicity = None # True for dF>0, False for dF<0, None for no constraint
+        bounded = False
+        lower_bound = 0
+        upper_bound = 0.05
+        monotonicity = False # True for dF>0, False for dF<0, None for no constraint
         monotonicity_ub = 1.2e-4
-        monotonicity_lb = 1e-5
-        n_samples = 1000000
-        xv_ratio = 0.25
+        monotonicity_lb = 6e-5
+        n_samples = 100000 # least sample size
+        xv_ratio = 1
         i = 1 # take derivative w.r.t. the i-th component
