@@ -34,10 +34,10 @@ class Learner:
         self.constraint = constraint
         if self.constraint is not None:
             self.model = ConstraintGPR(kernel=kernel, alpha=alpha, n_samples=constraint.n_samples, bounded=constraint.bounded, lower_bound=constraint.lower_bound, 
-            upper_bound=constraint.upper_bound, monotonicity=constraint.monotonicity, i=constraint.i, monotonicity_bound=constraint.monotonicity_bound)
+            upper_bound=constraint.upper_bound, monotonicity=constraint.monotonicity, i=constraint.i, monotonicity_ub=constraint.monotonicity_ub,  monotonicity_lb=constraint.monotonicity_lb)
         elif core_X is None:
             self.model = RobustFitGaussianProcessRegressor(kernel=kernel, random_state=seed, optimizer=optimizer,
-                                                           normalize_y=True, alpha=alpha)
+                                                           normalize_y=False, alpha=alpha)
         else:
             if optimizer is not None:
                 raise Exception('Nystrom can only be used with None optimizer')
@@ -47,7 +47,9 @@ class Learner:
     def train(self):
         if self.constraint is not None: # constraint GPR
             #assert( is not None, "Xv must be specified with constraint GPR!")
-            self.model.fit(self.train_X, self.train_Y, self.test_X) # impose constraint on test set
+            n_samples = int(self.constraint.xv_ratio * len(self.test_X))
+            test_X = self.test_X[np.random.permutation(len(self.test_X))[:n_samples]]
+            self.model.fit(self.train_X, self.train_Y, test_X) # impose constraint on test set
         else:
             if self.core_X is None:
                 self.model.fit_robust(self.train_X, self.train_Y)

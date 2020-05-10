@@ -175,7 +175,7 @@ def main():
         print('alpha = %.5f' % learner.model.alpha)
         print('hyperparameter: ', learner.model.kernel_.hyperparameters)
         print('***\tEnd: hyperparameters optimization.\t***\n')
-        r2, ex_var, mse, out = learner.evaluate_train(ylog=args.ylog)
+        r2, ex_var, mse, out = learner.evaluate_train(ylog=args.ylog, debug=False)
         print('Training set:')
         print('score: %.5f' % r2)
         print('explained variance score: %.5f' % ex_var)

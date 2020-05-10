@@ -440,7 +440,7 @@ class ConstraintGPR():
     totally new class that shares nothing with sklearn-gpr 
     does not perform hyperparameter tuning
     '''
-    def __init__(self, kernel, alpha, n_samples=1000, bounded=None, lower_bound=None, upper_bound=None, monotonicity=None, i=None, monotonicity_bound=None):
+    def __init__(self, kernel, alpha, n_samples=1000, bounded=None, lower_bound=None, upper_bound=None, monotonicity=None, i=None, monotonicity_ub=None, monotonicity_lb=None):
         '''
         ::lower_bound:: float value of lower constant bound, could be -np.inf
         ::upper_bound:: float value of upper constant bound, could be np.inf
@@ -458,7 +458,8 @@ class ConstraintGPR():
         self.ub = upper_bound
         self.monotonicity = monotonicity
         self.n_samples = n_samples
-        self.monotonicity_bound = monotonicity_bound
+        self.monotonicity_ub = monotonicity_ub
+        self.monotonicity_lb = monotonicity_lb
         self.i = i
 
         self.xv = None
@@ -478,11 +479,13 @@ class ConstraintGPR():
             self.v1 = self.sol_tri(self.L, k_xv, lower=True)
         elif (not self.bounded) and (self.monotonicity is not None): # only monocinicity constraint
             self.v1 =  self.sol_tri(self.L, self.kernel.LK(self.x_train, self.x_v , self.i), lower=True)
-        else: # double bounded
+        elif self.bounded and (self.monotonicity is not None): # double bounded
             self.v1 =  self.sol_tri(self.L, self.kernel.LK(self.x_train, self.x_v , self.i, both_constraint=True), lower=True)
+        else:
+            raise Exception('No constaint is specified. Please check the constraint configuration.')
         self.A1 = self.sol_tri(self.L.T, self.v1).T
         if self.bounded and (self.monotonicity is None): # only bounded 
-            self.B1 = k_vv + 10 * self.alpha*np.eye(len(self.x_v)) - self.v1.T.dot(self.v1)
+            self.B1 = k_vv + self.alpha*np.eye(len(self.x_v)) - self.v1.T.dot(self.v1)
         elif (not self.bounded) and (self.monotonicity is not None): # only monocinicity constraint
             self.B1 = self.kernel.LKL(self.x_v, self.i) + self.alpha*np.eye(len(self.x_v)) - self.v1.T.dot(self.v1)
         else: # double constraints
@@ -493,17 +496,24 @@ class ConstraintGPR():
             self.LB, self.UB = np.full(Xv.shape[0], self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.ub, dtype=np.float64).reshape(-1)
         elif (not self.bounded) and (self.monotonicity is not None): # only monocinicity constraint
             if self.monotonicity: # increasing function
-                self.LB, self.UB = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.monotonicity_bound, dtype=np.float64).reshape(-1)
+                self.LB, self.UB = np.full(Xv.shape[0], self.monotonicity_lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.monotonicity_ub, dtype=np.float64).reshape(-1)
             else: # decreasing function
-                self.LB, self.UB = np.full(Xv.shape[0], -self.monotonicity_bound, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)
+                self.LB, self.UB = np.full(Xv.shape[0], -self.monotonicity_ub, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], -self.monotonicity_lb, dtype=np.float64).reshape(-1)
         else: # double constraints
             LB_bound, UB_bound = np.full(Xv.shape[0], self.lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.ub, dtype=np.float64).reshape(-1)
             if self.monotonicity: # increasing function
-                LB_deriv, UB_deriv = np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.monotonicity_bound, dtype=np.float64).reshape(-1)
+                LB_deriv, UB_deriv = np.full(Xv.shape[0], self.monotonicity_lb, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], self.monotonicity_ub, dtype=np.float64).reshape(-1)
             else: # decreasing function
-                LB_deriv, UB_deriv = np.full(Xv.shape[0], -self.monotonicity_bound, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], 0, dtype=np.float64).reshape(-1)            
+                LB_deriv, UB_deriv = np.full(Xv.shape[0], -self.monotonicity_ub, dtype=np.float64).reshape(-1), np.full(Xv.shape[0], -self.monotonicity_lb, dtype=np.float64).reshape(-1)            
             self.LB, self.UB = np.r_[LB_deriv, LB_bound], np.r_[UB_deriv, UB_bound]
-        self.C_samples = self.multi_TN(n=self.n_samples, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').T
+        print('sampling C-mean')
+        #self.B1 = (self.B1 + self.B1.T) /2
+        # self.B1 = self._nearest_psd(self.B1)
+        if self.n_samples > 5000:
+            n = self.n_samples // 5000
+            self.C_samples = np.r_[[self.multi_TN(n=5000, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').mean(axis=0) for i in range(n)]].T
+        else:
+            self.C_samples = self.multi_TN(n=self.n_samples, mu=np.matrix(self.C_mean), sigma=np.matrix(self.B1), a=self.LB, b=self.UB, algorithm='minimax_tilting').T
         return
 
     def predict(self, x, return_std=False):
@@ -526,9 +536,12 @@ class ConstraintGPR():
         self.B = self.A2 - self.A.dot(self.A1)
         self.Sigma = self.B2 - self.v3.T.dot(self.v3)
         self.Sigma += self.alpha * np.eye(len(self.Sigma)) # stable numerial issue
-        self.Sigma = self._nearest_psd(self.Sigma)
-        normal_sample =  scipy.stats.multivariate_normal(np.zeros(len(self.Sigma)), cov=self.Sigma).rvs(size=self.n_samples)
-        fs_sample = normal_sample.T
+        print('draw GP samples')
+        if self.n_samples > 5000:
+            n = self.n_samples // 5000
+            fs_sample = np.r_[[scipy.stats.multivariate_normal(np.zeros(len(self.Sigma)), cov=self.Sigma).rvs(size=5000).mean(axis=0) for i in range(n)]].T
+        else:
+            fs_sample =  scipy.stats.multivariate_normal(np.zeros(len(self.Sigma)), cov=self.Sigma).rvs(size=self.n_samples).T
 
         y_sample = self.A.dot(self.C_samples) + self.B.dot(self.y_train) + fs_sample
         y_std_constr = y_sample.std(axis=1)
@@ -560,17 +573,17 @@ class ConstraintGPR():
         http://www.quarchome.org/correlationmatrix.pdf
 
         '''
-
-        if min(np.linalg.eigvals(x)) > epsilon:
-            return x
+        
+        #if min(np.linalg.eigvals(x)) > epsilon:
+        #    return x
 
         # Removing scaling factor of covariance matrix
         n = x.shape[0]
-        var_list = np.array([np.sqrt(x[i,i]) for i in xrange(n)])
-        y = np.array([[x[i, j]/(var_list[i]*var_list[j]) for i in xrange(n)] for j in xrange(n)])
+        var_list = np.array([np.sqrt(x[i,i]) for i in range(n)])
+        y = np.array([[x[i, j]/(var_list[i]*var_list[j]) for i in range(n)] for j in range(n)])
 
         # getting the nearest correlation matrix
-        eigval, eigvec = np.linalg.eig(y)
+        eigval, eigvec = np.linalg.eigh(y)
         val = np.matrix(np.maximum(eigval, epsilon))
         vec = np.matrix(eigvec)
         T = 1/(np.multiply(vec, vec) * val.T)
@@ -579,5 +592,5 @@ class ConstraintGPR():
         near_corr = B*B.T    
 
         # returning the scaling factors
-        near_cov = np.array([[near_corr[i, j]*(var_list[i]*var_list[j]) for i in xrange(n)] for j in xrange(n)])
+        near_cov = np.array([[near_corr[i, j]*(var_list[i]*var_list[j]) for i in range(n)] for j in range(n)])
         return near_cov
