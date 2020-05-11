@@ -81,5 +81,5 @@ class Config:
         monotonicity_ub = 1.2e-4
         monotonicity_lb = 6e-5
         n_samples = 100000 # least sample size
-        xv_ratio = 1
+        xv_ratio = 0.5
         i = 1 # take derivative w.r.t. the i-th component
