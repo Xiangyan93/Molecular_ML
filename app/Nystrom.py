@@ -24,17 +24,16 @@ for i in range(N):
 ************************************************************************************************************************
 """
 from sklearn.gaussian_process._gpr import *
-from sklearn.cluster import SpectralClustering
 from sklearn.preprocessing import StandardScaler
 from numpy.linalg import eigh
-import scipy
 import pandas as pd
 import math
 import pickle
 import os
-
-from app.kernel import get_core_idx, get_subset_by_clustering
 from config import Config
+from app.kernel import get_core_idx
+from app.solver import CholSolver
+from app.optimizer import ensemble, sequential_threshold, l1_regularization, vanilla_lbfgs
 
 
 class GPR(GaussianProcessRegressor):
@@ -188,6 +187,122 @@ class GPR(GaussianProcessRegressor):
         if self.kernel is not None:
             self.kernel = self.kernel.clone_with_theta(theta)
             self.kernel_ = self.kernel
+
+    def unpack_theta(self, theta):
+        xi = np.exp(theta[0])
+        t = np.exp(theta[1:1 + len(self.kernel.theta)])
+        s = np.exp(theta[1 + len(self.kernel.theta):])
+        return xi, t, s
+
+    @staticmethod
+    def pack_theta(xi, t, s):
+        return np.log(np.concatenate(([xi], t, s)))
+
+    def get_raw_kernel_matrix(self, theta, jac=True):
+
+        xi, t, s = self.unpack_theta(theta)
+
+        self.kernel.theta = np.log(t)
+
+        if jac is True:
+            R, dR = self.kernel(self.X_train_, eval_gradient=True)
+            return R.astype(np.float), dR.astype(np.float)
+        else:
+            R = self.kernel(self.X_train_)
+            return R.astype(np.float)
+
+    def likelihood(self, theta, jac=True, verbose=False):
+        xi, t, s = self.unpack_theta(theta)
+        y = np.copy(self.y_train_)
+        scaler_forward = lambda z, mean=np.mean(y), std=np.std(y): (z - mean) / std
+        y = scaler_forward(y)
+        if jac is True:
+            R, dR = self.get_raw_kernel_matrix(theta, jac=True)
+
+            # normalization
+            diag = R.diagonal()
+            diag_rsqrt = diag ** -0.5
+            diag_r15rt = diag ** -1.5
+            K = diag_rsqrt[:, None] * R * diag_rsqrt[None, :]
+            KK = K ** xi
+            # derivative after normalization
+            dK = []
+            for i in range(dR.shape[-1]):
+                dr = dR[:, :, i]
+                ddiag = dr.diagonal()
+                dk = (diag_rsqrt[:, None] * dr * diag_rsqrt[None, :]
+                      - 0.5 * diag_r15rt[:, None] * R * diag_r15rt[None, :] * (
+                                  np.outer(ddiag, diag) + np.outer(diag, ddiag)))
+                dK.append(dk)
+            dK = np.array(dK)
+        else:
+            R = self.get_raw_kernel_matrix(theta, jac=False)
+            diag = R.diagonal()
+            diag_rsqrt = diag ** -0.5
+            K = diag_rsqrt[:, None] * R * diag_rsqrt[None, :]
+            KK = K ** xi
+
+        KK.flat[::len(self.X_train_) + 1] += s ** 2
+        self.KK = KK
+        KKinv = CholSolver(KK)
+
+        KKy = KKinv(y)
+        yKKy = y.dot(KKy)
+        logdet = np.prod(np.linalg.slogdet(KK))
+        if verbose:
+            print('L %.5f = %.5f + %.5f' % (yKKy + logdet, yKKy, logdet), xi, t, s.mean())
+
+        if jac is True:
+            dKK_dxi = K ** xi * np.log(K)
+            D_xi = (KKinv(dKK_dxi).trace() - KKy.dot(dKK_dxi).dot(KKy)) * xi
+            D_s = (KKinv(np.eye(len(self.X_train_))).diagonal() - KKy ** 2) * (2 * s ** 2)
+            D_theta = []
+            for i in range(dK.shape[0]):
+                dk = dK[i, :, :]
+                dkk = dk * xi * K ** (xi - 1)
+                dt = (KKinv(dkk).trace() - KKy.dot(dkk).dot(KKy)) * t[i]
+                D_theta.append(dt)
+            return yKKy + logdet, np.concatenate(([D_xi], D_theta, D_s))
+        else:
+            return yKKy + logdet
+
+    def get_alpha(self, seed, opt='l1reg'):
+        np.random.seed(seed)
+        lmin = 1e-2
+        lmax = 10
+        xi0 = 2.0
+        theta0 = np.exp(self.kernel.theta)
+        if opt == 'l1reg':
+            alpha = 1.0
+            opt_ = ensemble(
+                lambda: l1_regularization(
+                    fun=lambda theta, gpr=self: gpr.likelihood(theta),
+                    x0=self.pack_theta(xi0, theta0, np.random.uniform(lmin, 1.0, len(self.y_train_))),
+                    strengths=np.concatenate(([0.0], np.zeros_like(self.kernel.theta), alpha * np.ones_like(self.y_train_))),
+                    bounds_lower=self.pack_theta(1.05, np.exp(self.kernel.bounds[:, 0]), lmin * np.ones_like(self.y_train_)),
+                    bounds_upper=self.pack_theta(16.0, np.exp(self.kernel.bounds[:, 1]), lmax * np.ones_like(self.y_train_)),
+                    jac=True
+                ),
+                10
+            )
+        elif opt == 'seqth':
+            th = 2.0
+            opt_ = ensemble(
+                lambda: sequential_threshold(
+                    fun=lambda theta, gpr=self: gpr.likelihood(theta),
+                    x0=self.pack_theta(xi0, theta0, np.random.uniform(lmin, 1.0, len(self.y_train_))),
+                    thresholds=np.concatenate(
+                        ([1e-7], 1e-7 * np.ones_like(self.kernel.theta), th * np.ones_like(self.y_train_))),
+                    bounds_lower=self.pack_theta(1.05, np.exp(self.kernel.bounds[:, 0]), lmin * np.ones_like(self.y_train_)),
+                    bounds_upper=self.pack_theta(16.0, np.exp(self.kernel.bounds[:, 1]), lmax * np.ones_like(self.y_train_)),
+                    jac=True
+                ),
+                10
+            )
+        else:
+            raise Exception('unknown optimizer')
+        _, _, u = self.unpack_theta(opt_.x)
+        return u**2
 
 
 class RobustFitGaussianProcessRegressor(GPR):

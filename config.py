@@ -12,25 +12,26 @@ class Config:
     DEBUG = False
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
-        v = 0.75
-        s = 1.0
-        knode = TensorProduct(aromatic=KroneckerDelta(v),
-                              charge=SquareExponential(0.5),
-                              element=KroneckerDelta(0.25),
-                              hcount=SquareExponential(s),
-                              chiral=KroneckerDelta(v),
-                              smallest_ring=KroneckerDelta(v),
-                              ring_number=KroneckerDelta(v),
-                              # morgan_hash=KroneckerDelta(v),
+        h = 0.90
+        h_bounds = (h, h)
+        s = 2.0
+        s_bounds = (s, s)
+        knode = TensorProduct(aromatic=KroneckerDelta(h, h_bounds),
+                              charge=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
+                              element=KroneckerDelta(0.75, (0.75, 0.75)),
+                              hcount=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
+                              chiral=KroneckerDelta(h, h_bounds),
+                              smallest_ring=KroneckerDelta(h, h_bounds),
+                              ring_number=KroneckerDelta(h, h_bounds),
                               )
-        kedge = TensorProduct(order=SquareExponential(s),
-                              stereo=KroneckerDelta(v),
-                              conjugated=KroneckerDelta(v),
-                              ringstereo=KroneckerDelta(v),
+        kedge = TensorProduct(order=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
+                              stereo=KroneckerDelta(h, h_bounds),
+                              conjugated=KroneckerDelta(h, h_bounds),
+                              ringstereo=KroneckerDelta(h, h_bounds),
                               )
 
         stop_prob = 0.05
-        stop_prob_bound = (1e-4, 1.0)
+        stop_prob_bound = (stop_prob, stop_prob)
 
         T = 300
         P = 1000

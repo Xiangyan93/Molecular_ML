@@ -13,7 +13,7 @@ sys.path.append(Config.MS_TOOLS_DIR)
 
 
 class HashGraph(Graph):
-    def __init__(self, smiles, *args, **kwargs):
+    def __init__(self, smiles=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.smiles = smiles
 
@@ -111,35 +111,47 @@ class HashGraph(Graph):
         return cls(smiles=smiles, nodes=node_df, edges=edge_df, title=title)
 
 
-def get_bond_orientation_dict(mol):
-    bond_orientation_dict = {}
-    for line in Chem.MolToMolBlock(mol).split('\n'):
-        if len(line.split()) == 4:
-            a, b, c, d = line.split()
-            ij = (int(a) - 1, int(b) - 1)
-            ij = (min(ij), max(ij))
-            bond_orientation_dict[ij] = int(d)
-    return bond_orientation_dict
-
-
 class FunctionalGroup:
-    def __init__(self, mol, atom0, atom1):
+    """Functional Group.
+
+    atom0 -> atom1 define a directed bond in the molecule. Then the bond is removed and the functional group is defined
+    as a multitree. atom1 is the root node.
+
+    Parameters
+    ----------
+    mol : molecule object in RDKit
+
+    atom0, atom1 : atom object in RDKit
+
+    depth: the depth of the multitree.
+
+    Attributes
+    ----------
+    tree : multitree represent the functional group
+        each node has 3 important attributes: tag: [atomic number, bond order with its parent], identifier: atom index
+        defined in RDKit molecule object, data: RDKit atom object.
+
+    """
+
+    def __init__(self, mol, atom0, atom1, depth=5):
         self.mol = mol
         tree = Tree()
-        tree.create_node([atom0.GetAtomicNum(), 1.0], atom0.GetIdx(), data=atom0)
-        tree.create_node([atom1.GetAtomicNum(), 1.0], atom1.GetIdx(), data=atom1, parent=atom0.GetIdx())
-        n = 1
-        while n != 0:
-            n = 0
+        bond_order = mol.GetBondBetweenAtoms(atom0.GetIdx(), atom1.GetIdx()).GetBondTypeAsDouble()
+        tree.create_node(tag=[atom0.GetAtomicNum(), bond_order], identifier=atom0.GetIdx(), data=atom0)
+        tree.create_node(tag=[atom1.GetAtomicNum(), bond_order], identifier=atom1.GetIdx(), data=atom1,
+                         parent=atom0.GetIdx())
+        for i in range(depth):
             for node in tree.all_nodes():
                 if node.is_leaf():
                     for atom in node.data.GetNeighbors():
                         if atom.GetIdx() != node.predecessor(tree_id=tree._identifier):
                             bond_order = mol.GetBondBetweenAtoms(atom.GetIdx(),
                                                                  node.data.GetIdx()).GetBondTypeAsDouble()
-                            tree.create_node([atom.GetAtomicNum(), bond_order],
-                                             atom.GetIdx(), data=atom, parent=node.identifier)
-                            n += 1
+                            identifier = atom.GetIdx()
+                            while tree.get_node(identifier) is not None:
+                                identifier += len(mol.GetAtoms())
+                            tree.create_node(tag=[atom.GetAtomicNum(), bond_order], identifier=identifier, data=atom,
+                                             parent=node.identifier)
         self.tree = tree
 
     def __eq__(self, other):
@@ -167,20 +179,70 @@ class FunctionalGroup:
         return rank_list
 
 
-def get_EZ_stereo(mol, atom, bond_orientation_dict, atom_ring=None):
-    mol.GetRingInfo()
+def get_bond_orientation_dict(mol):
+    bond_orientation_dict = {}
+    for line in Chem.MolToMolBlock(mol).split('\n'):
+        if len(line.split()) == 4:
+            a, b, c, d = line.split()
+            ij = (int(a) - 1, int(b) - 1)
+            ij = (min(ij), max(ij))
+            bond_orientation_dict[ij] = int(d)
+    return bond_orientation_dict
+
+
+def get_atom_ring_stereo(mol, atom, ring_idx, depth=5, bond_orientation_dict=None):
+    """
+
+    For atom in a ring. If it has 4 bonds. Two of them are included in the ring. Other two connecting 2 functional
+    groups, has opposite orientation reference to the ring plane.
+    Assuming the ring is in a plane, then the 2 functional groups are assigned as upward and downward.
+
+    Parameters
+    ----------
+    mol : molecule object in RDKit
+
+    atom : atom object in RDKit
+
+    ring_idx : a tuple of all index of atoms in the ring
+
+    depth : the depth of the functional group tree
+
+    bond_orientation_dict : a dictionary contains the all bond orientation information in the molecule
+
+    Returns
+    -------
+    0 : No ring stereo.
+
+    1 : The upward functional group is larger
+
+    -1 : The downward functional group is larger
+
+    """
+    if bond_orientation_dict is None:
+        bond_orientation_dict = get_bond_orientation_dict(mol)
+
     up_atom = down_atom = None
-    ring_updown = None
+    updown_tag = None
+    # bond to 2 hydrogen
     if len(atom.GetNeighbors()) == 2:
         return 0
+    if len(atom.GetNeighbors()) > 4:
+        raise Exception('cannot deal with atom in a ring with more than 4 bonds')
     for bond in atom.GetBonds():
+        # for carbon atom, atom ring stereo may exist if it has 4 single bonds.
         if bond.GetBondType() != Chem.BondType.SINGLE and atom.GetAtomicNum() == 6:
             return 0
-        ij = (bond.GetBeginAtom().GetIdx(), bond.GetEndAtom().GetIdx())
-        if bond.GetBeginAtom().GetIdx() in atom_ring and bond.GetEndAtom().GetIdx() in atom_ring:
+        i = bond.GetBeginAtom().GetIdx()
+        j = bond.GetEndAtom().GetIdx()
+        ij = (i, j)
+        # skip bonded atoms in the ring
+        if i in ring_idx and j in ring_idx:
+            # in RDKit, the orientation information may saved in ring bond for multi-ring molecules. The information
+            # is saved.
             if bond_orientation_dict.get(ij) != 0:
-                ring_updown = bond_orientation_dict.get(ij)
+                updown_tag = bond_orientation_dict.get(ij)
             continue
+        # get upward atom
         if bond_orientation_dict.get(ij) == 1:
             if up_atom is not None:
                 raise Exception('2 bond orient up')
@@ -188,6 +250,7 @@ def get_EZ_stereo(mol, atom, bond_orientation_dict, atom_ring=None):
             temp.remove(atom.GetIdx())
             up_atomidx = temp[0]
             up_atom = mol.GetAtomWithIdx(up_atomidx)
+        # get downward atom
         elif bond_orientation_dict.get(ij) == 6:
             if down_atom is not None:
                 raise Exception('2 bond orient down')
@@ -195,10 +258,11 @@ def get_EZ_stereo(mol, atom, bond_orientation_dict, atom_ring=None):
             temp.remove(atom.GetIdx())
             down_atomidx = temp[0]
             down_atom = mol.GetAtomWithIdx(down_atomidx)
+    # maybe there is bug for complex molecule
     if up_atom is None and down_atom is None:
-        if ring_updown == 1:
+        if updown_tag == 1:
             return 1
-        elif ring_updown == 6:
+        elif updown_tag == 6:
             return -1
         else:
             return 0
@@ -207,8 +271,8 @@ def get_EZ_stereo(mol, atom, bond_orientation_dict, atom_ring=None):
     elif down_atom is None:
         return 1
     else:
-        fg_up = FunctionalGroup(mol, atom, up_atom)
-        fg_down = FunctionalGroup(mol, atom, down_atom)
+        fg_up = FunctionalGroup(mol, atom, up_atom, depth)
+        fg_down = FunctionalGroup(mol, atom, down_atom, depth)
         if fg_up > fg_down:
             return 1
         elif fg_up < fg_down:
@@ -250,7 +314,6 @@ def inchi2graph(inchi):
             else:
                 g.nodes[i]['chiral'] = 0
 
-        bond_orientation_dict = get_bond_orientation_dict(mol)
         for bond in mol.GetBonds():
             ij = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
             g.add_edge(*ij)
@@ -260,11 +323,13 @@ def inchi2graph(inchi):
             g.edges[ij]['stereo'] = bond.GetStereo()
             g.edges[ij]['ringstereo'] = 0.
 
-        for atom_ring in mol.GetRingInfo().AtomRings():
+        bond_orientation_dict = get_bond_orientation_dict(mol)
+        for ring_idx in mol.GetRingInfo().AtomRings():
             atom_updown = []
-            for idx in atom_ring:
+            for idx in ring_idx:
                 atom = mol.GetAtomWithIdx(idx)
-                atom_updown.append(get_EZ_stereo(mol, atom, bond_orientation_dict, atom_ring=atom_ring))
+                atom_updown.append(get_atom_ring_stereo(mol, atom, ring_idx, depth=5,
+                                                        bond_orientation_dict=bond_orientation_dict))
             atom_updown = np.array(atom_updown)
             non_zero_index = np.where(atom_updown != 0)[0]
             for j in range(len(non_zero_index)):
@@ -277,9 +342,9 @@ def inchi2graph(inchi):
                     length = e - b
                 StereoOfRingBond = atom_updown[b] * atom_updown[e] / length
                 for k in range(length):
-                    idx1 = b + k if b + k < len(atom_ring) else b + k - len(atom_ring)
-                    idx2 = b + k + 1 if b + k + 1 < len(atom_ring) else b + k + 1 - len(atom_ring)
-                    ij = (atom_ring[idx1], atom_ring[idx2])
+                    idx1 = b + k if b + k < len(ring_idx) else b + k - len(ring_idx)
+                    idx2 = b + k + 1 if b + k + 1 < len(ring_idx) else b + k + 1 - len(ring_idx)
+                    ij = (ring_idx[idx1], ring_idx[idx2])
                     ij = (min(ij), max(ij))
                     g.edges[ij]['ringstereo'] = StereoOfRingBond
 

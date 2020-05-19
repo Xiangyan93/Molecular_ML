@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 import sys
 import argparse
-import os
-
+import matplotlib.pyplot as plt
 sys.path.append('.')
 sys.path.append('..')
 from app.kernel import *
 from app.smiles import *
 from app.ActiveLearning import *
-from app.Nystrom import NystromGaussianProcessRegressor
+from app.optimizer import ensemble, sequential_threshold, l1_regularization, vanilla_lbfgs
 CWD = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -70,6 +69,7 @@ def main():
     parser.add_argument('--y_std', type=float, help='', default=None)
     parser.add_argument('--score', type=float, help='', default=None)
     parser.add_argument('--coef', help='whether continue training', action='store_true')
+    parser.add_argument('--alpha_outlier', help='reset alpha based on outlier', action='store_true')
 
     args = parser.parse_args()
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -129,11 +129,22 @@ def main():
         print('***\tEnd: Graph kernels calculating\t***\n')
 
     print('***\tStart: hyperparameters optimization.\t***')
-    
+    if args.alpha_outlier:
+        print('**\treset alpha based on outlier\t**')
+        learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
+                          optimizer=optimizer)
+        learner.train()
+        gpr = learner.model
+        alpha = gpr.get_alpha(seed=args.seed, opt='l1reg')
+        # alpha = gpr.get_alpha(seed=args.seed, opt='seqth')
+        plt.hist(alpha)
+        plt.show()
+    else:
+        alpha = args.alpha
     if args.loocv:  # directly calculate the LOOCV
         if Config.TrainingSetSelectRule.RANDOM_Para.get('ratio') is not None:
             raise Exception('for loocv, Config.TrainingSetSelectRule.RANDOM_Para[\'ratio\'] need to set to None')
-        learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
+        learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=alpha,
                           optimizer=optimizer)
         if args.continued:
             learner.model.load(result_dir)
@@ -155,7 +166,7 @@ def main():
         print('mse: %.5f' % mse)
         out.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False, float_format='%15.10f')
     else:
-        learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=args.alpha,
+        learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=alpha,
                           optimizer=optimizer)
         if args.continued:
             learner.model.load(result_dir)
