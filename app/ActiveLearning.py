@@ -66,7 +66,8 @@ class Learner:
             return x
 
     @staticmethod
-    def evaluate_df(x, y, y_pred, y_std, kernel=None, X_train=None, debug=True, vis_coef=False, t_min=None, t_max=None):
+    def evaluate_df(x, y, y_pred, y_std, kernel=None, X_train=None, debug=True, vis_coef=False, t_min=None, t_max=None,
+                    alpha=None):
         if vis_coef:
             def VTFval(t, coeff):
                 import numpy as np
@@ -101,7 +102,8 @@ class Learner:
             out['uncertainty'] = y_std
             out['abs_dev'] = abs(y - y_pred).mean(axis=1)
             out['rel_dev'] = abs((y - y_pred) / y).mean(axis=1)
-
+        if alpha is not None:
+            out.loc[:, 'alpha'] = alpha
         df_x = Learner.get_x_df(x)
         df_x.loc[:, 'smiles'] = df_x.graph.apply(get_smiles)
         out = pd.concat([out, df_x.drop(columns='graph')], axis=1)
@@ -138,7 +140,7 @@ class Learner:
             y = np.exp(y_pred)
             y_pred = np.exp(y_pred)
         return self.evaluate_df(x, y, y_pred, y_std, kernel=self.model.kernel_, X_train=self.train_X, debug=debug,
-                                vis_coef=vis_coef, t_min=t_min, t_max=t_max)
+                                vis_coef=vis_coef, t_min=t_min, t_max=t_max, alpha=self.model.alpha)
 
     def evaluate_test(self, ylog=False, debug=True):
         x = self.test_X
