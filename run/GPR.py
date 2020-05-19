@@ -62,7 +62,10 @@ def main():
     parser.add_argument('--size', type=int, help='training size, 0 for all', default=0)
     parser.add_argument('--continued', help='whether continue training', action='store_true')
     parser.add_argument('--precompute', help='using saved kernel value', action='store_true')
-    parser.add_argument('--loocv', help='compute the loocv for this dataset', action='store_true')
+    parser.add_argument('--loocv', help='compute the leave one out cross validation for this dataset',
+                        action='store_true')
+    parser.add_argument('--lomocv', help='compute the leave one molecule out cross validation for this dataset',
+                        action='store_true')
     parser.add_argument('--ylog', help='Using log scale of target value', action='store_true')
     parser.add_argument('--y_min', type=float, help='', default=None)
     parser.add_argument('--y_max', type=float, help='', default=None)
@@ -165,6 +168,32 @@ def main():
         print('explained variance score: %.5f' % ex_var)
         print('mse: %.5f' % mse)
         out.to_csv('%s/loocv.log' % result_dir, sep='\t', index=False, float_format='%15.10f')
+    elif args.lomocv:
+        if Config.TrainingSetSelectRule.RANDOM_Para.get('ratio') is not None:
+            raise Exception('for lomocv, Config.TrainingSetSelectRule.RANDOM_Para[\'ratio\'] need to set to None')
+        groups = df_train.groupby('inchi')
+        outlist = []
+        for group in groups:
+            train_X, train_Y = get_XY_from_df(df_train[~df_train.inchi.isin([group[0]])], kernel_config,
+                                              property=args.property)
+            test_X, test_Y = get_XY_from_df(group[1], kernel_config, property=args.property)
+            if args.ylog:
+                train_Y = np.log(train_Y)
+                test_Y = np.log(test_Y)
+            learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=alpha,
+                              optimizer=optimizer)
+            learner.train()
+            r2, ex_var, mse, out_ = learner.evaluate_test(ylog=args.ylog)
+            outlist.append(out_)
+        out = pd.concat(outlist, axis=0).reset_index().drop(columns='index')
+        r2 = r2_score(out['#target'], out['predict'])
+        ex_var = explained_variance_score(out['#target'], out['predict'])
+        mse = mean_squared_error(out['#target'], out['predict'])
+        print('Loocv:')
+        print('score: %.5f' % r2)
+        print('explained variance score: %.5f' % ex_var)
+        print('mse: %.5f' % mse)
+        out.to_csv('%s/lomocv.log' % result_dir, sep='\t', index=False, float_format='%15.10f')
     else:
         learner = Learner(train_X, train_Y, test_X, test_Y, kernel_config.kernel, seed=args.seed, alpha=alpha,
                           optimizer=optimizer)

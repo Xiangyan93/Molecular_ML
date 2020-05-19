@@ -16,15 +16,15 @@ class Config:
         h_bounds = (h, h)
         s = 2.0
         s_bounds = (s, s)
-        knode = TensorProduct(aromatic=KroneckerDelta(h, h_bounds),
+        knode = TensorProduct(symbol=KroneckerDelta(0.75, (0.75, 0.75)),
+                              aromatic=KroneckerDelta(h, h_bounds),
                               charge=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
-                              element=KroneckerDelta(0.75, (0.75, 0.75)),
                               hcount=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
                               chiral=KroneckerDelta(h, h_bounds),
                               smallest_ring=KroneckerDelta(h, h_bounds),
                               ring_number=KroneckerDelta(h, h_bounds),
                               )
-        kedge = TensorProduct(order=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
+        kedge = TensorProduct(bondorder=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
                               stereo=KroneckerDelta(h, h_bounds),
                               conjugated=KroneckerDelta(h, h_bounds),
                               ringstereo=KroneckerDelta(h, h_bounds),

@@ -301,7 +301,7 @@ def inchi2graph(inchi):
 
         for i, atom in enumerate(mol.GetAtoms()):
             g.add_node(atom.GetIdx())
-            g.nodes[i]['element'] = atom.GetAtomicNum()
+            g.nodes[i]['symbol'] = atom.GetAtomicNum()
             g.nodes[i]['charge'] = atom.GetFormalCharge()
             g.nodes[i]['hcount'] = atom.GetTotalNumHs()
             g.nodes[i]['aromatic'] = atom.GetIsAromatic()
@@ -317,7 +317,7 @@ def inchi2graph(inchi):
         for bond in mol.GetBonds():
             ij = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
             g.add_edge(*ij)
-            g.edges[ij]['order'] = bond.GetBondTypeAsDouble()
+            g.edges[ij]['bondorder'] = bond.GetBondTypeAsDouble()
             g.edges[ij]['aromatic'] = bond.GetIsAromatic()
             g.edges[ij]['conjugated'] = bond.GetIsConjugated()
             g.edges[ij]['stereo'] = bond.GetStereo()
