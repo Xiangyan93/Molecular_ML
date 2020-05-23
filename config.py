@@ -17,7 +17,7 @@ class Config:
     class Hyperpara:  # initial hyperparameter used in graph kernel
         k1 = 0.90
         k1_bounds = (k1, k1)
-        k2 = 0.90
+        k2 = 0.75
         k2_bounds = (k2, k2)
         s = 2.0
         s_bounds = (s, s)
@@ -26,12 +26,12 @@ class Config:
                               charge=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
                               hcount=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
                               chiral=KroneckerDelta(k1, k1_bounds),
-                              ringlist=Convolution(KroneckerDelta(k2, k2_bounds))
+                              ring_list=Convolution(KroneckerDelta(k2, k2_bounds))
                               )
-        kedge = TensorProduct(bondorder=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
+        kedge = TensorProduct(bond_order=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
                               stereo=KroneckerDelta(k1, k1_bounds),
                               conjugated=KroneckerDelta(k1, k1_bounds),
-                              ringstereo=KroneckerDelta(k1, k1_bounds),
+                              ring_stereo=KroneckerDelta(k1, k1_bounds),
                               )
 
         stop_prob = 0.05

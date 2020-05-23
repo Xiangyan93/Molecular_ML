@@ -315,7 +315,7 @@ def inchi2graph(inchi):
             g.nodes[i]['hcount'] = atom.GetTotalNumHs()
             g.nodes[i]['aromatic'] = atom.GetIsAromatic()
             g.nodes[i]['hybridization'] = atom.GetHybridization()
-            g.nodes[i]['ringlist'] = get_ringlist(mol, atom)
+            g.nodes[i]['ring_list'] = get_ringlist(mol, atom)
             g.nodes[i]['ring_number'] = mol.GetRingInfo().NumAtomRings(atom.GetIdx())
             g.nodes[i]['smallest_ring'] = mol.GetRingInfo().MinAtomRingSize(atom.GetIdx())
             g.nodes[i]['morgan_hash'] = atomidx_hash_dict[atom.GetIdx()]
@@ -327,11 +327,11 @@ def inchi2graph(inchi):
         for bond in mol.GetBonds():
             ij = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
             g.add_edge(*ij)
-            g.edges[ij]['bondorder'] = bond.GetBondTypeAsDouble()
+            g.edges[ij]['bond_order'] = bond.GetBondTypeAsDouble()
             g.edges[ij]['aromatic'] = bond.GetIsAromatic()
             g.edges[ij]['conjugated'] = bond.GetIsConjugated()
             g.edges[ij]['stereo'] = bond.GetStereo()
-            g.edges[ij]['ringstereo'] = 0.
+            g.edges[ij]['ring_stereo'] = 0.
 
         bond_orientation_dict = get_bond_orientation_dict(mol)
         for ring_idx in mol.GetRingInfo().AtomRings():
@@ -356,7 +356,7 @@ def inchi2graph(inchi):
                     idx2 = b + k + 1 if b + k + 1 < len(ring_idx) else b + k + 1 - len(ring_idx)
                     ij = (ring_idx[idx1], ring_idx[idx2])
                     ij = (min(ij), max(ij))
-                    g.edges[ij]['ringstereo'] = StereoOfRingBond
+                    g.edges[ij]['ring_stereo'] = StereoOfRingBond
 
         graph = HashGraph.from_networkx_(g, smiles)
         return graph

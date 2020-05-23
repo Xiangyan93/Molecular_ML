@@ -12,7 +12,6 @@ CWD = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_df(fn):
-    '''
     data_dir = os.path.join(CWD, 'data')
     if not os.path.exists(data_dir):
         os.mkdir(data_dir)
@@ -27,9 +26,6 @@ def get_df(fn):
         df = pd.read_csv(fn, sep='\s+', header=0)
         df['graph'] = df['inchi'].apply(inchi2graph)
         df.to_pickle(pkl)
-    '''
-    df = pd.read_csv(fn, sep='\s+', header=0)
-    df['graph'] = df['inchi'].apply(inchi2graph)
     return df
 
 
