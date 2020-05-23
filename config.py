@@ -1,7 +1,10 @@
 import os
-from graphdot.kernel.basekernel import TensorProduct
-from graphdot.kernel.basekernel import SquareExponential
-from graphdot.kernel.basekernel import KroneckerDelta
+from graphdot.kernel.basekernel import (
+    TensorProduct,
+    SquareExponential,
+    KroneckerDelta,
+    Convolution
+)
 
 CWD = os.path.dirname(os.path.abspath(__file__))
 
@@ -12,22 +15,23 @@ class Config:
     DEBUG = False
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
-        h = 0.90
-        h_bounds = (h, h)
+        k1 = 0.90
+        k1_bounds = (k1, k1)
+        k2 = 0.90
+        k2_bounds = (k2, k2)
         s = 2.0
         s_bounds = (s, s)
-        knode = TensorProduct(symbol=KroneckerDelta(0.75, (0.75, 0.75)),
-                              aromatic=KroneckerDelta(h, h_bounds),
+        knode = TensorProduct(symbol=KroneckerDelta(k2, k2_bounds),
+                              aromatic=KroneckerDelta(k1, k1_bounds),
                               charge=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
                               hcount=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
-                              chiral=KroneckerDelta(h, h_bounds),
-                              smallest_ring=KroneckerDelta(h, h_bounds),
-                              ring_number=KroneckerDelta(h, h_bounds),
+                              chiral=KroneckerDelta(k1, k1_bounds),
+                              ringlist=Convolution(KroneckerDelta(k2, k2_bounds))
                               )
         kedge = TensorProduct(bondorder=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
-                              stereo=KroneckerDelta(h, h_bounds),
-                              conjugated=KroneckerDelta(h, h_bounds),
-                              ringstereo=KroneckerDelta(h, h_bounds),
+                              stereo=KroneckerDelta(k1, k1_bounds),
+                              conjugated=KroneckerDelta(k1, k1_bounds),
+                              ringstereo=KroneckerDelta(k1, k1_bounds),
                               )
 
         stop_prob = 0.05

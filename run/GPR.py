@@ -12,12 +12,14 @@ CWD = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_df(fn):
+    '''
     data_dir = os.path.join(CWD, 'data')
     if not os.path.exists(data_dir):
         os.mkdir(data_dir)
 
     pkl = fn.split('/')[-1].split('.')[0] + '.pkl'
     pkl = os.path.join(data_dir, pkl)
+    print(pkl)
     if os.path.exists(pkl):
         print('reading existing pkl file: %s' % pkl)
         df = pd.read_pickle(pkl)
@@ -25,6 +27,9 @@ def get_df(fn):
         df = pd.read_csv(fn, sep='\s+', header=0)
         df['graph'] = df['inchi'].apply(inchi2graph)
         df.to_pickle(pkl)
+    '''
+    df = pd.read_csv(fn, sep='\s+', header=0)
+    df['graph'] = df['inchi'].apply(inchi2graph)
     return df
 
 

@@ -281,6 +281,15 @@ def get_atom_ring_stereo(mol, atom, ring_idx, depth=5, bond_orientation_dict=Non
             return 0
 
 
+def get_ringlist(mol, atom):
+    ringlist = [0]
+    atomrings = mol.GetRingInfo().AtomRings()
+    for ring in atomrings:
+        if atom.GetIdx() in ring:
+            ringlist.append(len(ring))
+    return tuple(ringlist)
+
+
 def inchi2graph(inchi):
     mol = Chem.MolFromInchi(inchi)
     smiles = Chem.MolToSmiles(mol)
@@ -306,6 +315,7 @@ def inchi2graph(inchi):
             g.nodes[i]['hcount'] = atom.GetTotalNumHs()
             g.nodes[i]['aromatic'] = atom.GetIsAromatic()
             g.nodes[i]['hybridization'] = atom.GetHybridization()
+            g.nodes[i]['ringlist'] = get_ringlist(mol, atom)
             g.nodes[i]['ring_number'] = mol.GetRingInfo().NumAtomRings(atom.GetIdx())
             g.nodes[i]['smallest_ring'] = mol.GetRingInfo().MinAtomRingSize(atom.GetIdx())
             g.nodes[i]['morgan_hash'] = atomidx_hash_dict[atom.GetIdx()]
