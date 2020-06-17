@@ -3,15 +3,12 @@ from graphdot.kernel.basekernel import (
     TensorProduct,
     SquareExponential,
     KroneckerDelta,
-    Convolution
+    Convolution,
 )
-
-CWD = os.path.dirname(os.path.abspath(__file__))
 
 
 class Config:
-    GRAPHDOT_DIR = os.path.join(CWD, '..', 'GraphDot')
-    MS_TOOLS_DIR = os.path.join(CWD, '..', 'AIMS_Tools')
+    CWD = os.path.dirname(os.path.abspath(__file__))
     DEBUG = False
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
@@ -21,24 +18,26 @@ class Config:
         k2_bounds = (k2, k2)
         s = 2.0
         s_bounds = (s, s)
-        knode = TensorProduct(symbol=KroneckerDelta(k2, k2_bounds),
-                              aromatic=KroneckerDelta(k1, k1_bounds),
-                              charge=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
-                              hcount=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
-                              chiral=KroneckerDelta(k1, k1_bounds),
-                              ring_list=Convolution(KroneckerDelta(k2, k2_bounds))
-                              )
-        kedge = TensorProduct(bond_order=SquareExponential(length_scale=s, length_scale_bounds=s_bounds),
-                              stereo=KroneckerDelta(k1, k1_bounds),
-                              conjugated=KroneckerDelta(k1, k1_bounds),
-                              ring_stereo=KroneckerDelta(k1, k1_bounds),
-                              )
+        knode = TensorProduct(
+            symbol=KroneckerDelta(k2, k2_bounds),
+            aromatic=KroneckerDelta(k1, k1_bounds),
+            charge=SquareExponential(length_scale=s,
+                                     length_scale_bounds=s_bounds),
+            hcount=SquareExponential(length_scale=s,
+                                     length_scale_bounds=s_bounds),
+            chiral=KroneckerDelta(k1, k1_bounds),
+            ring_list=Convolution(KroneckerDelta(k2, k2_bounds))
+        )
+        kedge = TensorProduct(
+            bond_order=SquareExponential(length_scale=s,
+                                         length_scale_bounds=s_bounds),
+            stereo=KroneckerDelta(k1, k1_bounds),
+            conjugated=KroneckerDelta(k1, k1_bounds),
+            ring_stereo=KroneckerDelta(k1, k1_bounds),
+        )
 
-        stop_prob = 0.05
-        stop_prob_bound = (stop_prob, stop_prob)
-
-        T = 300
-        P = 1000
+        q = 0.05  # q is the stop probability in ramdom walk
+        q_bound = (q, q)
 
     class NystromPara:
         off_diagonal_cutoff = 0.9
@@ -49,7 +48,7 @@ class Config:
     class TrainingSetSelectRule:
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
-            'ratio': None
+            'ratio': 1.0
         }
 
         ACTIVE_LEARNING_Para = {

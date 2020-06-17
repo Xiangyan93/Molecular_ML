@@ -1,15 +1,9 @@
-import sys
 import numpy as np
 import networkx as nx
 from treelib import Tree
 from rdkit.Chem import AllChem as Chem
 from graphdot.minipandas import DataFrame
 from graphdot import Graph
-
-sys.path.append('..')
-from config import *
-
-sys.path.append(Config.MS_TOOLS_DIR)
 
 
 class HashGraph(Graph):

@@ -31,9 +31,14 @@ import math
 import pickle
 import os
 from config import Config
-from app.kernel import get_core_idx
-from app.solver import CholSolver
-from app.optimizer import ensemble, sequential_threshold, l1_regularization, vanilla_lbfgs
+from codes.kernel import get_core_idx
+from codes.solver import CholSolver
+from codes.optimizer import (
+    ensemble,
+    sequential_threshold,
+    l1_regularization,
+    vanilla_lbfgs
+)
 
 
 class GPR(GaussianProcessRegressor):

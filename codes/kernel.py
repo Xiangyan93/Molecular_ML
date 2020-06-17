@@ -1,24 +1,11 @@
-import sys
 import copy
-import numpy as np
-import pandas as pd
-import re
-import sklearn.gaussian_process as gp
-from sklearn.gaussian_process.kernels import *
-from sklearn.gaussian_process.kernels import _check_length_scale, _num_samples
-
-sys.path.append('..')
-from app.smiles import *
-from config import *
-
-sys.path.append(Config.GRAPHDOT_DIR)
-from graphdot.kernel.marginalized import MarginalizedGraphKernel
-from graphdot.kernel.basekernel import TensorProduct
-from graphdot.kernel.basekernel import SquareExponential
-from graphdot.kernel.basekernel import KroneckerDelta
-from sklearn.cluster import SpectralClustering
-from app.property import *
 import pickle
+import pandas as pd
+import sklearn.gaussian_process as gp
+from graphdot.kernel.marginalized import MarginalizedGraphKernel
+from sklearn.cluster import SpectralClustering
+from codes.smiles import *
+from config import *
 
 
 class NormalizedGraphKernel(MarginalizedGraphKernel):
@@ -68,7 +55,8 @@ class PreCalcMarginalizedGraphKernel(MarginalizedGraphKernel):
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if self.K is None or eval_gradient:
-            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args, **kwargs)
+            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args,
+                                    **kwargs)
         else:
             X_idx = np.searchsorted(self.graphs, X)
             if Y is not None:
@@ -90,7 +78,8 @@ class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if self.K is None or eval_gradient:
-            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args, **kwargs)
+            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args,
+                                    **kwargs)
         else:
             X_idx = np.searchsorted(self.graphs, X)
             if Y is not None:
@@ -116,7 +105,8 @@ class MultipleKernel:
         if X.__class__ == pd.DataFrame:
             X = X.to_numpy()
         X = X[:, s:e]
-        if self.kernel_list[i].__class__ in [MarginalizedGraphKernel, NormalizedGraphKernel,
+        if self.kernel_list[i].__class__ in [MarginalizedGraphKernel,
+                                             NormalizedGraphKernel,
                                              PreCalcNormalizedGraphKernel]:
             X = X.transpose().tolist()[0]
         return X
@@ -126,7 +116,8 @@ class MultipleKernel:
             if more_info:
                 print('start a new optimization step')
             covariance_matrix = 1
-            gradient_matrix_list = list(map(int, np.ones(self.nkernel).tolist()))
+            gradient_matrix_list = list(
+                map(int, np.ones(self.nkernel).tolist()))
             for i, kernel in enumerate(self.kernel_list):
                 Xi = self.get_X_for_ith_kernel(X, i)
                 Yi = self.get_X_for_ith_kernel(Y, i) if Y is not None else None
@@ -135,14 +126,17 @@ class MultipleKernel:
                     covariance_matrix *= output[0]
                     for j in range(self.nkernel):
                         if j == i:
-                            gradient_matrix_list[j] = gradient_matrix_list[j] * output[1]
+                            gradient_matrix_list[j] = gradient_matrix_list[j] * \
+                                                      output[1]
                         else:
                             shape = output[0].shape + (1,)
-                            gradient_matrix_list[j] = gradient_matrix_list[j] * output[0].reshape(shape)
+                            gradient_matrix_list[j] = gradient_matrix_list[j] * \
+                                                      output[0].reshape(shape)
             gradient_matrix = gradient_matrix_list[0]
             for i, gm in enumerate(gradient_matrix_list):
                 if i != 0:
-                    gradient_matrix = np.c_[gradient_matrix, gradient_matrix_list[i]]
+                    gradient_matrix = np.c_[
+                        gradient_matrix, gradient_matrix_list[i]]
             return covariance_matrix, gradient_matrix
         else:
             covariance_matrix = 1
@@ -226,25 +220,49 @@ class MultipleKernel:
 
 
 class KernelConfig:
-    def __init__(self, NORMALIZED=True, T=False, P=False, theta=None):
+    def __init__(self, NORMALIZED=True, T=None, P=None, theta=None):
         self.T = T
         self.P = P
         # define node and edge kernelets
         knode = Config.Hyperpara.knode
         kedge = Config.Hyperpara.kedge
-        stop_prob = Config.Hyperpara.stop_prob
-        stop_prob_bound = Config.Hyperpara.stop_prob_bound
+        stop_prob = Config.Hyperpara.q
+        stop_prob_bound = Config.Hyperpara.q_bound
         if NORMALIZED:
-            graph_kernel = PreCalcNormalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
+            graph_kernel = PreCalcNormalizedGraphKernel(
+                knode,
+                kedge,
+                q=stop_prob,
+                q_bounds=stop_prob_bound
+            )
         else:
-            graph_kernel = PreCalcMarginalizedGraphKernel(knode, kedge, q=stop_prob, q_bounds=stop_prob_bound)
+            graph_kernel = PreCalcMarginalizedGraphKernel(
+                knode,
+                kedge,
+                q=stop_prob,
+                q_bounds=stop_prob_bound
+            )
 
-        if P and T:
-            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(Config.Hyperpara.T, (1e-3, 1e3))
-                                          * gp.kernels.RBF(Config.Hyperpara.P, (1e-3, 1e3))], [1, 2], 'product')
-        elif T or P:
-            self.kernel = MultipleKernel([graph_kernel, gp.kernels.RBF(Config.Hyperpara.T, (1e-3, 1e3))]
-                                         , [1, 1], 'product')
+        if T is not None and P is not None:
+            self.kernel = MultipleKernel(
+                [graph_kernel,
+                 gp.kernels.RBF(T, (1e-3, 1e3)) *
+                 gp.kernels.RBF(P, (1e-3, 1e3))],
+                [1, 2],
+                'product'
+            )
+        elif T is not None:
+            self.kernel = MultipleKernel(
+                [graph_kernel, gp.kernels.RBF(T, (1e-3, 1e3))],
+                [1, 1],
+                'product'
+            )
+        elif P is not None:
+            self.kernel = MultipleKernel(
+                [graph_kernel, gp.kernels.RBF(P, (1e-3, 1e3))],
+                [1, 1],
+                'product'
+            )
         else:
             self.kernel = graph_kernel
 
@@ -253,6 +271,7 @@ class KernelConfig:
             with open(theta, 'rb') as file:
                 theta = pickle.load(file)
             self.kernel = self.kernel.clone_with_theta(theta)
+
 
 '''
 def datafilter(df, ratio=None, remove_inchi=None, seed=233, y=None, y_min=None, y_max=None, std=None):
@@ -344,27 +363,6 @@ def get_XY_from_file(file, kernel_config, property, ratio=None, remove_inchi=Non
 '''
 
 
-def get_XY_from_df(df, kernel_config, coef=False, property=None):
-    if kernel_config.P:
-        X = df[['graph', 'T', 'P']].to_numpy()
-    elif kernel_config.T:
-        X = df[['graph', 'T']].to_numpy()
-    else:
-        X = df['graph'].to_numpy()
-
-    if coef:
-        def fun(c):
-            return list(map(float, c.split(',')))
-        Y = np.array(df['coef'].apply(fun).to_list())
-    else:
-        Y = df[property].to_numpy()
-
-    if df.size == 0:
-        X = Y = None
-
-    return [X, Y]
-
-
 def get_subset_by_clustering(X, kernel, ncluster):
     ''' find representative samples from a pool using clustering method
     :X: a list of graphs
@@ -375,17 +373,22 @@ def get_subset_by_clustering(X, kernel, ncluster):
     if len(X) < ncluster:
         return X
     gram_matrix = kernel(X)
-    result = SpectralClustering(n_clusters=ncluster, affinity='precomputed').fit_predict(gram_matrix)  # cluster result
-    total_distance = {i: {} for i in range(ncluster)}  # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
+    result = SpectralClustering(n_clusters=ncluster,
+                                affinity='precomputed').fit_predict(
+        gram_matrix)  # cluster result
+    total_distance = {i: {} for i in range(
+        ncluster)}  # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
     for i in range(len(X)):  # get all in-class distance sum of each item
         cluster_class = result[i]
-        total_distance[cluster_class][np.sum((np.array(result) == cluster_class) * 1 / gram_matrix[i])] = i
+        total_distance[cluster_class][np.sum(
+            (np.array(result) == cluster_class) * 1 / gram_matrix[i])] = i
     add_idx = [total_distance[i][min(total_distance[i].keys())] for i in
                range(ncluster)]  # find min-in-cluster-distance associated idx
     return np.array(add_idx)
 
 
-def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500, method='suggest'):
+def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500,
+                 method='suggest'):
     np.random.seed(1)
     N = X.shape[0]
     if X.__class__ == pd.DataFrame or X.__class__ == pd.Series:
@@ -399,7 +402,8 @@ def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500, method='sugge
         C_idx_ = [0] if skip == 0 else list(range(skip))
         for m in range(K.shape[0]):
             # sys.stdout.write('\r %i / %i' % (i, N))
-            if m >= skip and (K[m][C_idx_] / np.sqrt(K_diag[m] * K_diag[C_idx_])).max() < off_diagonal_cutoff:
+            if m >= skip and (K[m][C_idx_] / np.sqrt(
+                    K_diag[m] * K_diag[C_idx_])).max() < off_diagonal_cutoff:
                 C_idx_.append(m)
             if len(C_idx_) > core_max:
                 break
@@ -439,7 +443,8 @@ def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500, method='sugge
         idx1 = randN
         idx2 = get_C_idx(kernel(X_idx(X, idx1)))
         C_idx = idx1[idx2]
-        print('%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N))
+        print('%i / %i data are chosen as core in Nystrom approximation' % (
+        len(C_idx), N))
     elif method == 'memory_save':
         """
         O(m2) complexity. Suggest when X is large.
@@ -452,13 +457,15 @@ def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500, method='sugge
         for i in randN:
             sys.stdout.write('\r %i / %i' % (i, N))
             diag = kernel.diag(X[i:i + 1])
-            if (kernel(X[i:i + 1], C) / np.sqrt(diag * C_diag)).max() < off_diagonal_cutoff:
+            if (kernel(X[i:i + 1], C) / np.sqrt(
+                    diag * C_diag)).max() < off_diagonal_cutoff:
                 C = np.r_[C, X[i:i + 1]]
                 C_diag = np.r_[C_diag, diag]
                 C_idx.append(i)
             if len(C_idx) > core_max:
                 break
-        print('\n%i / %i data are chosen as core in Nystrom approximation' % (len(C_idx), N))
+        print('\n%i / %i data are chosen as core in Nystrom approximation' % (
+        len(C_idx), N))
     elif method == 'clustering':
         """
         Not suggest. 
@@ -466,9 +473,13 @@ def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500, method='sugge
         """
         _C_idx = get_subset_by_clustering(X, kernel, ncluster=500)
         N = len(_C_idx)
-        print('%i / %i data are chosen by clustering as core in Nystrom approximation' % (len(_C_idx), X.shape[0]))
+        print(
+            '%i / %i data are chosen by clustering as core in Nystrom approximation' % (
+            len(_C_idx), X.shape[0]))
         C_idx = get_C_idx(kernel(X[_C_idx]))
-        print('%i / %i data are furthur selected to avoid numerical explosion' % (len(C_idx), N))
+        print(
+            '%i / %i data are furthur selected to avoid numerical explosion' % (
+            len(C_idx), N))
     elif method == 'random':
         C_idx = randN[:core_max]
     else:

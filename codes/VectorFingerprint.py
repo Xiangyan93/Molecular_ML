@@ -4,7 +4,7 @@ import pandas as pd
 
 sys.path.append('..')
 from config import *
-from app.property import *
+from code.property import *
 
 sys.path.append(Config.MS_TOOLS_DIR)
 from mstools.smiles.fingerprint import *
