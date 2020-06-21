@@ -22,18 +22,22 @@ def get_smiles(graph):
 
 
 class Learner:
-    def __init__(self, train_X, train_Y, test_X, test_Y, kernel, core_X=None,
-                 core_Y=None, seed=0, optimizer=None, alpha=0.01):
+    def __init__(self, train_X, train_Y, train_smiles,
+                 test_X, test_Y, test_smiles, kernel_config,
+                 core_X=None, core_Y=None, seed=0, optimizer=None, alpha=0.01):
         self.train_X = train_X
         self.train_Y = train_Y
+        self.train_smiles = train_smiles
         self.test_X = test_X
         self.test_Y = test_Y
+        self.test_smiles = test_smiles
         self.core_X = core_X
         self.core_Y = core_Y
-        self.kernel = kernel
+        self.kernel_config = kernel_config
+        self.kernel = kernel_config.kernel
         self.optimizer = optimizer
         if core_X is None:
-            self.model = RobustFitGaussianProcessRegressor(kernel=kernel,
+            self.model = RobustFitGaussianProcessRegressor(kernel=self.kernel,
                                                            random_state=seed,
                                                            optimizer=optimizer,
                                                            normalize_y=True,
@@ -41,7 +45,7 @@ class Learner:
         else:
             if optimizer is not None:
                 raise Exception('Nystrom can only be used with None optimizer')
-            self.model = NystromGaussianProcessRegressor(kernel=kernel,
+            self.model = NystromGaussianProcessRegressor(kernel=self.kernel,
                                                          random_state=seed,
                                                          optimizer=None,
                                                          alpha=alpha,
@@ -56,26 +60,10 @@ class Learner:
             self.model.fit_robust(self.train_X, self.train_Y, Xc=self.core_X,
                                   yc=self.core_Y)
 
-    @staticmethod
-    def get_x_df(x):
-        if x.__class__ == pd.Series:
-            return pd.DataFrame({x.name: x})
-        elif x.__class__ == np.ndarray:
-            if len(x.shape) == 1:
-                return pd.DataFrame({'graph': x})
-            elif len(x.shape) == 2:
-                df = pd.DataFrame({'graph': x[:, 0]})
-                if x.shape[1] > 1:
-                    df['T'] = x[:, 1]
-                if x.shape[1] > 2:
-                    df['P'] = x[:, 2]
-                return df
-        else:
-            return x
-
-    @staticmethod
-    def evaluate_df(x, y, y_pred, y_std, kernel=None, X_train=None, debug=True,
-                    vis_coef=False, t_min=None, t_max=None, alpha=None):
+    def evaluate_df(self, x, y, smiles, y_pred, y_std, kernel=None,
+                    debug=True,
+                    vis_coef=False, t_min=None,
+                    t_max=None, alpha=None):
         if vis_coef:
             def VTFval(t, coeff):
                 import numpy as np
@@ -83,7 +71,7 @@ class Learner:
             n = 10
             t_list = np.linspace(t_min, t_max, n)
             for i, _t_list in enumerate(t_list):
-                x_df = Learner.get_x_df(x)
+                x_df = self.get_x_df(x)
                 x_df['T'] = _t_list
                 if i == 0:
                     X = x_df.to_numpy()
@@ -95,7 +83,8 @@ class Learner:
                     vis = np.r_[vis, VTFval(_t_list, y.T)]
                     vis_pred = np.r_[vis_pred, VTFval(_t_list, y_pred.T)]
                     Y_std = np.r_[Y_std, y_std]
-            return Learner.evaluate_df(X, vis, vis_pred, Y_std, debug=False)
+            return Learner.evaluate_df(X, vis, smiles, vis_pred, Y_std,
+                                       debug=False)
         r2 = r2_score(y, y_pred)
         ex_var = explained_variance_score(y, y_pred)
         mse = mean_squared_error(y, y_pred)
@@ -115,17 +104,25 @@ class Learner:
             out['rel_dev'] = abs((y - y_pred) / y).mean(axis=1)
         if alpha is not None:
             out.loc[:, 'alpha'] = alpha
-        df_x = Learner.get_x_df(x)
-        df_x.loc[:, 'smiles'] = df_x.graph.apply(get_smiles)
-        out = pd.concat([out, df_x.drop(columns='graph')], axis=1)
+        out.loc[:, 'smiles'] = smiles
+        if self.kernel_config.T and self.kernel_config.P:
+            out.loc[:, 'T'] = x[:, -2]
+            out.loc[:, 'P'] = x[:, -1]
+        elif self.kernel_config.T:
+            out.loc[:, 'T'] = x[:, -1]
+        elif self.kernel_config.P:
+            out.loc[:, 'P'] = x[:, -1]
         if debug:
-            K = kernel(x, X_train)
+            K = kernel(x, self.train_X)
             info_list = []
-            kindex = np.argsort(-K)[:, :min(5, len(X_train))]
-            for s in np.copy(X_train):
-                if not np.iterable(s):
-                    s = np.array([s])
-                s[0] = get_smiles(s[0])
+            kindex = np.argsort(-K)[:, :min(5, len(self.train_X))]
+            for i, x in enumerate(np.copy(self.train_X)):
+                if self.kernel_config.T and self.kernel_config.P:
+                    s = np.array([self.train_smiles[i], x[-2], x[-1]])
+                elif self.kernel_config.T or self.kernel_config.P:
+                    s = np.array([self.train_smiles[i], x[-1]])
+                else:
+                    s = np.array([self.train_smiles[i]])
                 s = list(map(str, s))
                 info_list.append(','.join(s))
             info_list = np.array(info_list)
@@ -142,7 +139,7 @@ class Learner:
             out.loc[:, 'similar_mols'] = similar_data
         return r2, ex_var, mse, out.sort_values(by='abs_dev', ascending=False)
 
-    def evaluate(self, x, y, ylog=False, debug=True, loocv=False,
+    def evaluate(self, x, y, smiles, ylog=False, debug=True, loocv=False,
                  vis_coef=False, t_min=None, t_max=None, alpha=None):
         if loocv:
             y_pred, y_std = self.model.predict_loocv(x, y, return_std=True)
@@ -151,38 +148,43 @@ class Learner:
         if ylog:
             y = np.exp(y_pred)
             y_pred = np.exp(y_pred)
-        return self.evaluate_df(x, y, y_pred, y_std, kernel=self.model.kernel_,
-                                X_train=self.train_X, debug=debug,
+        return self.evaluate_df(x, y, smiles, y_pred, y_std,
+                                kernel=self.model.kernel_,
+                                debug=debug,
                                 vis_coef=vis_coef, t_min=t_min,
                                 t_max=t_max, alpha=alpha)
 
     def evaluate_test(self, ylog=False, debug=True):
         x = self.test_X
         y = self.test_Y
-        return self.evaluate(x, y, ylog=ylog, debug=debug)
+        smiles = self.test_smiles
+        return self.evaluate(x, y, smiles, ylog=ylog, debug=debug)
 
     def evaluate_train(self, ylog=False, debug=True):
         x = self.train_X
         y = self.train_Y
+        smiles = self.train_smiles
         return self.evaluate(
-            x, y, ylog=ylog, debug=debug, alpha=self.model.alpha
+            x, y, smiles, ylog=ylog, debug=debug, alpha=self.model.alpha
         )
 
     def evaluate_loocv(self, ylog=False, debug=True, vis_coef=False, t_min=None,
                        t_max=None):
         x = self.train_X
         y = self.train_Y
-        return self.evaluate(x, y, ylog=ylog, debug=debug, loocv=True,
+        smiles = self.train_smiles
+        return self.evaluate(x, y, smiles, ylog=ylog, debug=debug, loocv=True,
                              vis_coef=vis_coef, t_min=t_min, t_max=t_max)
 
 
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
-    def __init__(self, train_X, train_Y, alpha, kernel, learning_mode,
-                 add_mode, initial_size, add_size, max_size, search_size,
-                 pool_size, name, nystrom_size=3000,
+    def __init__(self, train_X, train_Y, train_smiles, alpha, kernel,
+                 learning_mode, add_mode, initial_size, add_size, max_size,
+                 search_size, pool_size, name, nystrom_size=3000,
                  nystrom_add_size=3000, test_X=None, test_Y=None,
+                 test_smiles=None,
                  random_init=True, optimizer=None, stride=100, seed=0,
                  nystrom_active=False, nystrom_predict=False, ylog=False,
                  core_threshold=0.5):
@@ -199,8 +201,10 @@ class ActiveLearner:
         '''
         self.train_X = train_X
         self.train_Y = train_Y
+        self.train_smiles = train_smiles
         self.test_X = test_X
         self.test_Y = test_Y
+        self.test_smiles = test_smiles
         if np.iterable(alpha):
             self.init_alpha = alpha
         else:
@@ -276,8 +280,9 @@ class ActiveLearner:
     def __get_train_X_y(self):
         train_x = self.train_X[self.train_idx]
         train_y = self.train_Y[self.train_idx]
+        smiles = self.train_smiles[self.train_idx]
         alpha = self.init_alpha[self.train_idx]
-        return train_x, train_y, alpha
+        return train_x, train_y, smiles, alpha
 
     def __get_untrain_X_y(self, full=True):
         untrain_idx = np.delete(self.train_IDX, self.train_idx)
@@ -303,12 +308,14 @@ class ActiveLearner:
         # continue needs to be added soon
         np.random.seed(self.seed)
         print('%s' % (time.asctime(time.localtime(time.time()))))
-        train_x, train_y, alpha = self.__get_train_X_y()
+        train_x, train_y, smiles, alpha = self.__get_train_X_y()
         self.learner = Learner(
             train_x,
             train_y,
+            smiles,
             self.test_X,
             self.test_Y,
+            self.test_smiles,
             self.kernel,
             seed=self.seed,
             alpha=alpha,

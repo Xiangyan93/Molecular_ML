@@ -19,7 +19,7 @@ class Config:
         s = 2.0
         s_bounds = (s, s)
         knode = TensorProduct(
-            symbol=KroneckerDelta(k2, k2_bounds),
+            atomic_number=KroneckerDelta(k2, k2_bounds),
             aromatic=KroneckerDelta(k1, k1_bounds),
             charge=SquareExponential(length_scale=s,
                                      length_scale_bounds=s_bounds),
@@ -29,8 +29,8 @@ class Config:
             ring_list=Convolution(KroneckerDelta(k2, k2_bounds))
         )
         kedge = TensorProduct(
-            bond_order=SquareExponential(length_scale=s,
-                                         length_scale_bounds=s_bounds),
+            order=SquareExponential(length_scale=s,
+                                    length_scale_bounds=s_bounds),
             stereo=KroneckerDelta(k1, k1_bounds),
             conjugated=KroneckerDelta(k1, k1_bounds),
             ring_stereo=KroneckerDelta(k1, k1_bounds),

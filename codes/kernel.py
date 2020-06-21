@@ -99,28 +99,14 @@ class MultipleKernel:
     def nkernel(self):
         return len(self.kernel_list)
 
-    def get_X_for_ith_kernel(self, X, i):
-        s = sum(self.composition[0:i])
-        e = sum(self.composition[0:i + 1])
-        if X.__class__ == pd.DataFrame:
-            X = X.to_numpy()
-        X = X[:, s:e]
-        if self.kernel_list[i].__class__ in [MarginalizedGraphKernel,
-                                             NormalizedGraphKernel,
-                                             PreCalcNormalizedGraphKernel]:
-            X = X.transpose().tolist()[0]
-        return X
-
-    def __call__(self, X, Y=None, eval_gradient=False, more_info=False):
+    def __call__(self, X, Y=None, eval_gradient=False):
         if eval_gradient:
-            if more_info:
-                print('start a new optimization step')
             covariance_matrix = 1
             gradient_matrix_list = list(
                 map(int, np.ones(self.nkernel).tolist()))
             for i, kernel in enumerate(self.kernel_list):
-                Xi = self.get_X_for_ith_kernel(X, i)
-                Yi = self.get_X_for_ith_kernel(Y, i) if Y is not None else None
+                Xi = X[i]
+                Yi = Y[i] if Y is not None else None
                 output = kernel(Xi, Y=Yi, eval_gradient=True)
                 if self.combined_rule == 'product':
                     covariance_matrix *= output[0]
@@ -150,12 +136,11 @@ class MultipleKernel:
 
     def diag(self, X):
         for i, kernel in enumerate(self.kernel_list):
-            Xi = self.get_X_for_ith_kernel(X, i)
             if i == 0:
-                diag = kernel.diag(Xi)
+                diag = kernel.diag(X[i])
             else:
                 if self.combined_rule == 'product':
-                    diag *= kernel.diag(Xi)
+                    diag *= kernel.diag(X[i])
         return diag
 
     def is_stationary(self):
@@ -219,8 +204,16 @@ class MultipleKernel:
         )
 
 
-class KernelConfig:
-    def __init__(self, NORMALIZED=True, T=None, P=None, theta=None):
+class ConvolutionGraphKernel:
+    def __init__(self, kernel, composition):
+        self.kernel = kernel
+        self.composition = composition
+    # to be finished
+
+
+class GraphKernelConfig:
+    def __init__(self, NORMALIZED=True, T=None, P=None, theta=None,
+                 CONVOLUTION=False):
         self.T = T
         self.P = P
         # define node and edge kernelets
@@ -228,21 +221,37 @@ class KernelConfig:
         kedge = Config.Hyperpara.kedge
         stop_prob = Config.Hyperpara.q
         stop_prob_bound = Config.Hyperpara.q_bound
-        if NORMALIZED:
-            graph_kernel = PreCalcNormalizedGraphKernel(
-                knode,
-                kedge,
-                q=stop_prob,
-                q_bounds=stop_prob_bound
-            )
-        else:
-            graph_kernel = PreCalcMarginalizedGraphKernel(
-                knode,
-                kedge,
-                q=stop_prob,
-                q_bounds=stop_prob_bound
-            )
 
+        if CONVOLUTION:  # to be finished
+            if NORMALIZED:
+                graph_kernel = PreCalcNormalizedConvolutionGraphKernel(
+                    knode,
+                    kedge,
+                    q=stop_prob,
+                    q_bounds=stop_prob_bound
+                )
+            else:
+                graph_kernel = PreCalcConvolutionGraphKernel(
+                    knode,
+                    kedge,
+                    q=stop_prob,
+                    q_bounds=stop_prob_bound
+                )
+        else:
+            if NORMALIZED:
+                graph_kernel = PreCalcNormalizedGraphKernel(
+                    knode,
+                    kedge,
+                    q=stop_prob,
+                    q_bounds=stop_prob_bound
+                )
+            else:
+                graph_kernel = PreCalcMarginalizedGraphKernel(
+                    knode,
+                    kedge,
+                    q=stop_prob,
+                    q_bounds=stop_prob_bound
+                )
         if T is not None and P is not None:
             self.kernel = MultipleKernel(
                 [graph_kernel,
@@ -271,96 +280,6 @@ class KernelConfig:
             with open(theta, 'rb') as file:
                 theta = pickle.load(file)
             self.kernel = self.kernel.clone_with_theta(theta)
-
-
-'''
-def datafilter(df, ratio=None, remove_inchi=None, seed=233, y=None, y_min=None, y_max=None, std=None):
-    np.random.seed(seed)
-    N = len(df)
-    if y_min is not None:
-        df = df.loc[df[y] > y_min]
-    if y_max is not None:
-        df = df.loc[df[y] < y_max]
-    if std is not None:
-        df = df.loc[df[y + '_u'] / df[y] < std]
-    print('%i / %i data are not reliable and removed' % (N-len(df), N))
-    if ratio is not None:
-        unique_inchi_list = df.inchi.unique().tolist()
-        random_inchi_list = np.random.choice(unique_inchi_list, int(len(unique_inchi_list) * ratio), replace=False)
-        df = df[df.inchi.isin(random_inchi_list)]
-    elif remove_inchi is not None:
-        df = df[~df.inchi.isin(remove_inchi)]
-    return df
-
-
-def get_train_df(df):
-    return 1
-
-
-def get_TP_extreme(df, P=True, T=True):
-    if not T:
-        return df
-    group = df.groupby('SMILES')
-    df_ = None
-    for x in group:
-        data_ = x[1]
-        Tex = [data_['T'].min(), data_['T'].max()]
-        if P:
-            Pex = [data_['P'].min(), data_['P'].max()]
-            finaldata = data_[(data_['T'].isin(Tex)) & (data_['P'].isin(Pex))]
-        else:
-            finaldata = data_[data_['T'].isin(Tex)]
-        if df_ is None:
-            df_ = finaldata
-        else:
-            df_ = df_.append(finaldata)
-    return df_
-
-
-def get_XY_from_file(file, kernel_config, property, ratio=None, remove_inchi=None, TPextreme=False, seed=233,
-                     y_min=None, y_max=None, std=None, coef=False):
-    if not os.path.exists('data'):
-        os.mkdir('data')
-    original_filename = re.split('\.', file)[0] + '.pkl'
-    if 'data' in original_filename:
-        pkl_file = original_filename
-    else:
-        pkl_file = os.path.join('data', original_filename)
-
-    if os.path.exists(pkl_file):
-        print('reading existing data file: %s' % pkl_file)
-        df = pd.read_pickle(pkl_file)
-    else:
-        df = pd.read_csv(file, sep='\s+', header=0)
-        df['graph'] = df['inchi'].apply(inchi2graph)
-        df.to_pickle(pkl_file)
-
-    df = datafilter(df, ratio=ratio, remove_inchi=remove_inchi, seed=seed, y=property, y_min=y_min, y_max=y_max,
-                    std=std)
-    # only select the data with extreme temperature and pressure
-    if TPextreme:
-        df = get_TP_extreme(df, T=kernel_config.T, P=kernel_config.P)
-
-    if kernel_config.P:
-        X = df[['graph', 'T', 'P']]
-    elif kernel_config.T:
-        X = df[['graph', 'T']]
-    else:
-        X = df['graph']
-
-    if coef:
-        def fun(coef):
-            coef = list(map(float, coef.split(',')))
-            return coef
-        Y = np.array(df['coef'].apply(fun).to_list())
-
-    if df.size == 0:
-        X = Y = None
-    output = [X, Y]
-    if remove_inchi is None:
-        output.append(df.inchi.unique())
-    return output
-'''
 
 
 def get_subset_by_clustering(X, kernel, ncluster):

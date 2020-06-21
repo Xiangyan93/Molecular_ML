@@ -4,12 +4,8 @@ import pandas as pd
 
 sys.path.append('..')
 from config import *
-from code.property import *
 
-sys.path.append(Config.MS_TOOLS_DIR)
-from mstools.smiles.fingerprint import *
-
-
+'''
 class Fingerprint:
     def __init__(self):
         self.bit_count = {}
@@ -103,9 +99,8 @@ class TOPOL(SubstructureFingerprint):
         return 'topol,minPath=%i,maxPath=%i' % (self.minPath, self.maxPath)
 
 
-class VectorFPConfig(PropertyConfig):
-    def __init__(self, type, para, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class VectorFPConfig:
+    def __init__(self, type, para):
         # self.type = type
         # self.para = para
         if type == 'morgan':
@@ -113,7 +108,7 @@ class VectorFPConfig(PropertyConfig):
                 self.fp = MORGAN(radius=para['radius'])
             else:
                 self.fp = ECFP(radius=para['radius'], nBits=para['nBits'])
-        if type == 'topol':
+        elif type == 'topol':
             if para['nBits'] is None:
                 self.fp = TOPOL(minPath=para['minPath'], maxPath=para['maxPath'])
             else:
@@ -122,9 +117,6 @@ class VectorFPConfig(PropertyConfig):
     @property
     def descriptor(self):
         return '%s,%s' % (self.property, self.fp.descriptor)
-
-
-from .kernel import get_TP_extreme
 
 
 def get_XY_from_file(file, vector_fp_config, ratio=None, remove_smiles=None, get_smiles=False, TPextreme=False):
@@ -164,3 +156,4 @@ def get_XY_from_file(file, vector_fp_config, ratio=None, remove_smiles=None, get
     if get_smiles:
         output.append(df['SMILES'])
     return output
+'''

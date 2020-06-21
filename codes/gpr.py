@@ -51,7 +51,7 @@ class GPR(GaussianProcessRegressor):
             if hasattr(self.kernel, 'kernel_list'):
                 self.kernel_.kernel_list[0].graphs = self.kernel.kernel_list[0].graphs
                 self.kernel_.kernel_list[0].K = self.kernel.kernel_list[0].K
-            else:
+            elif hasattr(self.kernel, 'graphs'):
                 self.kernel_.graphs = self.kernel.graphs
                 self.kernel_.K = self.kernel.K
 

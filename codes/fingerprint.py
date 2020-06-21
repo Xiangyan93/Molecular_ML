@@ -1,51 +1,34 @@
-from .smiles import *
+import numpy as np
 from rdkit.Chem import AllChem as Chem
 from rdkit.Chem.AtomPairs import Pairs
 from rdkit.Chem.AtomPairs import Torsions
+import sklearn.gaussian_process as gp
 
 
-def get_fingerprint(smiles, type, nBits=None, radius=1, minPath=1, maxPath=7,
-                    useFeatures=False, hash=False):
+def get_fingerprint(rdk_mol, type='morgan', nBits=None,
+                    radius=1, useFeatures=False,  # morgan
+                    minPath=1, maxPath=7,  # rdk
+                    hash=False  # torsion
+                    ):
     if type == 'rdk':
         if nBits is None:  # output a dict :{identifier: occurance}
             return Chem.UnfoldedRDKFingerprintCountBased(
-                Chem.MolFromSmiles(smiles),
+                rdk_mol,
                 minPath=minPath,
                 maxPath=maxPath
             ).GetNonzeroElements()
         else:  # output a string: '01010101'
             return Chem.RDKFingerprint(
-                Chem.MolFromSmiles(smiles),
+                rdk_mol,
                 minPath=minPath,
                 maxPath=maxPath,
                 fpSize=nBits
             ).ToBitString()
-    elif type == 'pair':
-        if nBits is None:
-            return Pairs.GetAtomPairFingerprintAsIntVect(
-                Chem.MolFromSmiles(smiles)
-            ).GetNonzeroElements()
-        else:
-            return Pairs.GetAtomPairFingerprintAsBitVect(
-                Chem.MolFromSmiles(smiles)
-            ).ToBitString()
-    elif type == 'torsion':
-        if nBits is None:
-            if hash:
-                return Torsions.GetHashedTopologicalTorsionFingerprint(
-                    Chem.MolFromSmiles(smiles)
-                ).GetNonzeroElements()
-            else:
-                return Torsions.GetTopologicalTorsionFingerprintAsIntVect(
-                    Chem.MolFromSmiles(smiles)
-                ).GetNonzeroElements()
-        else:
-            return None
     elif type == 'morgan':
         if nBits is None:
             info = dict()
             Chem.GetMorganFingerprint(
-                Chem.MolFromSmiles(smiles),
+                rdk_mol,
                 radius,
                 bitInfo=info,
                 useFeatures=useFeatures
@@ -55,11 +38,135 @@ def get_fingerprint(smiles, type, nBits=None, radius=1, minPath=1, maxPath=7,
             return info
         else:
             return Chem.GetMorganFingerprintAsBitVect(
-                Chem.MolFromSmiles(smiles),
+                rdk_mol,
                 radius,
                 nBits=nBits,
                 useFeatures=useFeatures
             ).ToBitString()
+    elif type == 'pair':
+        if nBits is None:
+            return Pairs.GetAtomPairFingerprintAsIntVect(
+                rdk_mol
+            ).GetNonzeroElements()
+        else:
+            return Pairs.GetAtomPairFingerprintAsBitVect(
+                rdk_mol
+            ).ToBitString()
+    elif type == 'torsion':
+        if nBits is None:
+            if hash:
+                return Torsions.GetHashedTopologicalTorsionFingerprint(
+                    rdk_mol
+                ).GetNonzeroElements()
+            else:
+                return Torsions.GetTopologicalTorsionFingerprintAsIntVect(
+                    rdk_mol
+                ).GetNonzeroElements()
+        else:
+            return None
+
+
+class SubstructureFingerprint:
+    def __init__(self, type='rdk', nBits=None, radius=1, minPath=1, maxPath=7):
+        self.type = type
+        self.nBits = nBits
+        self.radius = radius
+        self.minPath = minPath
+        self.maxPath = maxPath
+
+    def get_fp_list(self, inchi_list, size=None):
+        fp_list = []
+        if self.nBits is None:
+            hash_list = []
+            _fp_list = []
+            for inchi in inchi_list:
+                rdk_mol = Chem.MolFromInchi(inchi)
+                fp = get_fingerprint(rdk_mol, type=self.type, nBits=self.nBits,
+                                     radius=self.radius,
+                                     minPath=self.minPath, maxPath=self.maxPath)
+                _fp_list.append(fp)
+                for key in fp.keys():
+                    if key not in hash_list:
+                        hash_list.append(key)
+            hash_list.sort()
+
+            for _fp in _fp_list:
+                fp = []
+                for hash in hash_list:
+                    if hash in _fp.keys():
+                        fp.append(_fp[hash])
+                    else:
+                        fp.append(0)
+                fp_list.append(fp)
+            fp = np.array(fp_list)
+            if size is not None and size < fp.shape[1]:
+                idx = np.argsort((fp < 0.5).astype(int).sum(axis=0))[:size]
+                return np.array(fp_list)[:, idx]
+            else:
+                return np.array(fp_list)
+        else:
+            for inchi in inchi_list:
+                rdk_mol = Chem.MolFromInchi(inchi)
+                fp = get_fingerprint(rdk_mol, type=self.type, nBits=self.nBits,
+                                     radius=self.radius,
+                                     minPath=self.minPath, maxPath=self.maxPath)
+                fp = list(map(int, list(fp)))
+                fp_list.append(fp)
+            return np.array(fp_list)
+'''
+class MORGAN(SubstructureFingerprint):
+    def __init__(self, type='morgan', radius=1, *args, **kwargs):
+        super().__init__(type=type, radius=radius, *args, **kwargs)
+
+    @property
+    def descriptor(self):
+        return 'morgan,radius=%i' % self.radius
+
+
+class TOPOL(SubstructureFingerprint):
+    def __init__(self, type='rdk', minPath=1, maxPath=7, *args, **kwargs):
+        super().__init__(
+            type=type,
+            minPath=minPath,
+            maxPath=maxPath,
+            *args, **kwargs
+        )
+
+    @property
+    def descriptor(self):
+        return 'topol,minPath=%i,maxPath=%i' % (self.minPath, self.maxPath)
+'''
+
+
+class VectorFPConfig:
+    def __init__(self, type,
+                 nBits=None, size=None,
+                 radius=2,  # parameters when type = 'morgan'
+                 minPath=1, maxPath=7,  # parameters when type = 'topol'
+                 T=None, P=None
+                 ):
+        self.fp = SubstructureFingerprint(
+            type=type,
+            nBits=nBits,
+            radius=radius,
+            minPath=minPath,
+            maxPath=maxPath
+        )
+        self.size = size
+        self.T = T
+        self.P = P
+
+    def get_kernel(self, inchi_list):
+        self.X = self.fp.get_fp_list(inchi_list, size=self.size)
+        print(self.X)
+        kernel_size = self.X.shape[1]
+        if self.T:
+            kernel_size += 1
+        if self.P:
+            kernel_size += 1
+        self.kernel = gp.kernels.RBF(
+            length_scale=np.ones(kernel_size),
+        )
 
 '''
 def get_local_structure(smiles, radius=1):

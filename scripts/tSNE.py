@@ -27,7 +27,7 @@ def main():
         os.mkdir(os.path.join(CWD, 'tSNE'))
     if args.type == 'graph_kernel':
         df = get_df(args.input)
-        df = df_filter(df, seed=0, ratio=None, y_min=args.y_min, y_max=args.y_max, std=args.y_std,
+        df = df_filter(df, seed=0, ratio=None, min=args.y_min, max=args.y_max, std=args.y_std,
                        property=args.property)
         kernel_config = KernelConfig(NORMALIZED=True, T=df.get('T') is not None, P=df.get('P') is not None)
         descriptor = args.property
