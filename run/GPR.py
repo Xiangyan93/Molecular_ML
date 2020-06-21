@@ -259,7 +259,7 @@ def main():
             score=args.score,
             ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio']
         )
-    print(train_X.shape)
+
     print('***\tStart: hyperparameters optimization.\t***')
     if args.alpha_outlier:
         print('**\treset alpha based on outlier\t**')

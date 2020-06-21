@@ -158,7 +158,6 @@ class VectorFPConfig:
 
     def get_kernel(self, inchi_list):
         self.X = self.fp.get_fp_list(inchi_list, size=self.size)
-        print(self.X)
         kernel_size = self.X.shape[1]
         if self.T:
             kernel_size += 1
