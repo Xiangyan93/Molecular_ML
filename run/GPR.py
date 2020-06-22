@@ -30,7 +30,7 @@ def df_filter(df, ratio=None, seed=0, properties=[], min=None, max=None,
               std=None, score=None):
     np.random.seed(seed)
     N = len(df)
-    for i, p in properties:
+    for i, p in enumerate(properties):
         if min is not None:
             df = df.loc[df[p] > min[i]]
         if max is not None:

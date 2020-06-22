@@ -146,7 +146,7 @@ class Learner:
         else:
             y_pred, y_std = self.model.predict(x, return_std=True)
         if ylog:
-            y = np.exp(y_pred)
+            y = np.exp(y)
             y_pred = np.exp(y_pred)
         return self.evaluate_df(x, y, smiles, y_pred, y_std,
                                 kernel=self.model.kernel_,

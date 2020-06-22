@@ -127,8 +127,8 @@ class MultipleKernel:
         else:
             covariance_matrix = 1
             for i, kernel in enumerate(self.kernel_list):
-                Xi = self.get_X_for_ith_kernel(X, i)
-                Yi = self.get_X_for_ith_kernel(Y, i) if Y is not None else None
+                Xi = X[i]
+                Yi = Y[i] if Y is not None else None
                 output = kernel(Xi, Y=Yi, eval_gradient=False)
                 if self.combined_rule == 'product':
                     covariance_matrix *= output
