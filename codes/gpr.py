@@ -132,12 +132,12 @@ class GPR(GaussianProcessRegressor):
                 raise
             self.alpha_ = cho_solve((self.L_, True), self.y_train_)  # Line 3
         return self
-
+    '''
     def predict(self, X, return_std=False, return_cov=False):
         if return_cov:
             return super().predict(X, return_std=return_std, return_cov=return_cov)
         else:
-            if X.__class__ != np.ndarray:
+            if X.__class__ == pd.DataFrame:
                 X = X.to_numpy()
             N = X.shape[0]
             y_mean = None
@@ -157,7 +157,7 @@ class GPR(GaussianProcessRegressor):
                 return y_mean, y_std
             else:
                 return y_mean
-
+    '''
     def save(self, result_dir):
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
