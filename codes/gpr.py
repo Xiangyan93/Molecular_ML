@@ -57,13 +57,6 @@ class GPR(GaussianProcessRegressor):
 
         self._rng = check_random_state(self.random_state)
 
-        if self.kernel_.requires_vector_input:
-            X, y = check_X_y(X, y, multi_output=True, y_numeric=True,
-                             ensure_2d=True, dtype="numeric")
-        else:
-            X, y = check_X_y(X, y, multi_output=True, y_numeric=True,
-                             ensure_2d=False, dtype=None)
-
         # Normalize target value
         if self.normalize_y:
             self._y_train_mean = np.mean(y, axis=0)
@@ -80,8 +73,8 @@ class GPR(GaussianProcessRegressor):
                                  " with same number of entries as y.(%d != %d)"
                                  % (self.alpha.shape[0], y.shape[0]))
 
-        self.X_train_ = np.copy(X) if self.copy_X_train else X
-        self.y_train_ = np.copy(y) if self.copy_X_train else y
+        self.X_train_ = X
+        self.y_train_ = y
         if self.optimizer is not None and self.kernel_.n_dims > 0:
             # Choose hyperparameters based on maximizing the log-marginal
             # likelihood (potentially starting from several initial values)

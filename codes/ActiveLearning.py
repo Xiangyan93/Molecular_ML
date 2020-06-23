@@ -15,6 +15,7 @@ from codes.gpr import (
     RobustFitGaussianProcessRegressor,
     NystromGaussianProcessRegressor
 )
+from codes.kernel import MultipleKernel
 
 
 def get_smiles(graph):
@@ -60,6 +61,26 @@ class Learner:
             self.model.fit_robust(self.train_X, self.train_Y, Xc=self.core_X,
                                   yc=self.core_Y)
 
+    def get_out(self, x, smiles):
+        out = pd.DataFrame({'smiles': smiles})
+        if self.kernel.__class__ == MultipleKernel:
+            if self.kernel_config.T and self.kernel_config.P:
+                out.loc[:, 'T'] = x[1][:, -2]
+                out.loc[:, 'P'] = x[1][:, -1]
+            elif self.kernel_config.T:
+                out.loc[:, 'T'] = x[1][:, -1]
+            elif self.kernel_config.P:
+                out.loc[:, 'P'] = x[1][:, -1]
+        else:
+            if self.kernel_config.T and self.kernel_config.P:
+                out.loc[:, 'T'] = x[:, -2]
+                out.loc[:, 'P'] = x[:, -1]
+            elif self.kernel_config.T:
+                out.loc[:, 'T'] = x[:, -1]
+            elif self.kernel_config.P:
+                out.loc[:, 'P'] = x[:, -1]
+        return out
+
     def evaluate_df(self, x, y, smiles, y_pred, y_std, kernel=None,
                     debug=True,
                     vis_coef=False, t_min=None,
@@ -104,25 +125,18 @@ class Learner:
             out['rel_dev'] = abs((y - y_pred) / y).mean(axis=1)
         if alpha is not None:
             out.loc[:, 'alpha'] = alpha
-        out.loc[:, 'smiles'] = smiles
-        if self.kernel_config.T and self.kernel_config.P:
-            out.loc[:, 'T'] = x[:, -2]
-            out.loc[:, 'P'] = x[:, -1]
-        elif self.kernel_config.T:
-            out.loc[:, 'T'] = x[:, -1]
-        elif self.kernel_config.P:
-            out.loc[:, 'P'] = x[:, -1]
+        xout = self.get_out(x, smiles)
+        out = pd.concat([out, xout], axis=1)
         if debug:
             K = kernel(x, self.train_X)
             info_list = []
             kindex = np.argsort(-K)[:, :min(5, len(self.train_X))]
-            for i, x in enumerate(np.copy(self.train_X)):
-                if self.kernel_config.T and self.kernel_config.P:
-                    s = np.array([self.train_smiles[i], x[-2], x[-1]])
-                elif self.kernel_config.T or self.kernel_config.P:
-                    s = np.array([self.train_smiles[i], x[-1]])
-                else:
-                    s = np.array([self.train_smiles[i]])
+            for i, smiles in enumerate(self.train_smiles):
+                s = [smiles]
+                if self.kernel_config.T:
+                    s.append(xout['T'][i])
+                if self.kernel_config.P:
+                    s.append(xout['P'][i])
                 s = list(map(str, s))
                 info_list.append(','.join(s))
             info_list = np.array(info_list)

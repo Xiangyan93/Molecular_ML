@@ -134,8 +134,9 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
         kernel_config,
         properties=property.split(',')
     )
+
     if test_X is None:
-        test_X = np.copy(train_X)
+        test_X = train_X
         test_Y = np.copy(train_Y)
     if ylog:
         train_Y = np.log(train_Y)
