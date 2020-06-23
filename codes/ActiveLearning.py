@@ -125,10 +125,10 @@ class Learner:
             out['rel_dev'] = abs((y - y_pred) / y).mean(axis=1)
         if alpha is not None:
             out.loc[:, 'alpha'] = alpha
-        xout = self.get_out(x, smiles)
-        out = pd.concat([out, xout], axis=1)
+        out = pd.concat([out, self.get_out(x, smiles)], axis=1)
         if debug:
             K = kernel(x, self.train_X)
+            xout = self.get_out(self.train_X, self.train_smiles)
             info_list = []
             kindex = np.argsort(-K)[:, :min(5, len(self.train_X))]
             for i, smiles in enumerate(self.train_smiles):

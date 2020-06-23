@@ -70,7 +70,7 @@ def get_XY_from_df(df, kernel_config, properties=None):
             X = np.concatenate([X, df[['T']].to_numpy()], axis=1)
         elif kernel_config.P:
             X = np.concatenate([X, df[['P']].to_numpy()], axis=1)
-    smiles = df.inchi.apply(inchi2smiles)
+    smiles = df.inchi.apply(inchi2smiles).to_numpy()
     Y = df[properties].to_numpy()
     return [X, Y, smiles]
 
