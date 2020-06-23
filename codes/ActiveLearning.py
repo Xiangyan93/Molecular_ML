@@ -109,6 +109,7 @@ class Learner:
         r2 = r2_score(y, y_pred)
         ex_var = explained_variance_score(y, y_pred)
         mse = mean_squared_error(y, y_pred)
+        print(y.shape)
         if len(y.shape) == 1:
             out = pd.DataFrame({'#target': y,
                                 'predict': y_pred,
