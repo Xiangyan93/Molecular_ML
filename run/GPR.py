@@ -320,12 +320,12 @@ def main():
         groups = df_train.groupby('inchi')
         outlist = []
         for group in groups:
-            train_X, train_Y = get_XY_from_df(
+            train_X, train_Y, train_smiles = get_XY_from_df(
                 df_train[~df_train.inchi.isin([group[0]])],
                 kernel_config,
                 properties=args.property.split(',')
             )
-            test_X, test_Y = get_XY_from_df(
+            test_X, test_Y, test_smiles = get_XY_from_df(
                 group[1],
                 kernel_config,
                 properties=args.property.split(',')
