@@ -280,11 +280,6 @@ def main():
     else:
         alpha = args.alpha
     if args.mode == 'loocv':  # directly calculate the LOOCV
-        if Config.TrainingSetSelectRule.RANDOM_Para.get('ratio') != 1:
-            raise Exception(
-                'for loocv, Config.TrainingSetSelectRule.RANDOM_Para[\'ratio\']'
-                ' need to set to 1'
-            )
         learner = Learner(train_X, train_Y, train_smiles, test_X, test_Y,
                           test_smiles, kernel_config, seed=args.seed,
                           alpha=alpha, optimizer=optimizer)
