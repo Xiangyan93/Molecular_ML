@@ -92,24 +92,24 @@ class Learner:
             n = 10
             t_list = np.linspace(t_min, t_max, n)
             for i, _t_list in enumerate(t_list):
-                x_df = self.get_x_df(x)
-                x_df['T'] = _t_list
+                x_df = pd.DataFrame({'graph': x, 'T': _t_list})
                 if i == 0:
                     X = x_df.to_numpy()
                     vis = VTFval(_t_list, y.T)
                     vis_pred = VTFval(_t_list, y_pred.T)
                     Y_std = y_std
+                    smiles_list = smiles
                 else:
                     X = np.r_[X, x_df.to_numpy()]
                     vis = np.r_[vis, VTFval(_t_list, y.T)]
                     vis_pred = np.r_[vis_pred, VTFval(_t_list, y_pred.T)]
                     Y_std = np.r_[Y_std, y_std]
-            return Learner.evaluate_df(X, vis, smiles, vis_pred, Y_std,
-                                       debug=False)
+                    smiles_list = np.r_[smiles_list, smiles]
+            return self.evaluate_df(X, vis, smiles_list, vis_pred, Y_std,
+                                    debug=False)
         r2 = r2_score(y, y_pred)
         ex_var = explained_variance_score(y, y_pred)
         mse = mean_squared_error(y, y_pred)
-        print(y.shape)
         if len(y.shape) == 1:
             out = pd.DataFrame({'#target': y,
                                 'predict': y_pred,
