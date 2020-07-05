@@ -257,6 +257,10 @@ def main():
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
     result_dir = os.path.join(CWD, 'result-%s' % args.name)
+    if args.mode in ['loocv', 'lomocv']:
+        ratio = 1.0
+    else:
+        ratio = Config.TrainingSetSelectRule.RANDOM_Para['ratio']
     df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
     test_smiles, kernel_config = \
         read_input(
@@ -269,7 +273,7 @@ def main():
             ylog=args.ylog,
             min=args.y_min, max=args.y_max, std=args.y_std,
             score=args.score,
-            ratio=Config.TrainingSetSelectRule.RANDOM_Para['ratio']
+            ratio=ratio
         )
 
     print('***\tStart: hyperparameters optimization.\t***')

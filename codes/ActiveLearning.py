@@ -82,31 +82,7 @@ class Learner:
         return out
 
     def evaluate_df(self, x, y, smiles, y_pred, y_std, kernel=None,
-                    debug=True,
-                    vis_coef=False, t_min=None,
-                    t_max=None, alpha=None):
-        if vis_coef:
-            def VTFval(t, coeff):
-                import numpy as np
-                return np.exp(coeff[0] + coeff[2] / (t - coeff[1]))
-            n = 10
-            t_list = np.linspace(t_min, t_max, n)
-            for i, _t_list in enumerate(t_list):
-                x_df = pd.DataFrame({'graph': x, 'T': _t_list})
-                if i == 0:
-                    X = x_df.to_numpy()
-                    vis = VTFval(_t_list, y.T)
-                    vis_pred = VTFval(_t_list, y_pred.T)
-                    Y_std = y_std
-                    smiles_list = smiles
-                else:
-                    X = np.r_[X, x_df.to_numpy()]
-                    vis = np.r_[vis, VTFval(_t_list, y.T)]
-                    vis_pred = np.r_[vis_pred, VTFval(_t_list, y_pred.T)]
-                    Y_std = np.r_[Y_std, y_std]
-                    smiles_list = np.r_[smiles_list, smiles]
-            return self.evaluate_df(X, vis, smiles_list, vis_pred, Y_std,
-                                    debug=False)
+                    debug=False, alpha=None):
         r2 = r2_score(y, y_pred)
         ex_var = explained_variance_score(y, y_pred)
         mse = mean_squared_error(y, y_pred)
@@ -154,8 +130,8 @@ class Learner:
             out.loc[:, 'similar_mols'] = similar_data
         return r2, ex_var, mse, out.sort_values(by='abs_dev', ascending=False)
 
-    def evaluate(self, x, y, smiles, ylog=False, debug=True, loocv=False,
-                 vis_coef=False, t_min=None, t_max=None, alpha=None):
+    def evaluate(self, x, y, smiles, ylog=False, debug=False, loocv=False,
+                 alpha=None):
         if loocv:
             y_pred, y_std = self.model.predict_loocv(x, y, return_std=True)
         else:
@@ -164,18 +140,16 @@ class Learner:
             y = np.exp(y)
             y_pred = np.exp(y_pred)
         return self.evaluate_df(x, y, smiles, y_pred, y_std,
-                                kernel=self.model.kernel_,
-                                debug=debug,
-                                vis_coef=vis_coef, t_min=t_min,
-                                t_max=t_max, alpha=alpha)
+                                kernel=self.model.kernel_, debug=debug,
+                                alpha=alpha)
 
-    def evaluate_test(self, ylog=False, debug=True):
+    def evaluate_test(self, ylog=False, debug=False):
         x = self.test_X
         y = self.test_Y
         smiles = self.test_smiles
         return self.evaluate(x, y, smiles, ylog=ylog, debug=debug)
 
-    def evaluate_train(self, ylog=False, debug=True):
+    def evaluate_train(self, ylog=False, debug=False):
         x = self.train_X
         y = self.train_Y
         smiles = self.train_smiles
@@ -183,14 +157,54 @@ class Learner:
             x, y, smiles, ylog=ylog, debug=debug, alpha=self.model.alpha
         )
 
-    def evaluate_loocv(self, ylog=False, debug=True, vis_coef=False, t_min=None,
-                       t_max=None):
+    def evaluate_loocv(self, ylog=False, debug=False):
         x = self.train_X
         y = self.train_Y
         smiles = self.train_smiles
-        return self.evaluate(x, y, smiles, ylog=ylog, debug=debug, loocv=True,
-                             vis_coef=vis_coef, t_min=t_min, t_max=t_max)
+        return self.evaluate(x, y, smiles, ylog=ylog, debug=debug, loocv=True)
 
+    def evaluate_loocv_coef(self, txt, property):
+        def VTFval(t, coefs):
+            import numpy as np
+            return np.exp(coefs[0] + coefs[2] / (t - coefs[1]))
+
+        def stval(t, coefs):
+            return coefs[0] * (1 - t / coefs[2]) ** coefs[1]
+
+        def pvapval(t, coefs):
+            return 10 ** (coefs[0] - coefs[1] / t)
+        x = self.train_X
+        y = self.train_Y
+        y_pred, y_std = self.model.predict_loocv(x, y, return_std=True)
+        smiles = self.train_smiles
+        df = pd.read_csv(txt, sep='\s+')
+        for i, s in enumerate(smiles):
+            dfs = df[df.SMILES == s]
+            if len(dfs) == 0:
+                continue
+            t_list = dfs['T']
+            y_list = dfs[property]
+            if property == 'vis':
+                y_pred_ = VTFval(t_list, y_pred[i])
+            elif property == 'st':
+                y_pred_ = stval(t_list, y_pred[i])
+            elif property == 'pvap':
+                y_pred_ = pvapval(t_list, y_pred[i])
+            x_df = pd.DataFrame({'graph': np.array(x[i]).repeat(len(dfs)),
+                                 'T': t_list})
+            if i == 0:
+                X = x_df.to_numpy()
+                Y = y_list
+                Y_pred = y_pred_
+                Y_std = np.array(y_std[i]).repeat(len(dfs))
+                smiles_list = np.array(y_std[i]).repeat(len(dfs))
+            else:
+                X = np.r_[X, x_df.to_numpy()]
+                Y = np.r_[Y, y_list]
+                Y_pred = np.r_[Y_pred, y_pred_]
+                Y_std = np.r_[Y_std, np.array(y_std[i]).repeat(len(dfs))]
+                smiles_list = np.r_[smiles_list, np.array(y_std[i]).repeat(len(dfs))]
+        return self.evaluate_df(X, Y, smiles_list, Y_pred, Y_std, debug=False)
 
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
