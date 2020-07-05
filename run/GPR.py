@@ -79,7 +79,7 @@ def get_XY_from_df(df, kernel_config, properties=None):
 
 
 def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
-               kernel='graph',
+               kernel='graph', NORMALIZED=True,
                nBits=None, size=None,
                ratio=1.0,
                temperature=None, pressure=None,
@@ -100,7 +100,7 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
 
     if kernel == 'graph':
         kernel_config = GraphKernelConfig(
-            NORMALIZED=True,
+            NORMALIZED=NORMALIZED,
             T=temperature,
             P=pressure,
             theta=theta
@@ -230,12 +230,20 @@ def main():
         help='reset alpha based on outlier',
     )
     parser.add_argument(
+        '--alpha_exp', action='store_true',
+        help='set alpha based on experimental uncertainty',
+    )
+    parser.add_argument(
         '--theta', type=str, default=None,
         help='theta.pkl',
     )
     parser.add_argument(
         '--kernel', type=str, default='graph',
         help='Kernel: graph, vector',
+    )
+    parser.add_argument(
+        '--normalized', action='store_true',
+        help='use normalized kernel',
     )
     parser.add_argument(
         '--vector_nBits', type=int, default=None,
@@ -253,7 +261,7 @@ def main():
     test_smiles, kernel_config = \
         read_input(
             args.input, args.property, result_dir,
-            kernel=args.kernel,
+            kernel=args.kernel, NORMALIZED=args.normalized,
             nBits=args.vector_nBits, size=args.vector_size,
             theta=args.theta, seed=args.seed, optimizer=optimizer,
             temperature=args.temperature, pressure=args.pressure,
@@ -277,6 +285,9 @@ def main():
         # alpha = gpr.get_alpha(seed=args.seed, opt='seqth')
         plt.hist(alpha)
         plt.show()
+    elif args.alpha_exp:
+        alpha = (df_train['%s_u' % args.property] / df_train[args.property]) \
+                ** 2 * kernel_config.kernel.diag(train_X)
     else:
         alpha = args.alpha
     if args.mode == 'loocv':  # directly calculate the LOOCV
@@ -286,6 +297,23 @@ def main():
         learner.train()
         learner.model.save(result_dir)
         if args.property == 'c1,c2,c3':
+            r2, ex_var, mse, out = learner.evaluate_loocv(
+                ylog=args.ylog,
+                vis_coef=True,
+                t_min=df_train['t_min'],
+                t_max=df_train['t_max']
+            )
+            print('Loocv:')
+            print('score: %.5f' % r2)
+            print('explained variance score: %.5f' % ex_var)
+            print('mse: %.5f' % mse)
+            out.to_csv(
+                '%s/loocv-vis.log' % result_dir,
+                sep='\t',
+                index=False,
+                float_format='%15.10f'
+            )
+        elif args.property == 'tc,dc,A,B':
             r2, ex_var, mse, out = learner.evaluate_loocv(
                 ylog=args.ylog,
                 vis_coef=True,
