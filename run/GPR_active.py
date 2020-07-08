@@ -4,6 +4,7 @@ import sys
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from run.GPR import *
+CWD = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
