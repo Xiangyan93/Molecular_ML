@@ -47,11 +47,6 @@ def main():
     parser.add_argument('--y_std', type=float, help='', default=None)
     parser.add_argument('--score', type=float, help='', default=None)
     parser.add_argument(
-        '--coef', action='store_true',
-        help='whether continue training',
-    )
-
-    parser.add_argument(
         '--learning_mode', type=str, default='unsupervised',
         help='supervised/unsupervised/random'
     )
@@ -82,6 +77,10 @@ def main():
              'samples'
     )
     parser.add_argument('--stride', type=int, help='output stride', default=100)
+    parser.add_argument(
+        '--normalized', action='store_true',
+        help='use normalized kernel',
+    )
     '''
     parser.add_argument('--nystrom_size', type=int, help='training set size start using Nystrom approximation.',
                         default=2000)
@@ -99,24 +98,25 @@ def main():
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
     result_dir = os.path.join(CWD, 'result-%s' % args.name)
-    df_train, df_test, train_X, train_Y, test_X, test_Y, kernel_config = \
+    df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
+    test_smiles, kernel_config = \
         read_input(
             args.input, args.property, result_dir,
-            seed=args.seed, optimizer=optimizer,
+            seed=args.seed, optimizer=optimizer, NORMALIZED=args.normalized,
             temperature=args.temperature, pressure=args.pressure,
             precompute=args.precompute,
             ylog=args.ylog,
             min=args.y_min, max=args.y_max, std=args.y_std,
-            coef=args.coef, score=args.score,
+            score=args.score,
             ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio']
         )
 
     activelearner = ActiveLearner(
-        train_X, train_Y, args.alpha, kernel_config.kernel, args.learning_mode,
-        args.add_mode, args.init_size, args.add_size, args.max_size,
-        args.search_size, args.pool_size,  args.name,
-        test_X=test_X, test_Y=test_Y, optimizer=optimizer, seed=args.seed,
-        ylog=args.ylog, stride=args.stride
+        train_X, train_Y, train_smiles, args.alpha, kernel_config,
+        args.learning_mode, args.add_mode, args.init_size, args.add_size,
+        args.max_size, args.search_size, args.pool_size,  args.name,
+        test_X=test_X, test_Y=test_Y, test_smiles=test_smiles,
+        optimizer=optimizer, seed=args.seed, ylog=args.ylog, stride=args.stride
     )
     
     if args.continued:

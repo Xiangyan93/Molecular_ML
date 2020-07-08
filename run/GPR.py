@@ -273,7 +273,7 @@ def main():
             ylog=args.ylog,
             min=args.y_min, max=args.y_max, std=args.y_std,
             score=args.score,
-            ratio=ratio
+            ratio=ratio,
         )
 
     print('***\tStart: hyperparameters optimization.\t***')
@@ -303,9 +303,6 @@ def main():
         if args.property == 'c1,c2,c3':
             r2, ex_var, mse, out = learner.evaluate_loocv(
                 ylog=args.ylog,
-                vis_coef=True,
-                t_min=df_train['t_min'],
-                t_max=df_train['t_max']
             )
             print('Loocv:')
             print('score: %.5f' % r2)
@@ -320,9 +317,6 @@ def main():
         elif args.property == 'tc,dc,A,B':
             r2, ex_var, mse, out = learner.evaluate_loocv(
                 ylog=args.ylog,
-                vis_coef=True,
-                t_min=df_train['t_min'],
-                t_max=df_train['t_max']
             )
             print('Loocv:')
             print('score: %.5f' % r2)

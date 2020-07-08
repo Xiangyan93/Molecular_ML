@@ -173,6 +173,7 @@ class Learner:
 
         def pvapval(t, coefs):
             return 10 ** (coefs[0] - coefs[1] / t)
+
         x = self.train_X
         y = self.train_Y
         y_pred, y_std = self.model.predict_loocv(x, y, return_std=True)
@@ -197,19 +198,21 @@ class Learner:
                 Y = y_list
                 Y_pred = y_pred_
                 Y_std = np.array(y_std[i]).repeat(len(dfs))
-                smiles_list = np.array(y_std[i]).repeat(len(dfs))
+                smiles_list = np.array(s).repeat(len(dfs))
             else:
                 X = np.r_[X, x_df.to_numpy()]
                 Y = np.r_[Y, y_list]
                 Y_pred = np.r_[Y_pred, y_pred_]
                 Y_std = np.r_[Y_std, np.array(y_std[i]).repeat(len(dfs))]
-                smiles_list = np.r_[smiles_list, np.array(y_std[i]).repeat(len(dfs))]
+                smiles_list = np.r_[smiles_list, np.array(s).repeat(len(
+                    dfs))]
         return self.evaluate_df(X, Y, smiles_list, Y_pred, Y_std, debug=False)
+
 
 class ActiveLearner:
     ''' for active learning, basically do selection for users '''
 
-    def __init__(self, train_X, train_Y, train_smiles, alpha, kernel,
+    def __init__(self, train_X, train_Y, train_smiles, alpha, kernel_config,
                  learning_mode, add_mode, initial_size, add_size, max_size,
                  search_size, pool_size, name, nystrom_size=3000,
                  nystrom_add_size=3000, test_X=None, test_Y=None,
@@ -234,13 +237,12 @@ class ActiveLearner:
         self.test_X = test_X
         self.test_Y = test_Y
         self.test_smiles = test_smiles
+        self.kernel_config = kernel_config
+        self.kernel = kernel_config.kernel
         if np.iterable(alpha):
             self.init_alpha = alpha
         else:
-            self.init_alpha = np.ones(len(train_X)) * alpha
-
-        self.kernel = kernel
-        # self.kernel_config = kernel_config
+            self.init_alpha = np.ones(self.__get_x_size(train_X)) * alpha
         # self.kernel_mol = kernel_config.kernel.kernel_list[0] if
         # kernel_config.T else kernel_config.kernel
         self.learning_mode = learning_mode
@@ -260,7 +262,10 @@ class ActiveLearner:
             os.mkdir(self.result_dir)
 
         self.train_IDX = np.linspace(
-            0, len(train_X) - 1, len(train_X), dtype=int
+            0,
+            self.__get_x_size(train_X) - 1,
+            self.__get_x_size(train_X),
+            dtype=int
         )
         np.random.seed(seed)
         self.train_idx = np.random.choice(
@@ -301,13 +306,28 @@ class ActiveLearner:
 
     def stop_sign(self):
         if self.current_size >= self.max_size \
-                or self.current_size == len(self.train_X):
+                or self.current_size == self.__get_x_size(self.train_X):
             return True
         else:
             return False
 
+    def __get_x_size(self, x):
+        if self.kernel.__class__ == MultipleKernel:
+            return len(x[0])
+        else:
+            return len(x)
+
+    def __get_X_from_idx(self, x, idx):
+        if self.kernel.__class__ == MultipleKernel:
+            X = []
+            for x_ in x:
+                X.append(x_[idx])
+        else:
+            X = x[idx]
+        return X
+
     def __get_train_X_y(self):
-        train_x = self.train_X[self.train_idx]
+        train_x = self.__get_X_from_idx(self.train_X, self.train_idx)
         train_y = self.train_Y[self.train_idx]
         smiles = self.train_smiles[self.train_idx]
         alpha = self.init_alpha[self.train_idx]
@@ -323,7 +343,7 @@ class ActiveLearner:
                 self.search_size,
                 replace=False
             )
-        untrain_x = self.train_X[untrain_idx]
+        untrain_x = self.__get_X_from_idx(self.train_X, untrain_idx)
         untrain_y = self.train_Y[untrain_idx]
         return untrain_x, untrain_y, untrain_idx
 
@@ -345,7 +365,7 @@ class ActiveLearner:
             self.test_X,
             self.test_Y,
             self.test_smiles,
-            self.kernel,
+            self.kernel_config,
             seed=self.seed,
             alpha=alpha,
             optimizer=self.optimizer
@@ -443,18 +463,20 @@ class ActiveLearner:
                 self.train_idx = np.r_[self.train_idx, add_idx]
             self.current_size = self.train_idx.size
         else:
-            raise ValueError("unrecognized method. Could only be one of ('supervised','unsupervised','random').")
+            raise ValueError(
+                "unrecognized method. Could only be one of ('supervised','unsupervised','random').")
         # self.train_smiles = list(set(self.train_smiles))
         # self.logger.write('samples added to training set, currently %d samples\n' % self.current_size)
 
     def _add_core(self, add_idx):
         ''' add samples that are far from core set into core set 
         '''
-        if self.core_idx is None: # do nothing at ordinary GPR stage
+        if self.core_idx is None:  # do nothing at ordinary GPR stage
             return
         add_x = self.train_X[self.train_X.index.isin(add_idx)]
         core_x, _, alpha = self.__get_core_X_y()
-        add_core_idx_idx = np.amax(self.model.kernel(core_x, add_x), axis=0) < self.core_threshold
+        add_core_idx_idx = np.amax(self.model.kernel(core_x, add_x),
+                                   axis=0) < self.core_threshold
         add_core_idx = add_idx[add_core_idx_idx]
         self.core_idx = np.r_[self.core_idx, add_core_idx]
 
@@ -495,7 +517,8 @@ class ActiveLearner:
         elif self.add_mode == 'nlargest':
             return self.__get_search_idx(error, idx, pool_size=self.add_size)
         else:
-            raise ValueError("unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
+            raise ValueError(
+                "unrecognized method. Could only be one of ('random','cluster','nlargest', 'threshold).")
         '''
         elif self.add_mode == 'threshold':
             # threshold is predetermined by inspection, set in the initialization stage
@@ -526,6 +549,7 @@ class ActiveLearner:
             X = df.drop(columns='std')
             kernel = self.kernel_config.kernel
         return kernel(X)
+
     '''
     def _find_add_idx_cluster_old(self, X):
         # train SpectralClustering on X
@@ -550,6 +574,7 @@ class ActiveLearner:
                    range(self.add_size)]  # find min-in-cluster-distance associated idx
         return add_idx
     '''
+
     def _find_add_idx_cluster(self, gram_matrix):
         ''' find representative samp-les from a pool using clustering method
         :gram_matrix: gram matrix of the pool samples
@@ -567,12 +592,16 @@ class ActiveLearner:
         # find all center of clustering
         center = np.array([embedding[cluster_result == i].mean(axis=0)
                            for i in range(self.add_size)])
-        total_distance = defaultdict(dict)  # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
+        total_distance = defaultdict(
+            dict)  # (key: cluster_idx, val: dict of (key:sum of distance, val:idx))
         for i in range(len(cluster_result)):
             cluster_class = cluster_result[i]
-            total_distance[cluster_class][((np.square(embedding[i] - np.delete(center, cluster_class, axis=0))).sum(axis=1) ** -0.5).sum()] = i
+            total_distance[cluster_class][((np.square(
+                embedding[i] - np.delete(center, cluster_class, axis=0))).sum(
+                axis=1) ** -0.5).sum()] = i
         add_idx = [total_distance[i][min(total_distance[i].keys())] for i in
-                   range(self.add_size)]  # find min-in-cluster-distance associated idx
+                   range(
+                       self.add_size)]  # find min-in-cluster-distance associated idx
         return add_idx
 
     def __get_K_core_length(self):
@@ -649,32 +678,38 @@ class ActiveLearner:
             elif isinstance(self.model, RobustFitGaussianProcessRegressor):
                 store_dict['model_class'] = 'normal'
             self.model.save(os.path.join(self.result_dir))
-        with open(os.path.join(self.result_dir, 'activelearner_param.pkl'), 'wb') as file:
+        with open(os.path.join(self.result_dir, 'activelearner_param.pkl'),
+                  'wb') as file:
             pickle.dump(store_dict, file)
 
     def load(self, kernel_config):
         # restore params
         self.kernel_config = kernel_config
-        self.kernel_mol = kernel_config.kernel.kernel_list[0] if kernel_config.T else kernel_config.kernel
-        with open(os.path.join(self.result_dir, 'activelearner_param.pkl'), 'rb') as file:
+        self.kernel_mol = kernel_config.kernel.kernel_list[
+            0] if kernel_config.T else kernel_config.kernel
+        with open(os.path.join(self.result_dir, 'activelearner_param.pkl'),
+                  'rb') as file:
             store_dict = pickle.load(file)
         for key in store_dict.keys():
             setattr(self, key, store_dict[key])
         if hasattr(self, 'model_class'):
             if self.model_class == 'nystrom':
-                self.model = NystromGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=self.seed,
-                                                             optimizer=self.optimizer, normalize_y=True,
-                                                             alpha=self.alpha)
+                self.model = NystromGaussianProcessRegressor(
+                    kernel=kernel_config.kernel, random_state=self.seed,
+                    optimizer=self.optimizer, normalize_y=True,
+                    alpha=self.alpha)
                 self.model.load(self.result_dir)
             elif self.model_class == 'normal':
-                self.model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel, random_state=self.seed,
-                                                               optimizer=self.optimizer,
-                                                               normalize_y=True, alpha=self.alpha)
+                self.model = RobustFitGaussianProcessRegressor(
+                    kernel=kernel_config.kernel, random_state=self.seed,
+                    optimizer=self.optimizer,
+                    normalize_y=True, alpha=self.alpha)
                 self.model.load(self.result_dir)
 
     def __str__(self):
         return 'parameter of current active learning checkpoint:\n' + \
                'current_size:%s  max_size:%s  learning_mode:%s  add_mode:%s  search_size:%d  pool_size:%d  add_size:%d\n' % (
-                   self.current_size, self.max_size, self.learning_mode, self.add_mode, self.search_size,
+                   self.current_size, self.max_size, self.learning_mode,
+                   self.add_mode, self.search_size,
                    self.pool_size,
                    self.add_size)
