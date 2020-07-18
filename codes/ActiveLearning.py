@@ -143,7 +143,7 @@ class Learner:
                                 kernel=self.model.kernel_, debug=debug,
                                 alpha=alpha)
 
-    def evaluate_test(self, ylog=False, debug=False):
+    def evaluate_test(self, ylog=False, debug=True):
         x = self.test_X
         y = self.test_Y
         smiles = self.test_smiles
@@ -157,11 +157,12 @@ class Learner:
             x, y, smiles, ylog=ylog, debug=debug, alpha=self.model.alpha
         )
 
-    def evaluate_loocv(self, ylog=False, debug=False):
+    def evaluate_loocv(self, ylog=False, debug=True):
         x = self.train_X
         y = self.train_Y
         smiles = self.train_smiles
-        return self.evaluate(x, y, smiles, ylog=ylog, debug=debug, loocv=True)
+        return self.evaluate(x, y, smiles, ylog=ylog, debug=debug, loocv=True,
+                             alpha=self.model.alpha)
 
     def evaluate_loocv_coef(self, txt, property):
         def VTFval(t, coefs):

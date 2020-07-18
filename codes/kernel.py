@@ -9,6 +9,54 @@ from config import *
 
 
 class NormalizedGraphKernel(MarginalizedGraphKernel):
+    def __normalize_scale(self, X, Y, R, length=10000):
+        if Y is None:
+            # square matrix
+            if type(R) is tuple:
+                d = np.diag(R[0]) ** -0.5
+                a = np.repeat(d**-2, len(d)).reshape(len(d), len(d))
+                a = np.exp(-((a - a.T)/length) ** 2)
+                K = np.einsum("i,ij,j,ij->ij", d, R[0], d, a)
+                # K = np.diag(d).dot(R[0]).dot(np.diag(d))
+                K_gradient = np.einsum("ijk,i,j,ij->ijk", R[1], d, d, a)
+                return K, K_gradient
+            else:
+                d = np.diag(R) ** -0.5
+                a = np.repeat(d**-2, len(d)).reshape(len(d), len(d))
+                a = np.exp(-((a - a.T)/length) ** 2)
+                K = np.einsum("i,ij,j,ij->ij", d, R, d, a)
+                # K = np.diag(d).dot(R).dot(np.diag(d))
+                return K
+        else:
+            # rectangular matrix, must have X and Y
+            if type(R) is tuple:
+                diag_X = super().diag(X) ** -0.5
+                diag_Y = super().diag(Y) ** -0.5
+                a = np.repeat(diag_X ** -2, len(diag_Y)).reshape(
+                    len(diag_X), len(diag_Y)
+                )
+                b = np.repeat(diag_Y ** -2, len(diag_X)).reshape(
+                    len(diag_Y), len(diag_X)
+                )
+                c = np.exp(-((a - b.T)/length) ** 2)
+                K = np.einsum("i,ij,j,ij->ij", diag_X, R[0], diag_Y, c)
+                # K = np.diag(diag_X).dot(R[0]).dot(np.diag(diag_Y))
+                K_gradient = np.einsum("ijk,i,j,ij->ijk", R[1], diag_X,
+                                       diag_Y, c)
+                return K, K_gradient
+            else:
+                diag_X = super().diag(X) ** -0.5
+                diag_Y = super().diag(Y) ** -0.5
+                a = np.repeat(diag_X ** -2, len(diag_Y)).reshape(
+                    len(diag_X), len(diag_Y)
+                )
+                b = np.repeat(diag_Y ** -2, len(diag_X)).reshape(
+                    len(diag_Y), len(diag_X)
+                )
+                c = np.exp(-((a - b.T)/length) ** 2)
+                K = np.einsum("i,ij,j,ij->ij", diag_X, R, diag_Y, c)
+                return K
+
     def __normalize(self, X, Y, R):
         if Y is None:
             # square matrix
@@ -19,6 +67,8 @@ class NormalizedGraphKernel(MarginalizedGraphKernel):
                 K_gradient = np.einsum("ijk,i,j->ijk", R[1], d, d)
                 return K, K_gradient
             else:
+                # print(X)
+                # print(np.diag(R))
                 d = np.diag(R) ** -0.5
                 K = np.einsum("i,ij,j->ij", d, R, d)
                 # K = np.diag(d).dot(R).dot(np.diag(d))
@@ -40,9 +90,9 @@ class NormalizedGraphKernel(MarginalizedGraphKernel):
 
     def __call__(self, X, Y=None, *args, **kwargs):
         R = super().__call__(X, Y, *args, **kwargs)
-        return self.__normalize(X, Y, R)
+        return self.__normalize_scale(X, Y, R)
 
-    def diag(self, X, nodal=False, lmin=0, timing=False):
+    def diag(self, X):
         return np.ones(len(X))
 
 
@@ -78,6 +128,8 @@ class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
     def PreCalculate(self, X):
         self.graphs = np.sort(X)
         self.K = self(self.graphs)
+        for x in self.graphs:
+            x.cookie.clear()
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if self.K is None or eval_gradient:
@@ -246,14 +298,22 @@ class GraphKernelConfig:
                     knode,
                     kedge,
                     q=stop_prob,
-                    q_bounds=stop_prob_bound
+                    q_bounds=stop_prob_bound,
+                    #p=(
+                        #lambda ns: np.where(ns.atomic_number == 6, 0.0, 1.0),
+                        #'n.atomic_number == 6 ? 0.1 : 1.0'
+                    #)
                 )
             else:
                 graph_kernel = PreCalcMarginalizedGraphKernel(
                     knode,
                     kedge,
                     q=stop_prob,
-                    q_bounds=stop_prob_bound
+                    q_bounds=stop_prob_bound,
+                    #p=(
+                        #lambda ns: np.where(ns.atomic_number == 6, 0.0, 1.0),
+                        #'n.atomic_number == 6 ? 0.001 : 1.0'
+                    #)
                 )
         if T is not None and P is not None:
             self.kernel = MultipleKernel(
@@ -366,7 +426,7 @@ def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500,
         idx2 = get_C_idx(kernel(X_idx(X, idx1)))
         C_idx = idx1[idx2]
         print('%i / %i data are chosen as core in Nystrom approximation' % (
-        len(C_idx), N))
+            len(C_idx), N))
     elif method == 'memory_save':
         """
         O(m2) complexity. Suggest when X is large.
@@ -387,7 +447,7 @@ def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500,
             if len(C_idx) > core_max:
                 break
         print('\n%i / %i data are chosen as core in Nystrom approximation' % (
-        len(C_idx), N))
+            len(C_idx), N))
     elif method == 'clustering':
         """
         Not suggest. 
@@ -397,11 +457,11 @@ def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500,
         N = len(_C_idx)
         print(
             '%i / %i data are chosen by clustering as core in Nystrom approximation' % (
-            len(_C_idx), X.shape[0]))
+                len(_C_idx), X.shape[0]))
         C_idx = get_C_idx(kernel(X[_C_idx]))
         print(
             '%i / %i data are furthur selected to avoid numerical explosion' % (
-            len(C_idx), N))
+                len(C_idx), N))
     elif method == 'random':
         C_idx = randN[:core_max]
     else:

@@ -49,25 +49,25 @@ def df_filter(df, ratio=None, seed=0, properties=[], min=None, max=None,
     return df_train, df_test
 
 
-def get_XY_from_df(df, kernel_config, properties=None):
+def get_XY_from_df(df, kernel_config, T='rel_T', properties=None):
     if df.size == 0:
         return None, None, None
 
     if kernel_config.__class__ == GraphKernelConfig:
         X = df['graph'].to_numpy()
         if kernel_config.T and kernel_config.P:
-            X = [X, df[['T', 'P']].to_numpy()]
+            X = [X, df[[T, 'P']].to_numpy()]
         elif kernel_config.T:
-            X = [X, df[['T']].to_numpy()]
+            X = [X, df[[T]].to_numpy()]
         elif kernel_config.P:
             X = [X, df[['P']].to_numpy()]
     else:
         kernel_config.get_kernel(df.inchi.to_list())
         X = kernel_config.X
         if kernel_config.T and kernel_config.P:
-            X = np.concatenate([X, df[['T', 'P']].to_numpy()], axis=1)
+            X = np.concatenate([X, df[[T, 'P']].to_numpy()], axis=1)
         elif kernel_config.T:
-            X = np.concatenate([X, df[['T']].to_numpy()], axis=1)
+            X = np.concatenate([X, df[[T]].to_numpy()], axis=1)
         elif kernel_config.P:
             X = np.concatenate([X, df[['P']].to_numpy()], axis=1)
     smiles = df.inchi.apply(inchi2smiles).to_numpy()
@@ -137,10 +137,11 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
         kernel_config,
         properties=property.split(',')
     )
-
+    print(test_X)
     if test_X is None:
         test_X = train_X
         test_Y = np.copy(train_Y)
+        test_smiles = train_smiles
     if ylog:
         train_Y = np.log(train_Y)
         test_Y = np.log(test_Y)
@@ -169,13 +170,14 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
         else:
             print('**\tCalculating kernel matrix\t**')
             X = df['graph'].unique()
+
             if kernel_config.T:
                 kernel = kernel_config.kernel.kernel_list[0]
             else:
                 kernel = kernel_config.kernel
             kernel.PreCalculate(X)
             with open(graph_file, 'wb') as file:
-                pickle.dump(kernel.graphs, file)
+                pickle.dump(np.sort(X), file)
             with open(K_file, 'wb') as file:
                 pickle.dump(kernel.K, file)
         print('***\tEnd: Graph kernels calculating\t***\n')
@@ -234,6 +236,10 @@ def main():
         help='set alpha based on experimental uncertainty',
     )
     parser.add_argument(
+        '--reset_alpha', action='store_true',
+        help='set alpha based on experimental uncertainty',
+    )
+    parser.add_argument(
         '--theta', type=str, default=None,
         help='theta.pkl',
     )
@@ -275,7 +281,6 @@ def main():
             score=args.score,
             ratio=ratio,
         )
-
     print('***\tStart: hyperparameters optimization.\t***')
     if args.alpha_outlier:
         print('**\treset alpha based on outlier\t**')
@@ -290,8 +295,21 @@ def main():
         plt.hist(alpha)
         plt.show()
     elif args.alpha_exp:
+        '''
         alpha = (df_train['%s_u' % args.property] / df_train[args.property]) \
                 ** 2 * kernel_config.kernel.diag(train_X)
+        '''
+        alpha = df_train['%s_u' % args.property] * args.alpha
+        # alpha[alpha > 10] = 10
+        print(max(alpha), min(alpha))
+    elif args.reset_alpha:
+        alpha = np.repeat(args.alpha, len(train_Y))
+        for i in range(1):
+            learner = Learner(train_X, train_Y, train_smiles, test_X, test_Y,
+                              test_smiles, kernel_config, seed=args.seed,
+                              alpha=alpha, optimizer=optimizer)
+            learner.train()
+            alpha[abs(learner.model.predict(train_X) - train_Y) > 10] *= 0.8
     else:
         alpha = args.alpha
     if args.mode == 'loocv':  # directly calculate the LOOCV
@@ -387,7 +405,6 @@ def main():
                           alpha=alpha, optimizer=optimizer)
         learner.train()
         learner.model.save(result_dir)
-        print('alpha = %.5f' % learner.model.alpha)
         print('hyperparameter: ', learner.model.kernel_.hyperparameters)
         print('***\tEnd: hyperparameters optimization.\t***\n')
         r2, ex_var, mse, out = learner.evaluate_train(ylog=args.ylog)
@@ -397,6 +414,9 @@ def main():
         print('mse: %.5f' % mse)
         out.to_csv('%s/train.log' % result_dir, sep='\t', index=False,
                    float_format='%15.10f')
+        if args.ylog:
+            r2, ex_var, mse, out = learner.evaluate_train(ylog=False)
+            print('score log scale: %.5f' % r2)
         if Config.TrainingSetSelectRule.RANDOM_Para.get('ratio') is not None:
             r2, ex_var, mse, out = learner.evaluate_test(ylog=args.ylog)
             print('Test set:')
@@ -405,6 +425,9 @@ def main():
             print('mse: %.5f' % mse)
             out.to_csv('%s/test.log' % result_dir, sep='\t', index=False,
                        float_format='%15.10f')
+            if args.ylog:
+                r2, ex_var, mse, out = learner.evaluate_test(ylog=False)
+                print('score log scale: %.5f' % r2)
 
 
 if __name__ == '__main__':

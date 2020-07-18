@@ -393,15 +393,15 @@ class GPR(GaussianProcessRegressor):
 
 
 class RobustFitGaussianProcessRegressor(GPR):
-    def __init__(self, y_scale=False, *args, **kwargs):
+    def __init__(self, y_scale=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.y_scale = y_scale
 
     def fit(self, X, y, core_predict=True):
         # scale y according to train y and save the scalar
         if self.y_scale:
-            self.scaler = StandardScaler().fit(y.values.reshape(-1, 1))
-            super().fit(X, self.scaler.transform(y.values.reshape(-1, 1)).flatten(), core_predict=core_predict)
+            self.scaler = StandardScaler().fit(y.reshape(-1, 1))
+            super().fit(X, self.scaler.transform(y.reshape(-1, 1)).flatten(), core_predict=core_predict)
         else:
             super().fit(X, y, core_predict=core_predict)
         return self
@@ -438,12 +438,20 @@ class RobustFitGaussianProcessRegressor(GPR):
         if not hasattr(self, 'kernel_'):
             self.kernel_ = self.kernel
         K = self.kernel_(X)
-        y_ = y - self._y_train_mean
+        if self.y_scale:
+            self.scaler = StandardScaler().fit(y.reshape(-1, 1))
+            y_ = self.scaler.transform(y.reshape(-1, 1)).flatten()
+        else:
+            y_ = y - self._y_train_mean
         K[np.diag_indices_from(K)] += self.alpha
         I_mat = np.eye(K.shape[0])
         # K_inv = scipy.linalg.cho_solve(scipy.linalg.cho_factor(K,lower=True), I_mat)
         K_inv = np.linalg.inv(K)
-        y_pred = y_ - (K_inv.dot(y_).T / K_inv.diagonal()).T + self._y_train_mean
+        y_pred = y_ - (K_inv.dot(y_).T / K_inv.diagonal()).T
+        if self.y_scale:
+            y_pred = self.scaler.inverse_transform(y_pred.reshape(-1, 1)).flatten()
+        else:
+            y_pred += self._y_train_mean
         if return_std:
             y_std = np.sqrt(1 / K_inv.diagonal())
             return y_pred, y_std

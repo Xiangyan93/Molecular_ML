@@ -35,3 +35,9 @@ class HashGraph(Graph):
         g.smiles = Chem.MolToSmiles(mol)
         return g
 
+    @classmethod
+    def from_smiles(cls, smiles):
+        mol = Chem.MolFromSmiles(smiles)
+        g = cls.from_rdkit(mol)
+        g.smiles = Chem.MolToSmiles(mol)
+        return g

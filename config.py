@@ -1,5 +1,8 @@
 import os
-from graphdot.kernel.basekernel import (
+from graphdot.microkernel import (
+    Additive,
+    Normalize,
+    Constant,
     TensorProduct,
     SquareExponential,
     KroneckerDelta,
@@ -13,11 +16,13 @@ class Config:
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
         k1 = 0.90
-        k1_bounds = (k1, k1)
         k2 = 0.75
-        k2_bounds = (k2, k2)
         s = 2.0
+        q = 0.01  # q is the stop probability in ramdom walk
+        k1_bounds = (k1, k1)
+        k2_bounds = (k2, k2)
         s_bounds = (s, s)
+        q_bound = (q, q)
         knode = TensorProduct(
             atomic_number=KroneckerDelta(k2, k2_bounds),
             aromatic=KroneckerDelta(k1, k1_bounds),
@@ -30,7 +35,9 @@ class Config:
                 length_scale_bounds=s_bounds
             ),
             chiral=KroneckerDelta(k1, k1_bounds),
-            ring_list=Convolution(KroneckerDelta(k2, k2_bounds))
+            ring_list=Convolution(KroneckerDelta(k2, k2_bounds)),
+            morgan_hash=KroneckerDelta(k1, k1_bounds),
+            ring_number=KroneckerDelta(k2, k2_bounds),
         )
         kedge = TensorProduct(
             order=SquareExponential(
@@ -40,9 +47,31 @@ class Config:
             stereo=KroneckerDelta(k1, k1_bounds),
             conjugated=KroneckerDelta(k1, k1_bounds),
             ring_stereo=KroneckerDelta(k1, k1_bounds),
+            # symmetry=KroneckerDelta(k2, k2_bounds),
         )
 
-        q = 0.05  # q is the stop probability in ramdom walk
+    class Hyperpara2:
+        knode = Normalize(
+            Additive(
+                aromatic=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                atomic_number=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.8,(0.1, 0.9)),
+                charge=Constant(0.5, (0.1, 1.0)) * SquareExponential(1.0),
+                chiral=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                hcount=Constant(0.5, (0.1, 1.0)) * SquareExponential(1.0),
+                hybridization=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                ring_list=Constant(0.5, (0.01, 1.0)) * Convolution(KroneckerDelta(0.5,(0.1, 0.9)))
+            )
+        )
+        kedge = Normalize(
+            Additive(
+                aromatic=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                conjugated=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                order=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.8,(0.1, 0.9)),
+                ring_stereo=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.8,(0.1, 0.9)),
+                stereo=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.8,(0.1, 0.9))
+            )
+        )
+        q = 0.01  # q is the stop probability in ramdom walk
         q_bound = (q, q)
 
     class NystromPara:
@@ -54,7 +83,7 @@ class Config:
     class TrainingSetSelectRule:
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
-            'ratio': 0.8
+            'ratio': 1.0
         }
 
         ACTIVE_LEARNING_Para = {
