@@ -393,7 +393,7 @@ class GPR(GaussianProcessRegressor):
 
 
 class RobustFitGaussianProcessRegressor(GPR):
-    def __init__(self, y_scale=False, *args, **kwargs):
+    def __init__(self, y_scale=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.y_scale = y_scale
 
@@ -408,6 +408,8 @@ class RobustFitGaussianProcessRegressor(GPR):
 
     def predict(self, *args, **kwargs):
         result = super().predict(*args, **kwargs)
+        print(1)
+
         if self.y_scale:
             if type(result) is tuple:
                 y_back = self.scaler.inverse_transform(result[0].reshape(-1, 1)).flatten()

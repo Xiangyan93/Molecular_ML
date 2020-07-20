@@ -4,7 +4,7 @@ import sys
 import argparse
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from codes.gpr import GPR
+from codes.gpr import RobustFitGaussianProcessRegressor
 from codes.hashgraph import HashGraph
 from codes.kernel import *
 
@@ -18,7 +18,7 @@ def main():
         T=None,
         P=None,
     )
-    model = GPR(kernel=kernel_config.kernel)
+    model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel)
 
     df = pd.read_csv(args.input, sep='\s+')
     inchi = df.inchi.unique()

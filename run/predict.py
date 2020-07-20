@@ -4,7 +4,7 @@ import sys
 import argparse
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from codes.gpr import GPR
+from codes.gpr import RobustFitGaussianProcessRegressor
 from codes.hashgraph import HashGraph
 from codes.kernel import *
 
@@ -37,7 +37,7 @@ def main():
         T=args.temperature,
         P=args.pressure,
     )
-    model = GPR(kernel=kernel_config.kernel)
+    model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel)
     model.load(args.dir)
     x = [HashGraph.from_smiles(args.smiles)]
     y = model.predict(x)
