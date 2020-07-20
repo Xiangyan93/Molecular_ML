@@ -1,39 +1,78 @@
 import os
-from graphdot.kernel.basekernel import TensorProduct
-from graphdot.kernel.basekernel import SquareExponential
-from graphdot.kernel.basekernel import KroneckerDelta
-
-CWD = os.path.dirname(os.path.abspath(__file__))
+from graphdot.microkernel import (
+    Additive,
+    Normalize,
+    Constant,
+    TensorProduct,
+    SquareExponential,
+    KroneckerDelta,
+    Convolution,
+)
 
 
 class Config:
-    GRAPHDOT_DIR = os.path.join(CWD, '..', 'GraphDot')
-    MS_TOOLS_DIR = os.path.join(CWD, '..', 'AIMS_Tools')
+    CWD = os.path.dirname(os.path.abspath(__file__))
     DEBUG = False
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
-        v = 0.75
-        s = 1.0
-        knode = TensorProduct(aromatic=KroneckerDelta(v),
-                              charge=SquareExponential(0.5),
-                              element=KroneckerDelta(0.25),
-                              hcount=SquareExponential(s),
-                              chiral=KroneckerDelta(v),
-                              smallest_ring=KroneckerDelta(v),
-                              ring_number=KroneckerDelta(v),
-                              # morgan_hash=KroneckerDelta(v),
-                              )
-        kedge = TensorProduct(order=SquareExponential(s),
-                              stereo=KroneckerDelta(v),
-                              conjugated=KroneckerDelta(v),
-                              ringstereo=KroneckerDelta(v),
-                              )
+        k = 0.90
+        s = 2.0
+        q = 0.01  # q is the stop probability in ramdom walk
+        k_bounds = (k, k)
+        s_bounds = (s, s)
+        q_bound = (q, q)
+        knode = TensorProduct(
+            atomic_number=KroneckerDelta(k, k_bounds),
+            aromatic=KroneckerDelta(k, k_bounds),
+            charge=SquareExponential(
+                length_scale=s,
+                length_scale_bounds=s_bounds
+            ),
+            hcount=SquareExponential(
+                length_scale=s,
+                length_scale_bounds=s_bounds
+            ),
+            chiral=KroneckerDelta(k, k_bounds),
+            ring_list=Convolution(KroneckerDelta(k, k_bounds)),
+            morgan_hash=KroneckerDelta(k, k_bounds),
+            ring_number=KroneckerDelta(k, k_bounds),
+            # hybridization=KroneckerDelta(k, k_bounds),
+        )
+        kedge = TensorProduct(
+            order=SquareExponential(
+                length_scale=s,
+                length_scale_bounds=s_bounds
+            ),
+            # aromatic=KroneckerDelta(k, k_bounds),
+            stereo=KroneckerDelta(k, k_bounds),
+            conjugated=KroneckerDelta(k, k_bounds),
+            ring_stereo=KroneckerDelta(k, k_bounds),
+            # symmetry=KroneckerDelta(k, k_bounds),
+        )
 
-        stop_prob = 0.05
-        stop_prob_bound = (1e-4, 1.0)
-
-        T = 300
-        P = 1000
+    class Hyperpara2:
+        knode = Normalize(
+            Additive(
+                aromatic=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                atomic_number=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.8,(0.1, 0.9)),
+                charge=Constant(0.5, (0.1, 1.0)) * SquareExponential(1.0),
+                chiral=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                hcount=Constant(0.5, (0.1, 1.0)) * SquareExponential(1.0),
+                hybridization=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                ring_list=Constant(0.5, (0.01, 1.0)) * Convolution(KroneckerDelta(0.5,(0.1, 0.9)))
+            )
+        )
+        kedge = Normalize(
+            Additive(
+                aromatic=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                conjugated=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.5,(0.1, 0.9)),
+                order=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.8,(0.1, 0.9)),
+                ring_stereo=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.8,(0.1, 0.9)),
+                stereo=Constant(0.5, (0.1, 1.0)) * KroneckerDelta(0.8,(0.1, 0.9))
+            )
+        )
+        q = 0.01  # q is the stop probability in ramdom walk
+        q_bound = (q, q)
 
     class NystromPara:
         off_diagonal_cutoff = 0.9
@@ -42,11 +81,9 @@ class Config:
         alpha = 1e-8
 
     class TrainingSetSelectRule:
-        ASSIGNED = False
-
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
-            'ratio': None
+            'ratio': 1.0
         }
 
         ACTIVE_LEARNING_Para = {
