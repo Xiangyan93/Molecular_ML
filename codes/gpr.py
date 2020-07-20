@@ -393,7 +393,7 @@ class GPR(GaussianProcessRegressor):
 
 
 class RobustFitGaussianProcessRegressor(GPR):
-    def __init__(self, y_scale=True, *args, **kwargs):
+    def __init__(self, y_scale=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.y_scale = y_scale
 
