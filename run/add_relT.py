@@ -23,9 +23,9 @@ def main():
     df = pd.read_csv(args.input, sep='\s+')
     inchi = df.inchi.unique()
     X = list(map(HashGraph.from_inchi, inchi))
-    model.load(os.path.join(CWD, 'result-tt'))
+    model.load(os.path.join(CWD, 'result-tt-loocv'))
     tt, tt_u = model.predict(X, return_std=True)
-    model.load(os.path.join(CWD, 'result-tc'))
+    model.load(os.path.join(CWD, 'result-tc-loocv'))
     tc, tc_u = model.predict(X, return_std=True)
     df_t = pd.DataFrame({'inchi': inchi, 'tt': tt, 'tt_u': tc_u, 'tc': tc,
                          'tc_u': tc_u})
@@ -37,7 +37,7 @@ def main():
     df['tt'] = df['inchi'].apply(get_tt)
     df['tc'] = df['inchi'].apply(get_tc)
     df['rel_T'] = (df['T'] - df.tt)/(df.tc - df.tt)
-    df.to_csv('new.txt', sep=' ', index=False)
+    df.to_csv('new-%s' % args.input, sep=' ', index=False)
 
 
 if __name__ == '__main__':
