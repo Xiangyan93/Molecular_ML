@@ -83,7 +83,7 @@ class Config:
     class TrainingSetSelectRule:
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
-            'ratio': 1.0
+            'ratio': 0.9
         }
 
         ACTIVE_LEARNING_Para = {

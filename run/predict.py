@@ -2,6 +2,7 @@
 import os
 import sys
 import argparse
+import matplotlib.pyplot as plt
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.gpr import RobustFitGaussianProcessRegressor
@@ -39,8 +40,16 @@ def main():
     )
     model = RobustFitGaussianProcessRegressor(kernel=kernel_config.kernel)
     model.load(args.dir)
-    x = [HashGraph.from_smiles(args.smiles)]
-    y = model.predict(x)
+    if args.temperature is None:
+        X = [HashGraph.from_smiles(args.smiles)]
+    else:
+        n = 100
+        t = np.linspace(0, 1, n).reshape(n, 1)
+        x = np.repeat(HashGraph.from_smiles(args.smiles), n).tolist()
+        X = [x, t]
+    y = model.predict(X)
+    plt.plot(t, y)
+    plt.show()
     print(y)
 
 
