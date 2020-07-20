@@ -15,17 +15,15 @@ class Config:
     DEBUG = False
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
-        k1 = 0.90
-        k2 = 0.75
+        k = 0.90
         s = 2.0
         q = 0.01  # q is the stop probability in ramdom walk
-        k1_bounds = (k1, k1)
-        k2_bounds = (k2, k2)
+        k_bounds = (k, k)
         s_bounds = (s, s)
         q_bound = (q, q)
         knode = TensorProduct(
-            atomic_number=KroneckerDelta(k2, k2_bounds),
-            aromatic=KroneckerDelta(k1, k1_bounds),
+            atomic_number=KroneckerDelta(k, k_bounds),
+            aromatic=KroneckerDelta(k, k_bounds),
             charge=SquareExponential(
                 length_scale=s,
                 length_scale_bounds=s_bounds
@@ -34,20 +32,22 @@ class Config:
                 length_scale=s,
                 length_scale_bounds=s_bounds
             ),
-            chiral=KroneckerDelta(k1, k1_bounds),
-            ring_list=Convolution(KroneckerDelta(k2, k2_bounds)),
-            morgan_hash=KroneckerDelta(k1, k1_bounds),
-            ring_number=KroneckerDelta(k2, k2_bounds),
+            chiral=KroneckerDelta(k, k_bounds),
+            ring_list=Convolution(KroneckerDelta(k, k_bounds)),
+            morgan_hash=KroneckerDelta(k, k_bounds),
+            ring_number=KroneckerDelta(k, k_bounds),
+            # hybridization=KroneckerDelta(k, k_bounds),
         )
         kedge = TensorProduct(
             order=SquareExponential(
                 length_scale=s,
                 length_scale_bounds=s_bounds
             ),
-            stereo=KroneckerDelta(k1, k1_bounds),
-            conjugated=KroneckerDelta(k1, k1_bounds),
-            ring_stereo=KroneckerDelta(k1, k1_bounds),
-            # symmetry=KroneckerDelta(k2, k2_bounds),
+            # aromatic=KroneckerDelta(k, k_bounds),
+            stereo=KroneckerDelta(k, k_bounds),
+            conjugated=KroneckerDelta(k, k_bounds),
+            ring_stereo=KroneckerDelta(k, k_bounds),
+            # symmetry=KroneckerDelta(k, k_bounds),
         )
 
     class Hyperpara2:
