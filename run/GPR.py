@@ -259,6 +259,10 @@ def main():
         '--vector_size', type=int, default=None,
         help='size for vector fingerprint',
     )
+    parser.add_argument(
+        '--load_model', action='store_true',
+        help='load exist model',
+    )
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -316,8 +320,11 @@ def main():
         learner = Learner(train_X, train_Y, train_smiles, test_X, test_Y,
                           test_smiles, kernel_config, seed=args.seed,
                           alpha=alpha, optimizer=optimizer)
-        learner.train()
-        learner.model.save(result_dir)
+        if args.load_model:
+            learner.model.load(result_dir)
+        else:
+            learner.train()
+            learner.model.save(result_dir)
         if args.property == 'c1,c2,c3':
             r2, ex_var, mse, out = learner.evaluate_loocv(
                 ylog=args.ylog,
