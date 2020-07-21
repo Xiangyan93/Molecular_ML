@@ -1,5 +1,6 @@
 from rdkit.Chem import AllChem as Chem
 from graphdot import Graph
+from graphdot.graph.reorder import rcm
 
 
 class HashGraph(Graph):
@@ -32,6 +33,7 @@ class HashGraph(Graph):
     def from_inchi(cls, inchi):
         mol = Chem.MolFromInchi(inchi)
         g = cls.from_rdkit(mol)
+        g = g.permute(rcm(g))
         g.smiles = Chem.MolToSmiles(mol)
         return g
 
@@ -39,5 +41,6 @@ class HashGraph(Graph):
     def from_smiles(cls, smiles):
         mol = Chem.MolFromSmiles(smiles)
         g = cls.from_rdkit(mol)
+        g = g.permute(rcm(g))
         g.smiles = Chem.MolToSmiles(mol)
         return g
