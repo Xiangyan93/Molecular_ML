@@ -26,8 +26,24 @@ def get_df(csv=None, pkl=None, get_graph=True):
     return df
 
 
+def df_T_select(df, n=3):
+    group = df.groupby('inchi')
+    data = []
+    for x in group:
+        d = x[1].sort_values('T').index
+        if d.size < 3:
+            continue
+        index = np.arange(1, d.size - 2, 1)
+        index = np.random.choice(index, n - 2, replace=False)
+        index = np.r_[index, np.array([0, n - 1])]
+        index = d[index]
+        data.append(df[df.index.isin(index)])
+    data = pd.concat(data).reset_index().drop(columns='index')
+    return data
+
+
 def df_filter(df, ratio=None, seed=0, properties=[], min=None, max=None,
-              std=None, score=None):
+              std=None, score=None, T_select=False):
     np.random.seed(seed)
     N = len(df)
     for i, p in enumerate(properties):
@@ -46,6 +62,8 @@ def df_filter(df, ratio=None, seed=0, properties=[], min=None, max=None,
                                          replace=False)
     df_train = df[df.inchi.isin(random_inchi_list)]
     df_test = df[~df.inchi.isin(random_inchi_list)]
+    if T_select:
+        df_train = df_T_select(df_train, n=3)
     return df_train, df_test
 
 
@@ -79,7 +97,7 @@ def get_XY_from_df(df, kernel_config, T='rel_T', properties=None):
 
 
 def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
-               kernel='graph', NORMALIZED=True,
+               kernel='graph', NORMALIZED=True, T_select=False,
                nBits=None, size=None,
                ratio=1.0,
                temperature=None, pressure=None,
@@ -124,7 +142,8 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
         min=min,
         max=max,
         std=std,
-        properties=property.split(',')
+        properties=property.split(','),
+        T_select=T_select
     )
 
     train_X, train_Y, train_smiles = get_XY_from_df(
@@ -262,6 +281,10 @@ def main():
         '--load_model', action='store_true',
         help='load exist model',
     )
+    parser.add_argument(
+        '--t_select', action='store_true',
+        help='select training set',
+    )
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -282,7 +305,7 @@ def main():
             ylog=args.ylog,
             min=args.y_min, max=args.y_max, std=args.y_std,
             score=args.score,
-            ratio=ratio,
+            ratio=ratio, T_select=args.t_select
         )
     print('***\tStart: hyperparameters optimization.\t***')
     if args.alpha_outlier:
