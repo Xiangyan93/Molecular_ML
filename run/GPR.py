@@ -26,7 +26,7 @@ def get_df(csv=None, pkl=None, get_graph=True):
     return df
 
 
-def df_T_select(df, n=3):
+def df_T_select(df, n=4):
     group = df.groupby('inchi')
     data = []
     for x in group:
@@ -42,8 +42,8 @@ def df_T_select(df, n=3):
     return data
 
 
-def df_filter(df, ratio=None, seed=0, properties=[], min=None, max=None,
-              std=None, score=None, T_select=False):
+def df_filter(df, train_ratio=None, train_size=None, seed=0, properties=[],
+              min=None, max=None, std=None, score=None, T_select=False):
     np.random.seed(seed)
     N = len(df)
     for i, p in enumerate(properties):
@@ -57,8 +57,9 @@ def df_filter(df, ratio=None, seed=0, properties=[], min=None, max=None,
         df = df.loc[df['score'] > score]
     print('%i / %i data are not reliable and removed' % (N - len(df), N))
     unique_inchi_list = df.inchi.unique().tolist()
-    random_inchi_list = np.random.choice(unique_inchi_list,
-                                         int(len(unique_inchi_list) * ratio),
+    if train_size is None:
+        train_size = int(len(unique_inchi_list) * train_ratio)
+    random_inchi_list = np.random.choice(unique_inchi_list, train_size,
                                          replace=False)
     df_train = df[df.inchi.isin(random_inchi_list)]
     df_test = df[~df.inchi.isin(random_inchi_list)]
@@ -99,7 +100,7 @@ def get_XY_from_df(df, kernel_config, T='rel_T', properties=None):
 def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
                kernel='graph', NORMALIZED=True, T_select=False,
                nBits=None, size=None,
-               ratio=1.0,
+               train_ratio=0.8, train_size=None,
                temperature=None, pressure=None,
                precompute=False,
                ylog=False,
@@ -137,7 +138,8 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
     df_train, df_test = df_filter(
         df,
         seed=seed,
-        ratio=ratio,
+        train_ratio=train_ratio,
+        train_size=train_size,
         score=score,
         min=min,
         max=max,
@@ -285,6 +287,10 @@ def main():
         '--t_select', action='store_true',
         help='select training set',
     )
+    parser.add_argument(
+        '--train_size', type=int, default=None,
+        help='size for vector fingerprint',
+    )
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -305,7 +311,8 @@ def main():
             ylog=args.ylog,
             min=args.y_min, max=args.y_max, std=args.y_std,
             score=args.score,
-            ratio=ratio, T_select=args.t_select
+            train_ratio=ratio, train_size=args.train_size,
+            T_select=args.t_select
         )
     print('***\tStart: hyperparameters optimization.\t***')
     if args.alpha_outlier:
