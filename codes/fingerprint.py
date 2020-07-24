@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 from rdkit.Chem import AllChem as Chem
 from rdkit.Chem.AtomPairs import Pairs
@@ -143,7 +144,7 @@ class VectorFPConfig:
                  nBits=None, size=None,
                  radius=2,  # parameters when type = 'morgan'
                  minPath=1, maxPath=7,  # parameters when type = 'topol'
-                 T=None, P=None
+                 T=None, P=None, theta=None
                  ):
         self.fp = SubstructureFingerprint(
             type=type,
@@ -155,6 +156,7 @@ class VectorFPConfig:
         self.size = size
         self.T = T
         self.P = P
+        self.theta = theta
 
     def get_kernel(self, inchi_list):
         self.X = self.fp.get_fp_list(inchi_list, size=self.size)
@@ -166,7 +168,11 @@ class VectorFPConfig:
         self.kernel = gp.kernels.RBF(
             length_scale=np.ones(kernel_size),
         )
-
+        if self.theta is not None:
+            print('Reading Existed kernel parameter %s' % self.theta)
+            with open(self.theta, 'rb') as file:
+                theta = pickle.load(file)
+            self.kernel = self.kernel.clone_with_theta(theta)
 '''
 def get_local_structure(smiles, radius=1):
     from rdkit.DataStructs.cDataStructs import UIntSparseIntVect

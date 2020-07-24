@@ -4,7 +4,7 @@ import sys
 import argparse
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from codes.gpr import RobustFitGaussianProcessRegressor
+from codes.gpr_sklearn import RobustFitGaussianProcessRegressor
 from codes.hashgraph import HashGraph
 from codes.kernel import *
 

@@ -2,14 +2,14 @@
 import os
 import sys
 import argparse
-import pandas as pd
 import matplotlib.pyplot as plt
 
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from codes.smiles import *
 from codes.fingerprint import *
 from codes.hashgraph import HashGraph
+from codes.kernels.GraphKernel import *
+from codes.GPRsklearn.ActiveLearning import *
 
 
 def get_df(csv=None, pkl=None, get_graph=True):
@@ -70,24 +70,13 @@ def df_filter(df, train_ratio=None, train_size=None, seed=0, properties=[],
 def get_XY_from_df(df, kernel_config, T='rel_T', properties=None):
     if df.size == 0:
         return None, None, None
-
-    if kernel_config.__class__ == GraphKernelConfig:
-        X = df['graph'].to_numpy()
-        if kernel_config.T and kernel_config.P:
-            X = [X, df[[T, 'P']].to_numpy()]
-        elif kernel_config.T:
-            X = [X, df[[T]].to_numpy()]
-        elif kernel_config.P:
-            X = [X, df[['P']].to_numpy()]
-    else:
-        kernel_config.get_kernel(df.inchi.to_list())
-        X = kernel_config.X
-        if kernel_config.T and kernel_config.P:
-            X = np.concatenate([X, df[[T, 'P']].to_numpy()], axis=1)
-        elif kernel_config.T:
-            X = np.concatenate([X, df[[T]].to_numpy()], axis=1)
-        elif kernel_config.P:
-            X = np.concatenate([X, df[['P']].to_numpy()], axis=1)
+    X = df['graph'].to_numpy()
+    if kernel_config.T and kernel_config.P:
+        X = [X, df[[T, 'P']].to_numpy()]
+    elif kernel_config.T:
+        X = [X, df[[T]].to_numpy()]
+    elif kernel_config.P:
+        X = [X, df[['P']].to_numpy()]
     smiles = df.inchi.apply(inchi2smiles).to_numpy()
     if len(properties) == 1:
         Y = df[properties[0]].to_numpy()
@@ -97,7 +86,7 @@ def get_XY_from_df(df, kernel_config, T='rel_T', properties=None):
 
 
 def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
-               kernel='graph', NORMALIZED=True, T_select=False,
+               NORMALIZED=True, T_select=False,
                nBits=None, size=None,
                train_ratio=0.8, train_size=None,
                temperature=None, pressure=None,
@@ -111,29 +100,17 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
     print('***\tStart: Reading input.\t***')
     pkl = os.path.join(result_dir, '%s.pkl' % property)
     if os.path.exists(pkl):
-        df = get_df(pkl=pkl, get_graph=kernel == 'graph')
+        df = get_df(pkl=pkl, get_graph=True)
     else:
-        df = get_df(csv=csv, get_graph=kernel == 'graph')
+        df = get_df(csv=csv, get_graph=True)
         df.to_pickle(pkl)
 
-    if kernel == 'graph':
-        kernel_config = GraphKernelConfig(
-            NORMALIZED=NORMALIZED,
-            T=temperature,
-            P=pressure,
-            theta=theta
-        )
-    elif kernel == 'vector':
-        kernel_config = VectorFPConfig(
-            type='morgan',
-            nBits=nBits,
-            radius=2,
-            T=temperature,
-            P=pressure,
-            size=size,
-        )
-    else:
-        raise Exception('unknow kernel: %s' % kernel)
+    kernel_config = GraphKernelConfig(
+        NORMALIZED=NORMALIZED,
+        T=temperature,
+        P=pressure,
+        theta=theta
+    )
     df_train, df_test = df_filter(
         df,
         seed=seed,
@@ -166,11 +143,11 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
         test_Y = np.log(test_Y)
     print('***\tEnd: Reading input.\t***\n')
 
-    if optimizer is None and kernel == 'graph':
+    if optimizer is None:
         print('***\tStart: Graph kernels calculating\t***')
         graph_file = os.path.join(result_dir, 'graph.pkl')
         K_file = os.path.join(result_dir, 'K.pkl')
-        if precompute:
+        if os.path.exists(graph_file) and :
             print('**\tRead pre-calculated kernel matrix\t**')
             if kernel_config.T:
                 kernel_config.kernel.kernel_list[0].graphs = pickle.load(
@@ -206,7 +183,9 @@ def read_input(csv, property, result_dir, theta=None, seed=0, optimizer=None,
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Gaussian process regression')
+    parser = argparse.ArgumentParser(
+        description='Gaussian process regression using graph kernel'
+    )
     parser.add_argument('-i', '--input', type=str, help='Input data.')
     parser.add_argument('--property', type=str, help='Target property.')
     parser.add_argument('--seed', type=int, help='random seed', default=0)
@@ -235,6 +214,14 @@ def main():
         help='Pressure hyperparameter'
     )
     parser.add_argument(
+        '--mode', type=str, default='loocv',
+        help='Learning mode: loocv, lomocv, train_test'
+    )
+    parser.add_argument(
+        '--normalized', action='store_true',
+        help='use normalized kernel',
+    )
+    parser.add_argument(
         '--ylog', action='store_true',
         help='Using log scale of target value',
     )
@@ -242,10 +229,6 @@ def main():
     parser.add_argument('--y_max', type=float, help='', default=None)
     parser.add_argument('--y_std', type=float, help='', default=None)
     parser.add_argument('--score', type=float, help='', default=None)
-    parser.add_argument(
-        '--mode', type=str, default='loocv',
-        help='Learning mode: loocv, lomocv, train_test'
-    )
     parser.add_argument(
         '--alpha_outlier', action='store_true',
         help='reset alpha based on outlier',
@@ -263,46 +246,30 @@ def main():
         help='theta.pkl',
     )
     parser.add_argument(
-        '--kernel', type=str, default='graph',
-        help='Kernel: graph, vector',
-    )
-    parser.add_argument(
-        '--normalized', action='store_true',
-        help='use normalized kernel',
-    )
-    parser.add_argument(
-        '--vector_nBits', type=int, default=None,
-        help='nBits for vector fingerprint',
-    )
-    parser.add_argument(
-        '--vector_size', type=int, default=None,
-        help='size for vector fingerprint',
-    )
-    parser.add_argument(
         '--load_model', action='store_true',
         help='load exist model',
     )
     parser.add_argument(
         '--T_select', action='store_true',
-        help='select training set',
+        help='select few data points of each molecule in training set',
     )
     parser.add_argument(
         '--train_size', type=int, default=None,
+        help='size of training set',
+    )
+    parser.add_argument(
+        '--train_ratio', type=float, default=0.8,
         help='size for vector fingerprint',
     )
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
     result_dir = os.path.join(CWD, 'result-%s' % args.name)
-    if args.mode in ['loocv', 'lomocv']:
-        ratio = 1.0
-    else:
-        ratio = Config.TrainingSetSelectRule.RANDOM_Para['ratio']
     df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
     test_smiles, kernel_config = \
         read_input(
             args.input, args.property, result_dir,
-            kernel=args.kernel, NORMALIZED=args.normalized,
+            NORMALIZED=args.normalized,
             nBits=args.vector_nBits, size=args.vector_size,
             theta=args.theta, seed=args.seed, optimizer=optimizer,
             temperature=args.temperature, pressure=args.pressure,
@@ -310,7 +277,7 @@ def main():
             ylog=args.ylog,
             min=args.y_min, max=args.y_max, std=args.y_std,
             score=args.score,
-            train_ratio=ratio, train_size=args.train_size,
+            train_ratio=args.train_ratio, train_size=args.train_size,
             T_select=args.t_select
         )
     print('***\tStart: hyperparameters optimization.\t***')

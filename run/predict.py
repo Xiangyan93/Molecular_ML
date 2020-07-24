@@ -5,7 +5,7 @@ import argparse
 import matplotlib.pyplot as plt
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from codes.gpr import RobustFitGaussianProcessRegressor
+from codes.gpr_sklearn import RobustFitGaussianProcessRegressor
 from codes.hashgraph import HashGraph
 from codes.kernel import *
 
@@ -18,6 +18,14 @@ def main():
     )
     parser.add_argument(
         '--dir', type=str,
+        help='directory containing model.pkl and theta.pkl file',
+    )
+    parser.add_argument(
+        '--ylog_dir', type=str, default=None,
+        help='directory containing model.pkl and theta.pkl file',
+    )
+    parser.add_argument(
+        '--exp', type=str, default=None,
         help='directory containing model.pkl and theta.pkl file',
     )
     parser.add_argument(
@@ -48,9 +56,21 @@ def main():
         x = np.repeat(HashGraph.from_smiles(args.smiles), n).tolist()
         X = [x, t]
     y = model.predict(X)
-    plt.plot(t, y)
+    plt.plot(t, y, label='GPR normal scale')
+    plt.legend()
+    if args.ylog_dir is not None:
+        model.load(args.ylog_dir)
+        y = np.exp(model.predict(X))
+        plt.plot(t, y, label='GPR log scale')
+    if args.exp is not None:
+        df = pd.read_csv(args.exp, sep='\s+')
+        df = df[df.SMILES == args.smiles]
+        t = df.rel_T
+        y = df['pvap-lg']
+        plt.plot(t, y, label='exp')
+    plt.legend()
+    plt.yscale("log")
     plt.show()
-    print(y)
 
 
 if __name__ == '__main__':

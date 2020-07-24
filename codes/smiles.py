@@ -1,9 +1,4 @@
-import numpy as np
-import networkx as nx
-from treelib import Tree
 from rdkit.Chem import AllChem as Chem
-from graphdot.minipandas import DataFrame
-from graphdot import Graph
 
 
 def smiles2inchi(smiles):

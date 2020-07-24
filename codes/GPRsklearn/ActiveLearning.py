@@ -11,11 +11,10 @@ from sklearn.metrics import explained_variance_score
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score
 
-from codes.gpr import (
+from codes.GPRsklearn.gpr import (
     RobustFitGaussianProcessRegressor,
-    NystromGaussianProcessRegressor
 )
-from codes.kernel import MultipleKernel
+from codes.kernels.MultipleKernel import MultipleKernel
 
 
 def get_smiles(graph):

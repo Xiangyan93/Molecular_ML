@@ -31,7 +31,6 @@ import math
 import pickle
 import os
 from config import Config
-from codes.kernel import get_core_idx
 from codes.solver import CholSolver
 from codes.optimizer import (
     ensemble,
@@ -459,6 +458,7 @@ class RobustFitGaussianProcessRegressor(GPR):
             return y_pred
 
 
+'''
 # This class cannot be used directly.
 class NystromPreGaussianProcessRegressor(RobustFitGaussianProcessRegressor):
     def __init__(self, off_diagonal_cutoff=0.9, core_max=500, *args, **kwargs):
@@ -644,3 +644,4 @@ class NystromGaussianProcessRegressor(NystromPreGaussianProcessRegressor):
                 return y_mean, y_std
             else:
                 return y_mean
+'''

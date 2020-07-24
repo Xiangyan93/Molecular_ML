@@ -1,15 +1,13 @@
-import copy
 import pickle
-import pandas as pd
+import numpy as np
 import sklearn.gaussian_process as gp
 from graphdot.kernel.marginalized import MarginalizedGraphKernel
-from sklearn.cluster import SpectralClustering
-from codes.smiles import *
+from codes.kernels.MultipleKernel import MultipleKernel
 from config import *
 
 
 class NormalizedGraphKernel(MarginalizedGraphKernel):
-    def __normalize_scale(self, X, Y, R, length=10000):
+    def __normalize_scale(self, X, Y, R, length=50000):
         if Y is None:
             # square matrix
             if type(R) is tuple:
@@ -99,162 +97,59 @@ class NormalizedGraphKernel(MarginalizedGraphKernel):
 class PreCalcMarginalizedGraphKernel(MarginalizedGraphKernel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.graphs = None
+        self.inchi = None
         self.K = None
+        self.K_gradient = None
 
-    def PreCalculate(self, X):
-        self.graphs = np.sort(X)
-        self.K = self(self.graphs)
+    def PreCalculate(self, X, inchi):
+        idx = np.argsort(inchi)
+        self.inchi = inchi[idx]
+        graphs = X[idx]
+        self.K, self.K_gradient = self(graphs, eval_gradient=True)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
-        if self.K is None or eval_gradient:
-            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args,
-                                    **kwargs)
+        if self.K is None or self.K_gradient is None:
+            return super().__call__(X, Y=Y, eval_gradient=True, *args, **kwargs)
         else:
-            X_idx = np.searchsorted(self.graphs, X)
+            X_idx = np.searchsorted(self.inchi, X)
             if Y is not None:
-                Y_idx = np.searchsorted(self.graphs, Y)
-                return self.K[X_idx][:, Y_idx]
+                Y_idx = np.searchsorted(self.inchi, Y)
             else:
-                return self.K[X_idx][:, X_idx]
+                Y_idx = X_idx
+            if eval_gradient:
+                return self.K[X_idx][:, Y_idx], \
+                       self.K_gradient[X_idx][:, Y_idx][:]
+            else:
+                return self.K[X_idx][:, Y_idx]
 
 
 class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.graphs = None
+        self.inchi = None
         self.K = None
+        self.K_gradient = None
 
-    def PreCalculate(self, X):
-        self.graphs = np.sort(X)
-        self.K = self(self.graphs)
+    def PreCalculate(self, X, inchi):
+        idx = np.argsort(inchi)
+        self.inchi = inchi[idx]
+        graphs = X[idx]
+        self.K, self.K_gradient = self(graphs, eval_gradient=True)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
-        if self.K is None or eval_gradient:
-            return super().__call__(X, Y=Y, eval_gradient=eval_gradient, *args,
-                                    **kwargs)
+        if self.K is None or self.K_gradient is None:
+            return super().__call__(X, Y=Y, eval_gradient=True, *args, **kwargs)
         else:
-            X_idx = np.searchsorted(self.graphs, X)
+            X_idx = np.searchsorted(self.inchi, X)
             if Y is not None:
-                Y_idx = np.searchsorted(self.graphs, Y)
+                Y_idx = np.searchsorted(self.inchi, Y)
+            else:
+                Y_idx = X_idx
+            if eval_gradient:
+                return self.K[X_idx][:, Y_idx], \
+                       self.K_gradient[X_idx][:, Y_idx][:]
+            else:
                 return self.K[X_idx][:, Y_idx]
-            else:
-                return self.K[X_idx][:, X_idx]
-
-
-class MultipleKernel:
-    def __init__(self, kernel_list, composition, combined_rule='product'):
-        self.kernel_list = kernel_list
-        self.composition = composition
-        self.combined_rule = combined_rule
-
-    @property
-    def nkernel(self):
-        return len(self.kernel_list)
-
-    def __call__(self, X, Y=None, eval_gradient=False):
-        if eval_gradient:
-            covariance_matrix = 1
-            gradient_matrix_list = list(
-                map(int, np.ones(self.nkernel).tolist()))
-            for i, kernel in enumerate(self.kernel_list):
-                Xi = X[i]
-                Yi = Y[i] if Y is not None else None
-                output = kernel(Xi, Y=Yi, eval_gradient=True)
-                if self.combined_rule == 'product':
-                    covariance_matrix *= output[0]
-                    for j in range(self.nkernel):
-                        if j == i:
-                            gradient_matrix_list[j] = gradient_matrix_list[j] * \
-                                                      output[1]
-                        else:
-                            shape = output[0].shape + (1,)
-                            gradient_matrix_list[j] = gradient_matrix_list[j] * \
-                                                      output[0].reshape(shape)
-            gradient_matrix = gradient_matrix_list[0]
-            for i, gm in enumerate(gradient_matrix_list):
-                if i != 0:
-                    gradient_matrix = np.c_[
-                        gradient_matrix, gradient_matrix_list[i]]
-            return covariance_matrix, gradient_matrix
-        else:
-            covariance_matrix = 1
-            for i, kernel in enumerate(self.kernel_list):
-                Xi = X[i]
-                Yi = Y[i] if Y is not None else None
-                output = kernel(Xi, Y=Yi, eval_gradient=False)
-                if self.combined_rule == 'product':
-                    covariance_matrix *= output
-            return covariance_matrix
-
-    def diag(self, X):
-        for i, kernel in enumerate(self.kernel_list):
-            if i == 0:
-                diag = kernel.diag(X[i])
-            else:
-                if self.combined_rule == 'product':
-                    diag *= kernel.diag(X[i])
-        return diag
-
-    def is_stationary(self):
-        return False
-
-    @property
-    def requires_vector_input(self):
-        return False
-
-    @property
-    def n_dims_list(self):
-        return [kernel.n_dims for kernel in self.kernel_list]
-
-    @property
-    def n_dims(self):
-        return sum(self.n_dims_list)
-
-    @property
-    def hyperparameters(self):
-        return np.exp(self.theta)
-
-    @property
-    def theta(self):
-        for i, kernel in enumerate(self.kernel_list):
-            if i == 0:
-                theta = self.kernel_list[0].theta
-            else:
-                theta = np.r_[theta, kernel.theta]
-        return theta
-
-    @theta.setter
-    def theta(self, value):
-        if len(value) != self.n_dims:
-            raise Exception('The length of n_dims and theta must the same')
-        s = 0
-        e = 0
-        for i, kernel in enumerate(self.kernel_list):
-            e += self.n_dims_list[i]
-            kernel.theta = value[s:e]
-            s += self.n_dims_list[i]
-
-    @property
-    def bounds(self):
-        for i, kernel in enumerate(self.kernel_list):
-            if i == 0:
-                bounds = self.kernel_list[0].bounds
-            else:
-                bounds = np.r_[bounds, kernel.bounds]
-        return bounds
-
-    def clone_with_theta(self, theta):
-        clone = copy.deepcopy(self)
-        clone.theta = theta
-        return clone
-
-    def get_params(self, deep=False):
-        return dict(
-            kernel_list=self.kernel_list,
-            composition=self.composition,
-            combined_rule=self.combined_rule,
-        )
 
 
 class ConvolutionGraphKernel:
@@ -343,12 +238,13 @@ class GraphKernelConfig:
             self.kernel = self.kernel.clone_with_theta(theta)
 
 
+'''
 def get_subset_by_clustering(X, kernel, ncluster):
-    ''' find representative samples from a pool using clustering method
-    :X: a list of graphs
-    :add_sample_size: add sample size
-    :return: list of idx
-    '''
+    # find representative samples from a pool using clustering method
+    #:X: a list of graphs
+    #:add_sample_size: add sample size
+    #:return: list of idx
+    #
     # train SpectralClustering on X
     if len(X) < ncluster:
         return X
@@ -465,3 +361,4 @@ def get_core_idx(X, kernel, off_diagonal_cutoff=0.9, core_max=500,
     else:
         raise Exception('unknown method')
     return C_idx
+'''
