@@ -208,6 +208,10 @@ def main():
         '--train_size', type=int, default=None,
         help='size for vector fingerprint',
     )
+    parser.add_argument(
+        '--train_ratio', type=float, default=0.8,
+        help='size for vector fingerprint',
+    )
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -215,7 +219,7 @@ def main():
     if args.mode in ['loocv', 'lomocv']:
         ratio = 1.0
     else:
-        ratio = args.ratio
+        ratio = args.train_ratio
     df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
     test_smiles, kernel_config = \
         read_input(
