@@ -75,7 +75,7 @@ def get_XY_from_df(df, kernel_config, T='rel_T', properties=None):
 
 def read_input(csv, property, result_dir, theta=None, seed=0,
                T_select=False,
-               nBits=None, size=None,
+               nBits=None, size=None, useCounts=True,
                train_ratio=0.8, train_size=None,
                temperature=None, pressure=None,
                ylog=False,
@@ -91,6 +91,7 @@ def read_input(csv, property, result_dir, theta=None, seed=0,
         type='morgan',
         nBits=nBits,
         radius=2,
+        useCounts=useCounts,
         T=temperature,
         P=pressure,
         size=size,
@@ -212,6 +213,10 @@ def main():
         '--train_ratio', type=float, default=0.8,
         help='size for vector fingerprint',
     )
+    parser.add_argument(
+        '--useCounts', action='store_true',
+        help='load exist model',
+    )
     args = parser.parse_args()
 
     optimizer = None if args.optimizer == 'None' else args.optimizer
@@ -225,6 +230,7 @@ def main():
         read_input(
             args.input, args.property, result_dir,
             nBits=args.vector_nBits, size=args.vector_size,
+            useCounts=args.useCounts,
             theta=args.theta, seed=args.seed,
             temperature=args.temperature, pressure=args.pressure,
             ylog=args.ylog,

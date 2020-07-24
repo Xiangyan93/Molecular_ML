@@ -7,7 +7,7 @@ import sklearn.gaussian_process as gp
 
 
 def get_fingerprint(rdk_mol, type='morgan', nBits=None,
-                    radius=1, useFeatures=False,  # morgan
+                    radius=1, useFeatures=False, useCounts=True,  # morgan
                     minPath=1, maxPath=7,  # rdk
                     hash=False  # torsion
                     ):
@@ -32,7 +32,8 @@ def get_fingerprint(rdk_mol, type='morgan', nBits=None,
                 rdk_mol,
                 radius,
                 bitInfo=info,
-                useFeatures=useFeatures
+                useFeatures=useFeatures,
+                useCounts=useCounts
             )
             for key in info:
                 info[key] = len(info[key])
@@ -42,7 +43,8 @@ def get_fingerprint(rdk_mol, type='morgan', nBits=None,
                 rdk_mol,
                 radius,
                 nBits=nBits,
-                useFeatures=useFeatures
+                useFeatures=useFeatures,
+                useCounts=useCounts
             ).ToBitString()
     elif type == 'pair':
         if nBits is None:
@@ -68,12 +70,14 @@ def get_fingerprint(rdk_mol, type='morgan', nBits=None,
 
 
 class SubstructureFingerprint:
-    def __init__(self, type='rdk', nBits=None, radius=1, minPath=1, maxPath=7):
+    def __init__(self, type='rdk', nBits=None, radius=1, minPath=1, maxPath=7,
+                 useCounts=True):
         self.type = type
         self.nBits = nBits
         self.radius = radius
         self.minPath = minPath
         self.maxPath = maxPath
+        self.useCounts = useCounts
 
     def get_fp_list(self, inchi_list, size=None):
         fp_list = []
@@ -84,6 +88,7 @@ class SubstructureFingerprint:
                 rdk_mol = Chem.MolFromInchi(inchi)
                 fp = get_fingerprint(rdk_mol, type=self.type, nBits=self.nBits,
                                      radius=self.radius,
+                                     useCounts=self.useCounts,
                                      minPath=self.minPath, maxPath=self.maxPath)
                 _fp_list.append(fp)
                 for key in fp.keys():
@@ -110,6 +115,7 @@ class SubstructureFingerprint:
                 rdk_mol = Chem.MolFromInchi(inchi)
                 fp = get_fingerprint(rdk_mol, type=self.type, nBits=self.nBits,
                                      radius=self.radius,
+                                     useCounts=self.useCounts,
                                      minPath=self.minPath, maxPath=self.maxPath)
                 fp = list(map(int, list(fp)))
                 fp_list.append(fp)
@@ -142,7 +148,7 @@ class TOPOL(SubstructureFingerprint):
 class VectorFPConfig:
     def __init__(self, type,
                  nBits=None, size=None,
-                 radius=2,  # parameters when type = 'morgan'
+                 radius=2,  useCounts=True,  # parameters when type = 'morgan'
                  minPath=1, maxPath=7,  # parameters when type = 'topol'
                  T=None, P=None, theta=None
                  ):
@@ -151,7 +157,8 @@ class VectorFPConfig:
             nBits=nBits,
             radius=radius,
             minPath=minPath,
-            maxPath=maxPath
+            maxPath=maxPath,
+            useCounts=useCounts
         )
         self.size = size
         self.T = T
