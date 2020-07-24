@@ -372,7 +372,7 @@ def main():
         if args.ylog:
             r2, ex_var, mse, out = learner.evaluate_train(ylog=False)
             print('score log scale: %.5f' % r2)
-        if Config.TrainingSetSelectRule.RANDOM_Para.get('ratio') is not None:
+        if ratio != 1.0:
             r2, ex_var, mse, out = learner.evaluate_test(ylog=args.ylog)
             print('Test set:')
             print('score: %.5f' % r2)
