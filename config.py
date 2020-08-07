@@ -18,9 +18,9 @@ class Config:
         k = 0.90
         s = 2.0
         q = 0.01  # q is the stop probability in ramdom walk
-        k_bounds = (k, k)
-        s_bounds = (s, s)
-        q_bound = (q, q)
+        k_bounds = (0.1, 1.0)
+        s_bounds = (0.1, 10.0)
+        q_bound = (1e-4, 1.0)
         knode = TensorProduct(
             atomic_number=KroneckerDelta(k, k_bounds),
             aromatic=KroneckerDelta(k, k_bounds),

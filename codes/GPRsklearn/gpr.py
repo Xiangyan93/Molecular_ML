@@ -41,6 +41,8 @@ from codes.optimizer import (
 
 
 class GPR(GaussianProcessRegressor):
+    '''
+
     def fit(self, X, y, core_predict=True):
         if self.kernel is None:  # Use an RBF kernel as default
             self.kernel_ = C(1.0, constant_value_bounds="fixed") \
@@ -50,10 +52,14 @@ class GPR(GaussianProcessRegressor):
             if hasattr(self.kernel, 'kernel_list'):
                 self.kernel_.kernel_list[0].graphs = self.kernel.kernel_list[0].graphs
                 self.kernel_.kernel_list[0].K = self.kernel.kernel_list[0].K
+                self.kernel_.kernel_list[0].K_gradient = self.kernel.kernel_list[0].K_gradient
+                self.kernel_.kernel_list[0].sort_by_inchi = self.kernel.kernel_list[0].sort_by_inchi
             elif hasattr(self.kernel, 'graphs'):
                 self.kernel_.graphs = self.kernel.graphs
                 self.kernel_.K = self.kernel.K
-
+                self.kernel_.K_gradient = self.kernel.K_gradient
+                self.kernel_.sort_by_inchi = self.kernel.sort_by_inchi
+            print(self.kernel.K.shape, self.kernel_.K.shape)
         self._rng = check_random_state(self.random_state)
 
         # Normalize target value
@@ -131,7 +137,6 @@ class GPR(GaussianProcessRegressor):
                 raise
             self.alpha_ = cho_solve((self.L_, True), self.y_train_)  # Line 3
         return self
-    '''
     def predict(self, X, return_std=False, return_cov=False):
         if return_cov:
             return super().predict(X, return_std=return_std, return_cov=return_cov)
@@ -396,13 +401,13 @@ class RobustFitGaussianProcessRegressor(GPR):
         super().__init__(*args, **kwargs)
         self.y_scale = y_scale
 
-    def fit(self, X, y, core_predict=True):
+    def fit(self, X, y):
         # scale y according to train y and save the scalar
         if self.y_scale:
             self.scaler = StandardScaler().fit(y.reshape(-1, 1))
-            super().fit(X, self.scaler.transform(y.reshape(-1, 1)).flatten(), core_predict=core_predict)
+            super().fit(X, self.scaler.transform(y.reshape(-1, 1)).flatten())
         else:
-            super().fit(X, y, core_predict=core_predict)
+            super().fit(X, y)
         return self
 
     def predict(self, *args, **kwargs):
@@ -417,11 +422,11 @@ class RobustFitGaussianProcessRegressor(GPR):
             return result
 
     def fit_robust(self, X, y, core_predict=True, cycle=1):
-        self.fit(X, y, core_predict=core_predict)
+        self.fit(X, y)
         for i in range(cycle):
             try:
                 print('Try to fit the data with alpha = ', self.alpha)
-                self.fit(X, y, core_predict=core_predict)
+                self.fit(X, y)
                 print('Success fit the data with %i-th cycle alpha' % (i + 1))
             except Exception as e:
                 print('error info: ', e)

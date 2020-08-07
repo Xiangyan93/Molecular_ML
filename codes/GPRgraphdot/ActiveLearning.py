@@ -4,26 +4,24 @@ import time
 import numpy as np
 import pandas as pd
 from collections import defaultdict
+from graphdot.model.gaussian_process.gpr import GaussianProcessRegressor
 from sklearn.cluster import KMeans
 from sklearn.manifold import SpectralEmbedding
-from codes.GPRsklearn.gpr import (
-    RobustFitGaussianProcessRegressor,
-)
-from codes.kernels.MultipleKernel import MultipleKernel
 from codes.learner import BaseLearner
+from codes.kernels.MultipleKernel import MultipleKernel
 
 
 class Learner(BaseLearner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.model = RobustFitGaussianProcessRegressor(kernel=self.kernel,
-                                                       optimizer=self.optimizer,
-                                                       normalize_y=True,
-                                                       alpha=self.alpha)
+        self.model = GaussianProcessRegressor(kernel=self.kernel,
+                                              optimizer=self.optimizer,
+                                              normalize_y=True,
+                                              alpha=self.alpha)
 
     def train(self):
-        self.model.fit_robust(self.train_X, self.train_Y)
-        print('hyperparameter: ', self.model.kernel_.hyperparameters)
+        self.model.fit_loocv(self.train_X, self.train_Y)
+        print('hyperparameter: ', self.model.kernel.hyperparameters)
 
 
 class ActiveLearner:
@@ -328,7 +326,7 @@ class ActiveLearner:
                 idx,
                 pool_size=self.pool_size
             )
-            search_K = self.learner.model.kernel_(x[search_idx])
+            search_K = self.learner.model.kernel(x[search_idx])
             add_idx = self._find_add_idx_cluster(search_K)
             return np.array(search_idx)[add_idx]
         elif self.add_mode == 'nlargest':

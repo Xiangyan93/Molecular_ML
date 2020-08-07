@@ -12,14 +12,22 @@ class MultipleKernel:
     def nkernel(self):
         return len(self.kernel_list)
 
+    def get_X_list(self, X):
+        def f(c):
+            return X[:, c]
+        X_list = list(map(f, self.composition))
+        return X_list
+
     def __call__(self, X, Y=None, eval_gradient=False):
+        X_list = self.get_X_list(X)
+        Y_list = self.get_X_list(Y) if Y is not None else None
         if eval_gradient:
             covariance_matrix = 1
             gradient_matrix_list = list(
                 map(int, np.ones(self.nkernel).tolist()))
             for i, kernel in enumerate(self.kernel_list):
-                Xi = X[i]
-                Yi = Y[i] if Y is not None else None
+                Xi = X_list[i]
+                Yi = Y_list[i] if Y is not None else None
                 output = kernel(Xi, Y=Yi, eval_gradient=True)
                 if self.combined_rule == 'product':
                     covariance_matrix *= output[0]
@@ -40,21 +48,21 @@ class MultipleKernel:
         else:
             covariance_matrix = 1
             for i, kernel in enumerate(self.kernel_list):
-                Xi = X[i]
-                Yi = Y[i] if Y is not None else None
+                Xi = X_list[i]
+                Yi = Y_list[i] if Y is not None else None
                 output = kernel(Xi, Y=Yi, eval_gradient=False)
                 if self.combined_rule == 'product':
                     covariance_matrix *= output
             return covariance_matrix
 
     def diag(self, X):
-        for i, kernel in enumerate(self.kernel_list):
-            if i == 0:
-                diag = kernel.diag(X[i])
-            else:
-                if self.combined_rule == 'product':
-                    diag *= kernel.diag(X[i])
-        return diag
+        X_list = self.get_X_list(X)
+        diag_list = [self.kernel_list[i].diag(X_list[i]) for i in
+                     range(len(self.kernel_list))]
+        if self.combined_rule == 'product':
+            return np.product(diag_list, axis=0)
+        else:
+            raise Exception('Unknown combined rule %s' % self.combined_rule)
 
     def is_stationary(self):
         return False
