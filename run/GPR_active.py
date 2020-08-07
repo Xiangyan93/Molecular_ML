@@ -8,9 +8,11 @@ CWD = os.path.dirname(os.path.abspath(__file__))
 
 
 def main():
+    import argparse
     parser = argparse.ArgumentParser(
         description='Gaussian process regression for molecular properties using'
-                    ' active learning'
+                    ' active learning',
+        formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument('-i', '--input', type=str, help='Input data.')
     parser.add_argument('--property', type=str, help='Target property.')

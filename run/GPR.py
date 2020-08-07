@@ -263,9 +263,9 @@ def main():
     result_dir = os.path.join(CWD, args.result_dir)
     # set Gaussian process regressor
     if args.gpr == 'graphdot':
-        from codes.GPRgraphdot.ActiveLearning import Learner
+        from codes.GPRgraphdot.learner import Learner
     elif args.gpr == 'sklearn':
-        from codes.GPRsklearn.ActiveLearning import Learner
+        from codes.GPRsklearn.learner import Learner
     else:
         raise Exception('Unknown GaussianProcessRegressor: %s' % args.gpr)
     # set kernel_config
