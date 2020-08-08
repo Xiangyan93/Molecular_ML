@@ -9,6 +9,7 @@ from sklearn.metrics import (
     explained_variance_score,
     mean_squared_error
 )
+
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.graph.hashgraph import HashGraph
@@ -56,9 +57,9 @@ def df_filter(df, train_ratio=None, train_size=None, seed=0, T_select=False):
     return df_train, df_test
 
 
-def gpr_run(result_dir, input, property, mode, optimizer, alpha, seed,
-            load_model, T_select, train_size, train_ratio,
-            kernel_config, get_graph, get_XY_from_df, Learner):
+def read_input(result_dir, input, property, mode, seed, T_select, train_size,
+               train_ratio,
+               kernel_config, get_graph, get_XY_from_df):
     print('***\tStart: Reading input.\t***')
     if not os.path.exists(result_dir):
         os.mkdir(result_dir)
@@ -91,6 +92,14 @@ def gpr_run(result_dir, input, property, mode, optimizer, alpha, seed,
         test_X = train_X
         test_Y = np.copy(train_Y)
     print('***\tEnd: Reading input.\t***\n')
+    return (df, df_train, df_test, train_X, train_Y, train_smiles, test_X,
+            test_Y, test_smiles)
+
+
+def gpr_run(df, df_train, df_test, train_X, train_Y, train_smiles, test_X,
+            test_Y, test_smiles,
+            result_dir, property, mode, optimizer, alpha, load_model,
+            kernel_config, get_graph, get_XY_from_df, Learner):
     # pre-calculate graph kernel matrix.
     if get_graph and optimizer is None:
         print('***\tStart: Graph kernels calculating\t***')
@@ -187,13 +196,13 @@ def main():
     )
     parser.add_argument(
         '--optimizer', type=str, default="L-BFGS-B",
-        help='Optimizer used in GPR. options:\n' 
+        help='Optimizer used in GPR. options:\n'
              'L-BFGS-B: graphdot GPR that minimize LOOCV error.\n'
              'fmin_l_bfgs_b: sklearn GPR that maximize marginalized log '
              'likelihood.'
     )
     parser.add_argument(
-        '--kernel',  type=str, default="graph",
+        '--kernel', type=str, default="graph",
         help='Kernel type.\n'
              'options: graph, vector or preCalc.\n'
              'For preCalc kernel, run KernelCalc.py first.'
@@ -230,10 +239,6 @@ def main():
     parser.add_argument(
         '--normalized', action='store_true',
         help='use normalized kernel.',
-    )
-    parser.add_argument(
-        '--theta', type=str, default=None,
-        help='read existed theta.pkl',
     )
     parser.add_argument(
         '--load_model', action='store_true',
@@ -284,7 +289,6 @@ def main():
             NORMALIZED=args.normalized,
             features=features,
             hyperparameters=hyperparameters,
-            theta=args.theta
         )
         get_graph = True
     elif args.kernel == 'vector':
@@ -299,7 +303,6 @@ def main():
             size=int(args.vectorFPparams.split(',')[3]),
             features=features,
             hyperparameters=hyperparameters,
-            theta=args.theta
         )
         get_graph = False
     elif args.kernel == 'preCalc':
@@ -312,7 +315,6 @@ def main():
             pickle.load(open(os.path.join(result_dir, 'K.pkl'), 'rb')),
             features=features,
             hyperparameters=hyperparameters,
-            theta=args.theta
         )
         get_graph = False
     else:
@@ -320,10 +322,18 @@ def main():
 
     # set optimizer
     optimizer = None if args.optimizer == 'None' else args.optimizer
-
-    gpr_run(result_dir, args.input, args.property, args.mode, optimizer,
-            args.alpha, args.seed, args.load_model, args.T_select,
-            args.train_size, args.train_ratio,
+    # read input
+    df, df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
+    test_smiles = read_input(
+        result_dir, args.input, args.property, args.mode, args.seed,
+        args.T_select, args.train_size, args.train_ratio,
+        kernel_config, get_graph, get_XY_from_df
+    )
+    # gpr
+    gpr_run(df, df_train, df_test, train_X, train_Y, train_smiles, test_X,
+            test_Y, test_smiles,
+            result_dir, args.property, args.mode, optimizer, args.alpha,
+            args.load_model,
             kernel_config, get_graph, get_XY_from_df, Learner)
 
 

@@ -1,61 +1,89 @@
 #!/usr/bin/env python3
 import os
 import sys
+import pickle
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from run.GPR import *
-CWD = os.path.dirname(os.path.abspath(__file__))
+from codes.learner import ActiveLearner
+from run.GPR import (
+    read_input
+)
 
 
 def main():
     import argparse
     parser = argparse.ArgumentParser(
-        description='Gaussian process regression for molecular properties using'
-                    ' active learning',
+        description='Gaussian process regression using graph kernel',
         formatter_class=argparse.RawTextHelpFormatter
     )
-    parser.add_argument('-i', '--input', type=str, help='Input data.')
+    parser.add_argument(
+        '--gpr', type=str, default="graphdot",
+        help='The GaussianProcessRegressor.\n'
+             'options: graphdot or sklearn.'
+    )
+    parser.add_argument(
+        '--optimizer', type=str, default="L-BFGS-B",
+        help='Optimizer used in GPR. options:\n' 
+             'L-BFGS-B: graphdot GPR that minimize LOOCV error.\n'
+             'fmin_l_bfgs_b: sklearn GPR that maximize marginalized log '
+             'likelihood.'
+    )
+    parser.add_argument(
+        '--kernel',  type=str, default="graph",
+        help='Kernel type.\n'
+             'options: graph, vector or preCalc.\n'
+             'For preCalc kernel, run KernelCalc.py first.'
+    )
+    parser.add_argument('-i', '--input', type=str, help='Input data in csv '
+                                                        'format.')
     parser.add_argument('--property', type=str, help='Target property.')
     parser.add_argument('--seed', type=int, help='random seed', default=0)
     parser.add_argument(
-        '--optimizer', type=str, default="fmin_l_bfgs_b",
-        help='Optimizer used in GPR.'
-    )
-    parser.add_argument(
-        '--name', type=str, default='default',
-        help='All the output file will be save in folder result-name',
+        '--result_dir', type=str, default='default',
+        help='The path where all the output saved.',
     )
     parser.add_argument(
         '--alpha', type=float, default=0.5,
         help='Initial alpha value.'
     )
     parser.add_argument(
-        '--precompute', action='store_true',
-        help='using saved kernel value',
+        '--add_features', type=str, default=None,
+        help='Additional features. examples:\n'
+             'rel_T\n'
+             'T,P'
     )
     parser.add_argument(
-        '-t', '--temperature', type=float, default=None,
-        help='Temperature hyperparameter'
+        '--hyper_features', type=str, default=None,
+        help='The hyperparameters of additional features. examples:\n'
+             '100\n'
+             '100,100'
     )
     parser.add_argument(
-        '-p', '--pressure', type=float, default=None,
-        help='Pressure hyperparameter'
+        '--normalized', action='store_true',
+        help='use normalized kernel.',
     )
     parser.add_argument(
-        '--ylog', action='store_true',
-        help='Using log scale of target value',
+        '--train_size', type=int, default=None,
+        help='size of training set',
     )
-    parser.add_argument('--y_min', type=float, help='', default=None)
-    parser.add_argument('--y_max', type=float, help='', default=None)
-    parser.add_argument('--y_std', type=float, help='', default=None)
-    parser.add_argument('--score', type=float, help='', default=None)
+    parser.add_argument(
+        '--train_ratio', type=float, default=0.8,
+        help='size for training set.\n'
+             'This option is effective only when train_size is None',
+    )
+    parser.add_argument(
+        '--vectorFPparams', type=str, default='morgan,2,64,0',
+        help='parameters for vector fingerprints. examples:\n'
+             'morgan,2,128,0\n'
+             'morgan,2,0,200\n'
+    )
     parser.add_argument(
         '--learning_mode', type=str, default='unsupervised',
-        help='supervised/unsupervised/random'
+        help='options: supervised/unsupervised/random.'
     )
     parser.add_argument(
         '--add_mode', type=str, default='cluster',
-        help='random/cluster/nlargest/threshold'
+        help='options: random/cluster/nlargest.'
     )
     parser.add_argument(
         '--init_size', type=int, default=100,
@@ -81,53 +109,91 @@ def main():
     )
     parser.add_argument('--stride', type=int, help='output stride', default=100)
     parser.add_argument(
-        '--normalized', action='store_true',
-        help='use normalized kernel',
-    )
-    '''
-    parser.add_argument('--nystrom_size', type=int, help='training set size start using Nystrom approximation.',
-                        default=2000)
-    parser.add_argument('--nystrom_add_size', type=int, help='Add size for nystrom active learning', default=1000)
-    parser.add_argument('--nystrom_active', help='Active learning for core matrix in Nystrom approximation.',
-                        action='store_true')
-    parser.add_argument('--nystrom_predict', help='Output Nystrom prediction in None-Nystrom active learning.',
-                        action='store_true')
-    '''
-    parser.add_argument(
         '--continued', action='store_true',
         help='whether continue training'
     )
     args = parser.parse_args()
-
-    optimizer = None if args.optimizer == 'None' else args.optimizer
-    result_dir = os.path.join(CWD, 'result-%s' % args.name)
-    df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
-    test_smiles, kernel_config = \
-        read_input(
-            args.input, args.property, result_dir,
-            seed=args.seed, optimizer=optimizer, NORMALIZED=args.normalized,
-            temperature=args.temperature, pressure=args.pressure,
-            precompute=args.precompute,
-            ylog=args.ylog,
-            min=args.y_min, max=args.y_max, std=args.y_std,
-            score=args.score,
-            ratio=Config.TrainingSetSelectRule.ACTIVE_LEARNING_Para['ratio']
+    # set result directory
+    result_dir = os.path.join(CWD, args.result_dir)
+    # set kernel_config
+    if args.add_features is None:
+        features = None
+        hyperparameters = None
+    else:
+        features = args.add_features.split(',')
+        hyperparameters = list(map(float, args.hyper_features.split(',')))
+    if args.kernel == 'graph':
+        from codes.kernels.GraphKernel import (
+            GraphKernelConfig,
+            get_XY_from_df
         )
-
-    activelearner = ActiveLearner(
-        train_X, train_Y, train_smiles, args.alpha, kernel_config,
-        args.learning_mode, args.add_mode, args.init_size, args.add_size,
-        args.max_size, args.search_size, args.pool_size,  args.name,
-        test_X=test_X, test_Y=test_Y, test_smiles=test_smiles,
-        optimizer=optimizer, seed=args.seed, ylog=args.ylog, stride=args.stride
-    )
-    
+        kernel_config = GraphKernelConfig(
+            NORMALIZED=args.normalized,
+            features=features,
+            hyperparameters=hyperparameters,
+        )
+        get_graph = True
+    elif args.kernel == 'vector':
+        from codes.kernels.VectorKernel import (
+            VectorFPConfig,
+            get_XY_from_df
+        )
+        kernel_config = VectorFPConfig(
+            type=args.vectorFPparams.split(',')[0],
+            radius=int(args.vectorFPparams.split(',')[1]),
+            nBits=int(args.vectorFPparams.split(',')[2]),
+            size=int(args.vectorFPparams.split(',')[3]),
+            features=features,
+            hyperparameters=hyperparameters,
+        )
+        get_graph = False
+    elif args.kernel == 'preCalc':
+        from codes.kernels.PreCalcKernel import (
+            PreCalcKernelConfig,
+            get_XY_from_df
+        )
+        kernel_config = PreCalcKernelConfig(
+            pickle.load(open(os.path.join(result_dir, 'inchi.pkl'), 'rb')),
+            pickle.load(open(os.path.join(result_dir, 'K.pkl'), 'rb')),
+            features=features,
+            hyperparameters=hyperparameters,
+        )
+        get_graph = False
+    else:
+        raise Exception('Unknown kernel: %s' % args.kernel)
     if args.continued:
-        print('**\tLoading checkpoint\t**\n')
-        activelearner.load(kernel_config)
+        print('***\tLoading checkpoint\t***\n')
+        f_checkpoint = os.path.join(result_dir, 'checkpoint.pkl')
+        activelearner = ActiveLearner.load_checkpoint(f_checkpoint,
+                                                      kernel_config)
         activelearner.max_size = args.max_size
         print("model continued from checkpoint")
-        print(activelearner)
+    else:
+        # set Gaussian process regressor
+        if args.gpr == 'graphdot':
+            from codes.GPRgraphdot.learner import Learner
+        elif args.gpr == 'sklearn':
+            from codes.GPRsklearn.learner import Learner
+        else:
+            raise Exception('Unknown GaussianProcessRegressor: %s' % args.gpr)
+        # set optimizer
+        optimizer = None if args.optimizer == 'None' else args.optimizer
+        # read input
+        df, df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
+        test_smiles = read_input(
+            result_dir, args.input, args.property, args.mode, args.seed,
+            args.T_select, args.train_size, args.train_ratio,
+            kernel_config, get_graph, get_XY_from_df
+        )
+
+        activelearner = ActiveLearner(
+            train_X, train_Y, train_smiles, args.alpha, kernel_config,
+            args.learning_mode, args.add_mode, args.init_size, args.add_size,
+            args.max_size, args.search_size, args.pool_size,  args.result_dir,
+            Learner,
+            test_X=test_X, test_Y=test_Y, test_smiles=test_smiles,
+            optimizer=optimizer, seed=args.seed, stride=args.stride
+        )
 
     while True:
         print('***\tStart: active learning, current size = %i\t***\n' %
@@ -138,11 +204,6 @@ def main():
                 print('\n**\tstart evaluate\t**\n')
                 activelearner.evaluate()
                 activelearner.write_training_plot()
-                '''
-                if activelearner.current_size % (5 * activelearner.stride) == 0:
-                    print('\n**\tstart saving checkpoint\t**\n')
-                    activelearner.save()
-                '''
             else:
                 activelearner.y_pred = None
                 activelearner.y_std = None

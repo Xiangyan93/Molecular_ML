@@ -1,4 +1,5 @@
 import os
+import pickle
 import numpy as np
 import pandas as pd
 from collections import defaultdict
@@ -134,7 +135,6 @@ class ActiveLearner:
         self.test_Y = test_Y
         self.test_smiles = test_smiles
         self.kernel_config = kernel_config
-        self.kernel = kernel_config.kernel
         if np.iterable(alpha):
             self.init_alpha = alpha
         else:
@@ -166,8 +166,7 @@ class ActiveLearner:
         )
         self.stride = stride
         self.learning_log = pd.DataFrame({
-            '#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'K_core': [],
-            'search_size': []
+            '#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'search_size': []
         })
 
     def stop_sign(self):
@@ -235,7 +234,7 @@ class ActiveLearner:
             self.train_idx = np.r_[self.train_idx, add_idx]
             self.current_size = self.train_idx.size
         elif self.learning_mode == 'unsupervised':
-            y_pred, y_std = self.model.predict(untrain_x, return_std=True)
+            y_pred, y_std = self.learner.model.predict(untrain_x, return_std=True)
             add_idx = self._get_samples_idx(untrain_x, y_std, untrain_idx)
             self.train_idx = np.r_[self.train_idx, add_idx]
             self.current_size = self.train_idx.size
@@ -357,56 +356,29 @@ class ActiveLearner:
             index=False
         )
 
-    def save(self):
-        if not os.path.exists(self.result_dir):
-            os.mkdir(self.result_dir)
+    def save_checkpoint(self):
         # store all attributes instead of model
         store_dict = self.__dict__.copy()
-        if 'learner' in store_dict.keys():
-            store_dict.pop('learner')
-        if 'y_pred' in store_dict.keys():
-            store_dict.pop('y_pred')
-        if 'y_std' in store_dict.keys():
-            store_dict.pop('y_std')
-        if 'kernel_config' in store_dict.keys():
-            store_dict.pop('kernel_config')
-        if 'kernel_mol' in store_dict.keys():
-            store_dict.pop('kernel_mol')
-
+        store_dict.pop('learner', None)
+        store_dict.pop('kernel_config', None)
         # store model
         if hasattr(self, 'model'):
-            if isinstance(self.model, NystromGaussianProcessRegressor):
-                store_dict['model_class'] = 'nystrom'
-            elif isinstance(self.model, RobustFitGaussianProcessRegressor):
-                store_dict['model_class'] = 'normal'
-            self.model.save(os.path.join(self.result_dir))
-        with open(os.path.join(self.result_dir, 'activelearner_param.pkl'),
-                  'wb') as file:
-            pickle.dump(store_dict, file)
+            self.learner.model.save(self.result_dir)
+        pickle.dump(store_dict, open('checkpoint.pkl', 'wb'), protocol=4)
 
-    def load(self, kernel_config):
+    @classmethod
+    def load_checkpoint(cls, f_checkpoint, kernel_config):
+        d = pickle.load(open(f_checkpoint, 'rb'))
+        activelearner = cls(
+            d['train_X'], d['train_Y'], d['train_smiles'], d['alpha'],
+            kernel_config, d['learning_mode'], d['add_mode'], d['initial_size'],
+            d['add_size'], d['max_size'], d['search_size'], d['pool_size'],
+            d['result_dir'], d['Learner'], d['test_X'], d['test_Y'],
+            d['test_smiles'], d['optimizer'], d['stride'], d['seed'])
         # restore params
-        self.kernel_config = kernel_config
-        self.kernel_mol = kernel_config.kernel.kernel_list[
-            0] if kernel_config.T else kernel_config.kernel
-        with open(os.path.join(self.result_dir, 'activelearner_param.pkl'),
-                  'rb') as file:
-            store_dict = pickle.load(file)
-        for key in store_dict.keys():
-            setattr(self, key, store_dict[key])
-        if hasattr(self, 'model_class'):
-            if self.model_class == 'nystrom':
-                self.model = NystromGaussianProcessRegressor(
-                    kernel=kernel_config.kernel, random_state=self.seed,
-                    optimizer=self.optimizer, normalize_y=True,
-                    alpha=self.alpha)
-                self.model.load(self.result_dir)
-            elif self.model_class == 'normal':
-                self.model = RobustFitGaussianProcessRegressor(
-                    kernel=kernel_config.kernel, random_state=self.seed,
-                    optimizer=self.optimizer,
-                    normalize_y=True, alpha=self.alpha)
-                self.model.load(self.result_dir)
+        for key in d.keys():
+            setattr(activelearner, key, d[key])
+        return activelearner
 
     def __str__(self):
         return 'parameter of current active learning checkpoint:\n' + \
