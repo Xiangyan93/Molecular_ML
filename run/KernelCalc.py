@@ -36,15 +36,12 @@ def main():
     kernel = kernel_config.kernel
     inchi_file = os.path.join(result_dir, 'inchi.pkl')
     K_file = os.path.join(result_dir, 'K.pkl')
-    K_gradient_file = os.path.join(result_dir, 'K_gradient.pkl')
     print('**\tCalculating kernel matrix\t**')
     kernel.PreCalculate(X, inchi, sort_by_inchi=True)
     with open(inchi_file, 'wb') as file:
         pickle.dump(kernel.inchi, file)
     with open(K_file, 'wb') as file:
         pickle.dump(kernel.K, file)
-    with open(K_gradient_file, 'wb') as file:
-        pickle.dump(kernel.K_gradient, file)
     print('**\tEnd Calculating kernel matrix\t**')
 
 
