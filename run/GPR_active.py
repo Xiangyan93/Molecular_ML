@@ -181,8 +181,8 @@ def main():
         # read input
         df, df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
         test_smiles = read_input(
-            result_dir, args.input, args.property, args.mode, args.seed,
-            args.T_select, args.train_size, args.train_ratio,
+            result_dir, args.input, args.property, 'loocv', args.seed,
+            False, args.train_size, args.train_ratio,
             kernel_config, get_graph, get_XY_from_df
         )
 
