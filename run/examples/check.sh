@@ -25,9 +25,12 @@ do
 			else
 				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 10.0 --result_dir check-$g-$kn-$m				--optimizer None				> check-$g-$kn-$m.log
 				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 0.01 --result_dir check-$g-$kn-$m-normal		--optimizer None --normalized	> check-$g-$kn-$m-normal.log
-				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 10.0 --result_dir check-$g-$kn-$m-opt			--optimizer $opt				> check-$g-$kn-$m-opt.log
-				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 0.01 --result_dir check-$g-$kn-$m-opt-normal	--optimizer $opt --normalized	> check-$g-$kn-$m-opt-normal.log
-				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 0.01 --result_dir check-$g-$kn-$m-opt-normal	--optimizer $opt --normalized --load_model	> check-$g-$kn-$m-opt-normal-load.log
+				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 0.01 --result_dir check-$g-$kn-$m-normal		--optimizer None --normalized --load_model > check-$g-$kn-$m-normal-load.log
+				if [ "$g" == "graphdot" ]; then
+					python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 10.0 --result_dir check-$g-$kn-$m-opt			--optimizer $opt				> check-$g-$kn-$m-opt.log
+					python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 0.01 --result_dir check-$g-$kn-$m-opt-normal	--optimizer $opt --normalized	> check-$g-$kn-$m-opt-normal.log
+					python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 0.01 --result_dir check-$g-$kn-$m-opt-normal	--optimizer $opt --normalized --load_model	> check-$g-$kn-$m-opt-normal-load.log
+				fi
 			fi
 		done
 	done

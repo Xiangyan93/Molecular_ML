@@ -6,7 +6,8 @@ CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.learner import ActiveLearner
 from run.GPR import (
-    read_input
+    read_input,
+    get_kernel_config
 )
 
 
@@ -116,51 +117,11 @@ def main():
     # set result directory
     result_dir = os.path.join(CWD, args.result_dir)
     # set kernel_config
-    if args.add_features is None:
-        features = None
-        hyperparameters = None
-    else:
-        features = args.add_features.split(',')
-        hyperparameters = list(map(float, args.hyper_features.split(',')))
-    if args.kernel == 'graph':
-        from codes.kernels.GraphKernel import (
-            GraphKernelConfig,
-            get_XY_from_df
-        )
-        kernel_config = GraphKernelConfig(
-            NORMALIZED=args.normalized,
-            add_features=features,
-            add_hyperparameters=hyperparameters,
-        )
-        get_graph = True
-    elif args.kernel == 'vector':
-        from codes.kernels.VectorKernel import (
-            VectorFPConfig,
-            get_XY_from_df
-        )
-        kernel_config = VectorFPConfig(
-            type=args.vectorFPparams.split(',')[0],
-            radius=int(args.vectorFPparams.split(',')[1]),
-            nBits=int(args.vectorFPparams.split(',')[2]),
-            size=int(args.vectorFPparams.split(',')[3]),
-            add_features=features,
-            add_hyperparameters=hyperparameters,
-        )
-        get_graph = False
-    elif args.kernel == 'preCalc':
-        from codes.kernels.PreCalcKernel import (
-            PreCalcKernelConfig,
-            get_XY_from_df
-        )
-        kernel_config = PreCalcKernelConfig(
-            pickle.load(open(os.path.join(result_dir, 'inchi.pkl'), 'rb')),
-            pickle.load(open(os.path.join(result_dir, 'K.pkl'), 'rb')),
-            add_features=features,
-            add_hyperparameters=hyperparameters,
-        )
-        get_graph = False
-    else:
-        raise Exception('Unknown kernel: %s' % args.kernel)
+    kernel_config, get_graph, get_XY_from_df = get_kernel_config(
+        args.kernel, args.add_features, args.hyper_features, args.normalized,
+        args.vectorFPparams, result_dir
+    )
+
     if args.continued:
         print('***\tLoading checkpoint\t***\n')
         f_checkpoint = os.path.join(result_dir, 'checkpoint.pkl')
@@ -185,7 +146,6 @@ def main():
             False, args.train_size, args.train_ratio,
             kernel_config, get_graph, get_XY_from_df
         )
-
         activelearner = ActiveLearner(
             train_X, train_Y, train_smiles, args.alpha, kernel_config,
             args.learning_mode, args.add_mode, args.init_size, args.add_size,

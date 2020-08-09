@@ -1,5 +1,4 @@
 import copy
-import pickle
 import numpy as np
 import sklearn.gaussian_process as gp
 from codes.kernels.MultipleKernel import MultipleKernel
@@ -10,6 +9,7 @@ class PreCalcKernel:
     def __init__(self, X, K, theta):
         self.X = X
         self.K = K
+        self.theta_ = theta
         self.exptheta = np.exp(theta)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
@@ -63,6 +63,7 @@ class PreCalcKernel:
         return dict(
             X=self.X,
             K=self.K,
+            theta=self.theta_
         )
 
 

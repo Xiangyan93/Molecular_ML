@@ -287,7 +287,7 @@ class ActiveLearner:
             # from all remaining samples
             return idx
         else:
-            return idx[np.argsort(error)[:pool_size]]
+            return idx[np.argsort(error)[-pool_size:]]
 
     def _find_add_idx_cluster(self, gram_matrix):
         ''' find representative samp-les from a pool using clustering method

@@ -15,6 +15,57 @@ sys.path.append(os.path.join(CWD, '..'))
 from codes.graph.hashgraph import HashGraph
 
 
+def get_kernel_config(kernel, add_features, hyper_features, normalized,
+                      vectorFPparams, result_dir):
+    if add_features is None:
+        features = None
+        hyperparameters = None
+    else:
+        features = add_features.split(',')
+        hyperparameters = list(map(float, hyper_features.split(',')))
+    if kernel == 'graph':
+        from codes.kernels.GraphKernel import (
+            GraphKernelConfig,
+            get_XY_from_df
+        )
+        kernel_config = GraphKernelConfig(
+            NORMALIZED=normalized,
+            add_features=features,
+            add_hyperparameters=hyperparameters,
+        )
+        get_graph = True
+    elif kernel == 'vector':
+        from codes.kernels.VectorKernel import (
+            VectorFPConfig,
+            get_XY_from_df
+        )
+        kernel_config = VectorFPConfig(
+            type=vectorFPparams.split(',')[0],
+            radius=int(vectorFPparams.split(',')[1]),
+            nBits=int(vectorFPparams.split(',')[2]),
+            size=int(vectorFPparams.split(',')[3]),
+            add_features=features,
+            add_hyperparameters=hyperparameters,
+        )
+        get_graph = False
+    elif kernel == 'preCalc':
+        from codes.kernels.PreCalcKernel import (
+            PreCalcKernelConfig,
+            get_XY_from_df
+        )
+        kernel_config = PreCalcKernelConfig(
+            pickle.load(open(os.path.join(result_dir, 'inchi.pkl'), 'rb')),
+            pickle.load(open(os.path.join(result_dir, 'K.pkl'), 'rb')),
+            pickle.load(open(os.path.join(result_dir, 'theta.pkl'), 'rb')),
+            add_features=features,
+            add_hyperparameters=hyperparameters,
+        )
+        get_graph = False
+    else:
+        raise Exception('Unknown kernel: %s' % kernel)
+    return kernel_config, get_graph, get_XY_from_df
+
+
 def get_df(csv, pkl, get_graph=True):
     if os.path.exists(pkl):
         print('reading existing pkl file: %s' % pkl)
@@ -91,6 +142,7 @@ def read_input(result_dir, input, property, mode, seed, T_select, train_size,
     if test_X is None:
         test_X = train_X
         test_Y = np.copy(train_Y)
+        test_smiles = train_smiles
     print('***\tEnd: Reading input.\t***\n')
     return (df, df_train, df_test, train_X, train_Y, train_smiles, test_X,
             test_Y, test_smiles)
@@ -274,53 +326,10 @@ def main():
     else:
         raise Exception('Unknown GaussianProcessRegressor: %s' % args.gpr)
     # set kernel_config
-    if args.add_features is None:
-        features = None
-        hyperparameters = None
-    else:
-        features = args.add_features.split(',')
-        hyperparameters = list(map(float, args.hyper_features.split(',')))
-    if args.kernel == 'graph':
-        from codes.kernels.GraphKernel import (
-            GraphKernelConfig,
-            get_XY_from_df
-        )
-        kernel_config = GraphKernelConfig(
-            NORMALIZED=args.normalized,
-            add_features=features,
-            add_hyperparameters=hyperparameters,
-        )
-        get_graph = True
-    elif args.kernel == 'vector':
-        from codes.kernels.VectorKernel import (
-            VectorFPConfig,
-            get_XY_from_df
-        )
-        kernel_config = VectorFPConfig(
-            type=args.vectorFPparams.split(',')[0],
-            radius=int(args.vectorFPparams.split(',')[1]),
-            nBits=int(args.vectorFPparams.split(',')[2]),
-            size=int(args.vectorFPparams.split(',')[3]),
-            add_features=features,
-            add_hyperparameters=hyperparameters,
-        )
-        get_graph = False
-    elif args.kernel == 'preCalc':
-        from codes.kernels.PreCalcKernel import (
-            PreCalcKernelConfig,
-            get_XY_from_df
-        )
-        kernel_config = PreCalcKernelConfig(
-            pickle.load(open(os.path.join(result_dir, 'inchi.pkl'), 'rb')),
-            pickle.load(open(os.path.join(result_dir, 'K.pkl'), 'rb')),
-            pickle.load(open(os.path.join(result_dir, 'theta.pkl'), 'rb')),
-            add_features=features,
-            add_hyperparameters=hyperparameters,
-        )
-        get_graph = False
-    else:
-        raise Exception('Unknown kernel: %s' % args.kernel)
-
+    kernel_config, get_graph, get_XY_from_df = get_kernel_config(
+        args.kernel, args.add_features, args.hyper_features, args.normalized,
+        args.vectorFPparams, result_dir
+    )
     # set optimizer
     optimizer = None if args.optimizer == 'None' else args.optimizer
     # read input
