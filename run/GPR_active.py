@@ -129,8 +129,8 @@ def main():
         )
         kernel_config = GraphKernelConfig(
             NORMALIZED=args.normalized,
-            features=features,
-            hyperparameters=hyperparameters,
+            add_features=features,
+            add_hyperparameters=hyperparameters,
         )
         get_graph = True
     elif args.kernel == 'vector':
@@ -143,8 +143,8 @@ def main():
             radius=int(args.vectorFPparams.split(',')[1]),
             nBits=int(args.vectorFPparams.split(',')[2]),
             size=int(args.vectorFPparams.split(',')[3]),
-            features=features,
-            hyperparameters=hyperparameters,
+            add_features=features,
+            add_hyperparameters=hyperparameters,
         )
         get_graph = False
     elif args.kernel == 'preCalc':
@@ -155,8 +155,8 @@ def main():
         kernel_config = PreCalcKernelConfig(
             pickle.load(open(os.path.join(result_dir, 'inchi.pkl'), 'rb')),
             pickle.load(open(os.path.join(result_dir, 'K.pkl'), 'rb')),
-            features=features,
-            hyperparameters=hyperparameters,
+            add_features=features,
+            add_hyperparameters=hyperparameters,
         )
         get_graph = False
     else:

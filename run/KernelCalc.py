@@ -34,14 +34,14 @@ def main():
     print('***\tEnd Reading input.\t***')
     kernel_config = GraphKernelConfig(NORMALIZED=args.normalized)
     kernel = kernel_config.kernel
-    inchi_file = os.path.join(result_dir, 'inchi.pkl')
-    K_file = os.path.join(result_dir, 'K.pkl')
+    f_inchi = os.path.join(result_dir, 'inchi.pkl')
+    f_theta = os.path.join(result_dir, 'theta.pkl')
+    f_K = os.path.join(result_dir, 'K.pkl')
     print('**\tCalculating kernel matrix\t**')
     kernel.PreCalculate(X, inchi, sort_by_inchi=True)
-    with open(inchi_file, 'wb') as file:
-        pickle.dump(kernel.inchi, file)
-    with open(K_file, 'wb') as file:
-        pickle.dump(kernel.K, file)
+    pickle.dump(kernel.inchi, open(f_inchi, 'wb'))
+    pickle.dump(kernel.theta, open(f_theta, 'wb'))
+    pickle.dump(kernel.K, open(f_K, 'wb'))
     print('**\tEnd Calculating kernel matrix\t**')
 
 

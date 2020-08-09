@@ -174,9 +174,9 @@ class ConvolutionGraphKernel:
 
 
 class GraphKernelConfig:
-    def __init__(self, NORMALIZED=True, features=None, hyperparameters=None,
-                 theta=None, CONVOLUTION=False):
-        self.features = features
+    def __init__(self, NORMALIZED=True, add_features=None,
+                 add_hyperparameters=None, theta=None, CONVOLUTION=False):
+        self.features = add_features
         # define node and edge kernelets
         knode = Config.Hyperpara.knode
         kedge = Config.Hyperpara.kedge
@@ -213,15 +213,15 @@ class GraphKernelConfig:
                     q=stop_prob,
                     q_bounds=stop_prob_bound,
                 )
-        if features is not None and hyperparameters is not None:
-            if len(features) != len(hyperparameters):
+        if add_features is not None and add_hyperparameters is not None:
+            if len(add_features) != len(add_hyperparameters):
                 raise Exception('features and hyperparameters must be the same '
                                 'length')
             add_kernel = gp.kernels.ConstantKernel(1.0, (1e-3, 1e3)) * \
-                         gp.kernels.RBF(length_scale=np.ones(len(features)))
+                         gp.kernels.RBF(length_scale=np.ones(len(add_features)))
             composition = [
                 (0,),
-                tuple(np.arange(1, len(features)+1))
+                tuple(np.arange(1, len(add_features) + 1))
             ]
             self.kernel = MultipleKernel(
                 [graph_kernel, add_kernel], composition, 'product'

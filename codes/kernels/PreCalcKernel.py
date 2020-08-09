@@ -1,3 +1,4 @@
+import copy
 import pickle
 import numpy as np
 import sklearn.gaussian_process as gp
@@ -6,9 +7,10 @@ from codes.smiles import inchi2smiles
 
 
 class PreCalcKernel:
-    def __init__(self, X, K):
+    def __init__(self, X, K, theta):
         self.X = X
         self.K = K
+        self.exptheta = np.exp(theta)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         X_idx = np.searchsorted(self.X, X).ravel()
@@ -36,19 +38,26 @@ class PreCalcKernel:
 
     @property
     def theta(self):
-        return np.array([1])
+        return np.log(self.exptheta)
 
     @theta.setter
     def theta(self, value):
-        return np.array([1])
+        self.exptheta = np.exp(value)
+        return True
 
     @property
     def bounds(self):
-        return np.array([[1, 1]])
+        theta = self.theta.reshape(-1, 1)
+        return np.c_[theta, theta]
 
     @property
     def requires_vector_input(self):
         return False
+
+    def clone_with_theta(self, theta):
+        clone = copy.deepcopy(self)
+        clone.theta = theta
+        return clone
 
     def get_params(self, deep=False):
         return dict(
@@ -58,31 +67,25 @@ class PreCalcKernel:
 
 
 class PreCalcKernelConfig:
-    def __init__(self, X, K, features=None, hyperparameters=None,
-                 theta=None):
-        self.features = features
-        graph_kernel = PreCalcKernel(X=X, K=K)
-        if features is not None and hyperparameters is not None:
-            if len(features) != len(hyperparameters):
+    def __init__(self, X, K, theta, add_features=None,
+                 add_hyperparameters=None):
+        self.features = add_features
+        graph_kernel = PreCalcKernel(X=X, K=K, theta=theta)
+        if add_features is not None and add_hyperparameters is not None:
+            if len(add_features) != len(add_hyperparameters):
                 raise Exception('features and hyperparameters must be the same '
                                 'length')
             add_kernel = gp.kernels.ConstantKernel(1.0, (1e-3, 1e3)) * \
-                         gp.kernels.RBF(length_scale=np.ones(len(features)))
+                         gp.kernels.RBF(length_scale=np.ones(len(add_features)))
             composition = [
                 (0,),
-                tuple(np.arange(1, len(features)+1))
+                tuple(np.arange(1, len(add_features) + 1))
             ]
             self.kernel = MultipleKernel(
                 [graph_kernel, add_kernel], composition, 'product'
             )
         else:
             self.kernel = graph_kernel
-
-        if theta is not None:
-            print('Reading Existed kernel parameter %s' % theta)
-            with open(theta, 'rb') as file:
-                theta = pickle.load(file)
-            self.kernel = self.kernel.clone_with_theta(theta)
 
 
 def get_XY_from_df(df, kernel_config, properties=None):

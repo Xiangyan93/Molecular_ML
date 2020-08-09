@@ -122,7 +122,7 @@ class VectorFPConfig:
                  nBits=0, size=0,
                  radius=2,  # parameters when type = 'morgan'
                  minPath=1, maxPath=7,  # parameters when type = 'topol'
-                 features=None, hyperparameters=None, theta=None
+                 add_features=None, add_hyperparameters=None, theta=None
                  ):
         self.fp = SubstructureFingerprint(
             type=type,
@@ -132,8 +132,8 @@ class VectorFPConfig:
             maxPath=maxPath
         )
         self.size = size
-        self.features = features
-        self.hyperparameters = hyperparameters
+        self.features = add_features
+        self.hyperparameters = add_hyperparameters
         self.theta = theta
 
     def get_kernel(self, inchi_list):

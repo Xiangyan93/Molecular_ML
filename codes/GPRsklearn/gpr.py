@@ -41,128 +41,6 @@ from codes.optimizer import (
 
 
 class GPR(GaussianProcessRegressor):
-    '''
-
-    def fit(self, X, y, core_predict=True):
-        if self.kernel is None:  # Use an RBF kernel as default
-            self.kernel_ = C(1.0, constant_value_bounds="fixed") \
-                           * RBF(1.0, length_scale_bounds="fixed")
-        else:
-            self.kernel_ = clone(self.kernel)
-            if hasattr(self.kernel, 'kernel_list'):
-                self.kernel_.kernel_list[0].graphs = self.kernel.kernel_list[0].graphs
-                self.kernel_.kernel_list[0].K = self.kernel.kernel_list[0].K
-                self.kernel_.kernel_list[0].K_gradient = self.kernel.kernel_list[0].K_gradient
-                self.kernel_.kernel_list[0].sort_by_inchi = self.kernel.kernel_list[0].sort_by_inchi
-            elif hasattr(self.kernel, 'graphs'):
-                self.kernel_.graphs = self.kernel.graphs
-                self.kernel_.K = self.kernel.K
-                self.kernel_.K_gradient = self.kernel.K_gradient
-                self.kernel_.sort_by_inchi = self.kernel.sort_by_inchi
-            print(self.kernel.K.shape, self.kernel_.K.shape)
-        self._rng = check_random_state(self.random_state)
-
-        # Normalize target value
-        if self.normalize_y:
-            self._y_train_mean = np.mean(y, axis=0)
-            # demean y
-            y = y - self._y_train_mean
-        else:
-            self._y_train_mean = np.zeros(1)
-        if np.iterable(self.alpha) \
-                and self.alpha.shape[0] != y.shape[0]:
-            if self.alpha.shape[0] == 1:
-                self.alpha = self.alpha[0]
-            else:
-                raise ValueError("alpha must be a scalar or an array"
-                                 " with same number of entries as y.(%d != %d)"
-                                 % (self.alpha.shape[0], y.shape[0]))
-
-        self.X_train_ = X
-        self.y_train_ = y
-        if self.optimizer is not None and self.kernel_.n_dims > 0:
-            # Choose hyperparameters based on maximizing the log-marginal
-            # likelihood (potentially starting from several initial values)
-            def obj_func(theta, eval_gradient=True):
-                if eval_gradient:
-                    lml, grad = self.log_marginal_likelihood(
-                        theta, eval_gradient=True, clone_kernel=False)
-                    return -lml, -grad
-                else:
-                    return -self.log_marginal_likelihood(theta,
-                                                         clone_kernel=False)
-
-            # First optimize starting from theta specified in kernel
-            optima = [(self._constrained_optimization(obj_func,
-                                                      self.kernel_.theta,
-                                                      self.kernel_.bounds))]
-            # Additional runs are performed from log-uniform chosen initial
-            # theta
-            if self.n_restarts_optimizer > 0:
-                if not np.isfinite(self.kernel_.bounds).all():
-                    raise ValueError(
-                        "Multiple optimizer restarts (n_restarts_optimizer>0) "
-                        "requires that all bounds are finite.")
-                bounds = self.kernel_.bounds
-                for iteration in range(self.n_restarts_optimizer):
-                    theta_initial = \
-                        self._rng.uniform(bounds[:, 0], bounds[:, 1])
-                    optima.append(
-                        self._constrained_optimization(obj_func, theta_initial,
-                                                       bounds))
-            # Select result from run with minimal (negative) log-marginal
-            # likelihood
-            lml_values = list(map(itemgetter(1), optima))
-            self.kernel_.theta = optima[np.argmin(lml_values)][0]
-            self.log_marginal_likelihood_value_ = -np.min(lml_values)
-        else:
-            self.log_marginal_likelihood_value_ = \
-                self.log_marginal_likelihood(self.kernel_.theta,
-                                             clone_kernel=False)
-        if core_predict:
-            # Precompute quantities required for predictions which are independent
-            # of actual query points
-            K = self.kernel_(self.X_train_)
-            K[np.diag_indices_from(K)] += self.alpha
-            try:
-                self.L_ = cholesky(K, lower=True)  # Line 2
-                # self.L_ changed, self._K_inv needs to be recomputed
-                self._K_inv = None
-            except np.linalg.LinAlgError as exc:
-                exc.args = ("The kernel, %s, is not returning a "
-                            "positive definite matrix. Try gradually "
-                            "increasing the 'alpha' parameter of your "
-                            "GaussianProcessRegressor estimator."
-                            % self.kernel_,) + exc.args
-                raise
-            self.alpha_ = cho_solve((self.L_, True), self.y_train_)  # Line 3
-        return self
-    def predict(self, X, return_std=False, return_cov=False):
-        if return_cov:
-            return super().predict(X, return_std=return_std, return_cov=return_cov)
-        else:
-            if X.__class__ == pd.DataFrame:
-                X = X.to_numpy()
-            N = X.shape[0]
-            y_mean = None
-            y_std = np.array([])
-            for i in range(math.ceil(N / 1000)):
-                X_ = X[i * 1000:(i + 1) * 1000]
-                if return_std:
-                    y_mean_, y_std_ = super().predict(X_, return_std=return_std, return_cov=return_cov)
-                    y_std = np.r_[y_std, y_std_]
-                else:
-                    y_mean_ = super().predict(X_, return_std=return_std, return_cov=return_cov)
-                if y_mean is None:
-                    y_mean = y_mean_
-                else:
-                    y_mean = np.r_[y_mean, y_mean_]
-            if return_std:
-                return y_mean, y_std
-            else:
-                return y_mean
-    '''
-
     def predict(self, X, return_std=False, return_cov=False):
         """Predict using the Gaussian process regression model
 
@@ -251,33 +129,28 @@ class GPR(GaussianProcessRegressor):
             else:
                 return y_mean
 
-    def save(self, result_dir):
-        if not os.path.exists(result_dir):
-            os.mkdir(result_dir)
+    def save(self, dir):
+        f_model = os.path.join(dir, 'model.pkl')
         store_dict = self.__dict__.copy()
-        if 'kernel' in store_dict.keys():
-            store_dict.pop('kernel')
-        if 'kernel_' in store_dict.keys():
-            store_dict.pop('kernel_')
-        model_save_dir = os.path.join(result_dir, 'model.pkl')
-        with open(model_save_dir, 'wb') as file:
-            pickle.dump(store_dict, file, protocol=4)
-        theta_save_dir = os.path.join(result_dir, 'theta.pkl')
-        with open(theta_save_dir, 'wb') as file:
-            pickle.dump(self.kernel_.theta, file, protocol=4)
+        store_dict['theta'] = self.kernel.theta
+        store_dict.pop('kernel', None)
+        store_dict['theta_'] = self.kernel_.theta
+        store_dict.pop('kernel_', None)
+        pickle.dump(store_dict, open(f_model, 'wb'), protocol=4)
 
-    def load(self, result_dir):
-        model_save_dir = os.path.join(result_dir, 'model.pkl')
-        theta_save_dir = os.path.join(result_dir, 'theta.pkl')
-        with open(theta_save_dir, 'rb') as file:
-            theta = pickle.load(file)
-        with open(model_save_dir, 'rb') as file:
-            store_dict = pickle.load(file)
-        for key in store_dict.keys():
-            setattr(self, key, store_dict[key])
-        if self.kernel is not None:
-            self.kernel = self.kernel.clone_with_theta(theta)
-            self.kernel_ = self.kernel
+    def load(self, dir):
+        f_model = os.path.join(dir, 'model.pkl')
+        return self.load_cls(f_model, self.kernel)
+
+    @classmethod
+    def load_cls(cls, f_model, kernel):
+        store_dict = pickle.load(open(f_model, 'rb'))
+        kernel = kernel.clone_with_theta(store_dict.pop('theta'))
+        kernel_ = kernel.clone_with_theta(store_dict.pop('theta_'))
+        model = cls(kernel)
+        model.kernel_ = kernel_
+        model.__dict__.update(**store_dict)
+        return model
 
     def unpack_theta(self, theta):
         xi = np.exp(theta[0])
