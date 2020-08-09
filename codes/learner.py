@@ -273,7 +273,7 @@ class ActiveLearner:
                 idx,
                 pool_size=self.pool_size
             )
-            search_K = self.learner.model.kernel(x[search_idx])
+            search_K = self.learner.model.kernel(self.train_X[search_idx])
             add_idx = self._find_add_idx_cluster(search_K)
             return np.array(search_idx)[add_idx]
         elif self.add_mode == 'nlargest':
