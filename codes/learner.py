@@ -363,8 +363,7 @@ class ActiveLearner:
         store_dict.pop('learner', None)
         store_dict.pop('kernel_config', None)
         # store model
-        if hasattr(self, 'model'):
-            self.learner.model.save(self.result_dir)
+        self.learner.model.save(self.result_dir)
         pickle.dump(store_dict, open(f_checkpoint, 'wb'), protocol=4)
 
     @classmethod
