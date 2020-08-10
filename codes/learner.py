@@ -357,6 +357,7 @@ class ActiveLearner:
         )
 
     def save_checkpoint(self):
+        f_checkpoint = os.path.join(self.result_dir, 'checkpoint.pkl')
         # store all attributes instead of model
         store_dict = self.__dict__.copy()
         store_dict.pop('learner', None)
@@ -364,14 +365,14 @@ class ActiveLearner:
         # store model
         if hasattr(self, 'model'):
             self.learner.model.save(self.result_dir)
-        pickle.dump(store_dict, open('checkpoint.pkl', 'wb'), protocol=4)
+        pickle.dump(store_dict, open(f_checkpoint, 'wb'), protocol=4)
 
     @classmethod
     def load_checkpoint(cls, f_checkpoint, kernel_config):
         d = pickle.load(open(f_checkpoint, 'rb'))
         activelearner = cls(
-            d['train_X'], d['train_Y'], d['train_smiles'], d['alpha'],
-            kernel_config, d['learning_mode'], d['add_mode'], d['initial_size'],
+            d['train_X'], d['train_Y'], d['train_smiles'], d['init_alpha'],
+            kernel_config, d['learning_mode'], d['add_mode'], 10,
             d['add_size'], d['max_size'], d['search_size'], d['pool_size'],
             d['result_dir'], d['Learner'], d['test_X'], d['test_Y'],
             d['test_smiles'], d['optimizer'], d['stride'], d['seed'])

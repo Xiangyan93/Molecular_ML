@@ -164,6 +164,7 @@ def main():
                 print('\n**\tstart evaluate\t**\n')
                 activelearner.evaluate()
                 activelearner.write_training_plot()
+                activelearner.save_checkpoint()
             else:
                 activelearner.y_pred = None
                 activelearner.y_std = None
