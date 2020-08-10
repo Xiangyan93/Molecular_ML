@@ -1,11 +1,11 @@
-from graphdot.model.gaussian_process.gpr import GaussianProcessRegressor
+from .gpr import GPR
 from codes.learner import BaseLearner
 
 
 class Learner(BaseLearner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.model = GaussianProcessRegressor(kernel=self.kernel,
+        self.model = GPR(kernel=self.kernel,
                                               optimizer=self.optimizer,
                                               normalize_y=True,
                                               alpha=self.alpha)

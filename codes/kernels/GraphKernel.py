@@ -7,7 +7,36 @@ from codes.smiles import inchi2smiles
 from config import *
 
 
-class NormalizedGraphKernel(MarginalizedGraphKernel):
+class MGK(MarginalizedGraphKernel):
+    """
+    remove repeated kernel calculations
+    """
+    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
+        if X.__class__ == np.ndarray:
+            X = X.ravel()
+        if Y is not None and Y.__class__ == np.ndarray:
+            Y = Y.ravel()
+        X_unique = np.sort(np.unique(X))
+        Y_unique = None if Y is None else np.sort(np.unique(Y))
+        X_idx = np.searchsorted(X_unique, X)
+        Y_idx = X_idx if Y is None else np.searchsorted(Y_unique, Y)
+        if eval_gradient:
+            K, K_gradient = super().__call__(X_unique, Y_unique, True, *args,
+                                             **kwargs)
+            return K[X_idx][:, Y_idx], K_gradient[X_idx][:, Y_idx][:]
+        else:
+            K = super().__call__(X_unique, Y_unique, False, *args, **kwargs)
+            return K[X_idx][:, Y_idx]
+
+    def diag(self, X, *args, **kwargs):
+        if X.__class__ == np.ndarray:
+            X = X.ravel()
+        X_unique = np.sort(np.unique(X))
+        diag = super().diag(X_unique, *args, **kwargs)
+        return diag[np.searchsorted(X_unique, X)]
+
+
+class NormalizedGraphKernel(MGK):
     def __normalize(self, X, Y, R, length=50000):
         if Y is None:
             # square matrix
@@ -60,11 +89,11 @@ class NormalizedGraphKernel(MarginalizedGraphKernel):
         R = super().__call__(X, Y, *args, **kwargs)
         return self.__normalize(X, Y, R)
 
-    def diag(self, X):
+    def diag(self, X, *args, **kwargs):
         return np.ones(len(X))
 
 
-class PreCalcMarginalizedGraphKernel(MarginalizedGraphKernel):
+class PreCalcMarginalizedGraphKernel(MGK):
     def __init__(self, inchi=None, K=None, K_gradient=None, graphs=None,
                  sort_by_inchi=False, *args, **kwargs):
         super().__init__(*args, **kwargs)

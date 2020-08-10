@@ -1,4 +1,4 @@
-from codes.GPRsklearn.gpr import RobustFitGaussianProcessRegressor
+from .gpr import RobustFitGaussianProcessRegressor
 from codes.learner import BaseLearner
 
 
