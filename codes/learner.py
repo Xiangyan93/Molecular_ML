@@ -141,6 +141,8 @@ class ActiveLearner:
             self.init_alpha = np.ones(len(train_X)) * alpha
         self.learning_mode = learning_mode
         self.add_mode = add_mode
+        if initial_size <= 1:
+            raise Exception('initial_size must be larger than 1.')
         self.current_size = initial_size
         self.add_size = add_size
         self.max_size = max_size

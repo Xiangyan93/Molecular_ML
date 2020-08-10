@@ -20,6 +20,8 @@ do
 				python3 ../KernelCalc.py -i tt.txt --result_dir check-$g-$kn-$m-normal		--normalized
 				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 1.0 --result_dir check-$g-$kn-$m				--optimizer None				> check-$g-$kn-$m.log
 				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 0.01 --result_dir check-$g-$kn-$m-normal		--optimizer None --normalized	> check-$g-$kn-$m-normal.log
+				if [ "$m" == "loocv" ]; then
+					python3 ../GPR_active.py --gpr $g --kernel $kn -i tt.txt --property tt --optimizer None --alpha 0.01 result_dir check-$g-$kn-$m-normal --normalized --train_ratio 1.0 --learning_mode supervised 
 			elif [ "$kn" == "vector" ]; then
 				python3 ../GPR.py --gpr $g --kernel $kn -i tt.txt --property tt --mode $m --alpha 0.01 --result_dir check-$g-$kn-$m-opt			--optimizer $opt				> check-$g-$kn-$m-opt.log
 			else

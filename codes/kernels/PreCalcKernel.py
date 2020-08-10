@@ -77,7 +77,7 @@ class PreCalcKernelConfig:
                 raise Exception('features and hyperparameters must be the same '
                                 'length')
             add_kernel = gp.kernels.ConstantKernel(1.0, (1e-3, 1e3)) * \
-                         gp.kernels.RBF(length_scale=np.ones(len(add_features)))
+                         gp.kernels.RBF(length_scale=add_hyperparameters)
             composition = [
                 (0,),
                 tuple(np.arange(1, len(add_features) + 1))

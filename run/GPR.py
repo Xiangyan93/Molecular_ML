@@ -15,14 +15,14 @@ sys.path.append(os.path.join(CWD, '..'))
 from codes.graph.hashgraph import HashGraph
 
 
-def get_kernel_config(kernel, add_features, hyper_features, normalized,
+def get_kernel_config(kernel, add_features, add_hyperparameters, normalized,
                       vectorFPparams, result_dir):
     if add_features is None:
         features = None
         hyperparameters = None
     else:
         features = add_features.split(',')
-        hyperparameters = list(map(float, hyper_features.split(',')))
+        hyperparameters = list(map(float, add_hyperparameters.split(',')))
     if kernel == 'graph':
         from codes.kernels.GraphKernel import (
             GraphKernelConfig,
@@ -278,7 +278,7 @@ def main():
              'T,P'
     )
     parser.add_argument(
-        '--hyper_features', type=str, default=None,
+        '--add_hyperparameters', type=str, default=None,
         help='The hyperparameters of additional features. examples:\n'
              '100\n'
              '100,100'
@@ -327,8 +327,8 @@ def main():
         raise Exception('Unknown GaussianProcessRegressor: %s' % args.gpr)
     # set kernel_config
     kernel_config, get_graph, get_XY_from_df = get_kernel_config(
-        args.kernel, args.add_features, args.hyper_features, args.normalized,
-        args.vectorFPparams, result_dir
+        args.kernel, args.add_features, args.add_hyperparameters,
+        args.normalized, args.vectorFPparams, result_dir
     )
     # set optimizer
     optimizer = None if args.optimizer == 'None' else args.optimizer

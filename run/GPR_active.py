@@ -54,7 +54,7 @@ def main():
              'T,P'
     )
     parser.add_argument(
-        '--hyper_features', type=str, default=None,
+        '--add_hyperparameters', type=str, default=None,
         help='The hyperparameters of additional features. examples:\n'
              '100\n'
              '100,100'
@@ -118,7 +118,7 @@ def main():
     result_dir = os.path.join(CWD, args.result_dir)
     # set kernel_config
     kernel_config, get_graph, get_XY_from_df = get_kernel_config(
-        args.kernel, args.add_features, args.hyper_features, args.normalized,
+        args.kernel, args.add_features, args.add_hyperparameters, args.normalized,
         args.vectorFPparams, result_dir
     )
 
@@ -142,7 +142,7 @@ def main():
         # read input
         df, df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
         test_smiles = read_input(
-            result_dir, args.input, args.property, 'loocv', args.seed,
+            result_dir, args.input, args.property, 'train_test', args.seed,
             False, args.train_size, args.train_ratio,
             kernel_config, get_graph, get_XY_from_df
         )
