@@ -94,7 +94,6 @@ class BaseLearner:
         y = self.train_Y
         smiles = self.train_smiles
         y_pred, y_std = self.model.predict(x, return_std=True)
-        a, b = self.model.predict(x, return_cov=True)
         return self.evaluate_df(x, y, smiles, y_pred, y_std,
                                 kernel=self.model.kernel, debug=debug,
                                 alpha=alpha)

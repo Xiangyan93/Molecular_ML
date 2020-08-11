@@ -46,6 +46,10 @@ class PreCalcKernel:
         return True
 
     @property
+    def n_dims(self):
+        return len(self.theta)
+
+    @property
     def bounds(self):
         theta = self.theta.reshape(-1, 1)
         return np.c_[theta, theta]
