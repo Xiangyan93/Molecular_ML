@@ -177,7 +177,6 @@ def get_atom_ring_stereo(mol, atom, ring_idx, depth=5,
                 temp = list(ij)
                 temp.remove(atom.GetIdx())
                 bonds_idx.append(temp[0])
-    print(bonds_out_ring, bonds_in_ring)
     if bonds_out_ring == [1]:
         return 1
     elif bonds_out_ring == [6]:
@@ -251,7 +250,6 @@ def IsSymmetric(mol, ij, depth=2):
 def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
                 set_ring_stereo=True, morgan_radius=3, depth=5):
     g = nx.Graph()
-    print(Chem.MolToSmiles(mol))
     morgan_info = dict()
     atomidx_hash_dict = dict()
     radius = morgan_radius
