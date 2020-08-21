@@ -78,23 +78,13 @@ def get_df(csv, pkl, get_graph=True):
     return df
 
 
-def df_T_select(df, n=4):
-    group = df.groupby('inchi')
-    data = []
-    for x in group:
-        d = x[1].sort_values('T').index
-        if d.size < 3:
-            continue
-        index = np.arange(1, d.size - 2, 1)
-        index = np.random.choice(index, n - 2, replace=False)
-        index = np.r_[index, np.array([0, n - 1])]
-        index = d[index]
-        data.append(df[df.index.isin(index)])
+def df_random_select(df, n=4):
+    data = [x[1].sample(n) for x in df.groupby('inchi')]
     data = pd.concat(data).reset_index().drop(columns='index')
     return data
 
 
-def df_filter(df, train_ratio=None, train_size=None, seed=0, T_select=False):
+def df_filter(df, train_ratio=None, train_size=None, seed=0, random_select=False):
     np.random.seed(seed)
     unique_inchi_list = df.inchi.unique().tolist()
     if train_size is None:
@@ -103,12 +93,12 @@ def df_filter(df, train_ratio=None, train_size=None, seed=0, T_select=False):
                                          replace=False)
     df_train = df[df.inchi.isin(random_inchi_list)]
     df_test = df[~df.inchi.isin(random_inchi_list)]
-    if T_select:
-        df_train = df_T_select(df_train, n=4)
+    if random_select:
+        df_train = df_random_select(df_train, n=4)
     return df_train, df_test
 
 
-def read_input(result_dir, input, property, mode, seed, T_select, train_size,
+def read_input(result_dir, input, property, mode, seed, random_select, train_size,
                train_ratio,
                kernel_config, get_graph, get_XY_from_df):
     print('***\tStart: Reading input.\t***')
@@ -126,7 +116,7 @@ def read_input(result_dir, input, property, mode, seed, T_select, train_size,
         seed=seed,
         train_ratio=train_ratio,
         train_size=train_size,
-        T_select=T_select
+        random_select=random_select
     )
     # get X, Y of train and test sets
     train_X, train_Y, train_smiles = get_XY_from_df(
@@ -297,7 +287,7 @@ def main():
         help='read existed model.pkl',
     )
     parser.add_argument(
-        '--T_select', action='store_true',
+        '--random_select', action='store_true',
         help='select few data points of each molecule in training set',
     )
     parser.add_argument(
@@ -336,7 +326,7 @@ def main():
     df, df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
     test_smiles = read_input(
         result_dir, args.input, args.property, args.mode, args.seed,
-        args.T_select, args.train_size, args.train_ratio,
+        args.random_select, args.train_size, args.train_ratio,
         kernel_config, get_graph, get_XY_from_df
     )
     # gpr
