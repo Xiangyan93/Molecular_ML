@@ -79,7 +79,7 @@ def get_df(csv, pkl, get_graph=True):
 
 
 def df_random_select(df, n=4):
-    data = [x[1].sample(n) if n < x[1].size else x[1]
+    data = [x[1].sample(n) if n < len(x[1]) else x[1]
             for x in df.groupby('inchi')]
     data = pd.concat(data).reset_index().drop(columns='index')
     return data
