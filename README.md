@@ -10,13 +10,14 @@ Edit config.py for different purpose
 Prepare 
 ```
 git clone https://github.com/XiangyanSJTU/Molecular_ML.git
-git clone https://github.com/sungroup-sjtu/AIMS_Tools.git # change to dev-xy branch
-git clone https://github.com/yhtang/GraphDot.git
 ```
+
+to be finished.
+
 GPR
 ```
 cd Molecular_ML/run
-python3 GPR.py -i result-ML-density.txt -p density
+python3 GPR.py 
 ```
 tSNE analysis
 ```
