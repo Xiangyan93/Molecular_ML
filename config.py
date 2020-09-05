@@ -16,20 +16,19 @@ class Config:
 
     class Hyperpara:  # initial hyperparameter used in graph kernel
         k = 0.90
-        s = 2.0
         q = 0.01  # q is the stop probability in ramdom walk
-        k_bounds = (k, k)
-        s_bounds = (s, s)
-        q_bound = (q, q)
+        k_bounds = (0.1, 1.0)
+        s_bounds = (0.1, 10.0)
+        q_bound = (1e-4, 1.0)
         knode = TensorProduct(
-            atomic_number=KroneckerDelta(k, k_bounds),
+            atomic_number=KroneckerDelta(0.75, k_bounds),
             aromatic=KroneckerDelta(k, k_bounds),
             charge=SquareExponential(
-                length_scale=s,
+                length_scale=2.5,
                 length_scale_bounds=s_bounds
             ),
             hcount=SquareExponential(
-                length_scale=s,
+                length_scale=2.5,
                 length_scale_bounds=s_bounds
             ),
             chiral=KroneckerDelta(k, k_bounds),
@@ -40,7 +39,7 @@ class Config:
         )
         kedge = TensorProduct(
             order=SquareExponential(
-                length_scale=s,
+                length_scale=1.5,
                 length_scale_bounds=s_bounds
             ),
             # aromatic=KroneckerDelta(k, k_bounds),
@@ -83,7 +82,7 @@ class Config:
     class TrainingSetSelectRule:
         RANDOM = True  # random based on SMILES
         RANDOM_Para = {
-            'ratio': 1.0
+            'ratio': 0.5
         }
 
         ACTIVE_LEARNING_Para = {
