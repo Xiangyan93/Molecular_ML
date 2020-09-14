@@ -141,7 +141,7 @@ def read_input(result_dir, input, property, mode, seed, random_select, train_siz
 
 def gpr_run(df, df_train, df_test, train_X, train_Y, train_smiles, test_X,
             test_Y, test_smiles,
-            result_dir, property, mode, optimizer, alpha, load_model,
+            result_dir, property, mode, optimizer, alpha, load_model, load_K,
             kernel_config, get_graph, get_XY_from_df, Learner):
     # pre-calculate graph kernel matrix.
     if get_graph and optimizer is None:
@@ -152,7 +152,10 @@ def gpr_run(df, df_train, df_test, train_X, train_Y, train_smiles, test_X,
             kernel = kernel_config.kernel.kernel_list[0]
         else:
             kernel = kernel_config.kernel
-        kernel.PreCalculate(X)
+        if load_K:
+            kernel.load(result_dir)
+        else:
+            kernel.PreCalculate(X, result_dir=result_dir)
         print('***\tEnd: Graph kernels calculating\t***\n')
 
     print('***\tStart: hyperparameters optimization.\t***')
@@ -288,6 +291,10 @@ def main():
         help='read existed model.pkl',
     )
     parser.add_argument(
+        '--load_K', action='store_true',
+        help='read existed K.pkl',
+    )
+    parser.add_argument(
         '--random_select', action='store_true',
         help='select few data points of each molecule in training set',
     )
@@ -334,7 +341,7 @@ def main():
     gpr_run(df, df_train, df_test, train_X, train_Y, train_smiles, test_X,
             test_Y, test_smiles,
             result_dir, args.property, args.mode, optimizer, args.alpha,
-            args.load_model,
+            args.load_model, args.load_K,
             kernel_config, get_graph, get_XY_from_df, Learner)
 
 

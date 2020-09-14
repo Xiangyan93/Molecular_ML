@@ -2,6 +2,7 @@ import pickle
 import numpy as np
 import sklearn.gaussian_process as gp
 from graphdot.kernel.marginalized import MarginalizedGraphKernel
+from graphdot.kernel.marginalized.starting_probability import Uniform
 from codes.kernels.MultipleKernel import MultipleKernel
 from codes.smiles import inchi2smiles
 from config import *
@@ -11,29 +12,39 @@ class MGK(MarginalizedGraphKernel):
     """
     remove repeated kernel calculations
     """
+    def __init__(self, unique=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.unique = unique
+
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if X.__class__ == np.ndarray:
             X = X.ravel()
         if Y is not None and Y.__class__ == np.ndarray:
             Y = Y.ravel()
-        X_unique = np.sort(np.unique(X))
-        Y_unique = None if Y is None else np.sort(np.unique(Y))
-        X_idx = np.searchsorted(X_unique, X)
-        Y_idx = X_idx if Y is None else np.searchsorted(Y_unique, Y)
-        if eval_gradient:
-            K, K_gradient = super().__call__(X_unique, Y_unique, True, *args,
-                                             **kwargs)
-            return K[X_idx][:, Y_idx], K_gradient[X_idx][:, Y_idx][:]
+        if self.unique:
+            X_unique = np.sort(np.unique(X))
+            Y_unique = None if Y is None else np.sort(np.unique(Y))
+            X_idx = np.searchsorted(X_unique, X)
+            Y_idx = X_idx if Y is None else np.searchsorted(Y_unique, Y)
+            if eval_gradient:
+                K, K_gradient = super().__call__(X_unique, Y_unique, True, *args,
+                                                 **kwargs)
+                return K[X_idx][:, Y_idx], K_gradient[X_idx][:, Y_idx][:]
+            else:
+                K = super().__call__(X_unique, Y_unique, False, *args, **kwargs)
+                return K[X_idx][:, Y_idx]
         else:
-            K = super().__call__(X_unique, Y_unique, False, *args, **kwargs)
-            return K[X_idx][:, Y_idx]
+            return super().__call__(X, Y, eval_gradient=eval_gradient, *args, **kwargs)
 
     def diag(self, X, *args, **kwargs):
         if X.__class__ == np.ndarray:
             X = X.ravel()
-        X_unique = np.sort(np.unique(X))
-        diag = super().diag(X_unique, *args, **kwargs)
-        return diag[np.searchsorted(X_unique, X)]
+        if self.unique:
+            X_unique = np.sort(np.unique(X))
+            diag = super().diag(X_unique, *args, **kwargs)
+            return diag[np.searchsorted(X_unique, X)]
+        else:
+            return super().diag(X, *args, **kwargs)
 
 
 class NormalizedGraphKernel(MGK):
@@ -84,7 +95,33 @@ class NormalizedGraphKernel(MGK):
                 c = np.exp(-((a - b.T) / length) ** 2)
                 K = np.einsum("i,ij,j,ij->ij", diag_X, R, diag_Y, c)
                 return K
-
+    '''
+    def __normalize_old(self, X, Y, R):
+        if Y is None:
+            # square matrix
+            if type(R) is tuple:
+                d = np.diag(R[0]) ** -0.5
+                K = np.diag(d).dot(R[0]).dot(np.diag(d))
+                K_gradient = np.einsum("ijk,i,j->ijk", R[1], d, d)
+                return K, K_gradient
+            else:
+                d = np.diag(R) ** -0.5
+                K = np.diag(d).dot(R).dot(np.diag(d))
+                return K
+        else:
+            # rectangular matrix, must have X and Y
+            if type(R) is tuple:
+                diag_X = super().diag(X) ** -0.5
+                diag_Y = super().diag(Y) ** -0.5
+                K = np.diag(diag_X).dot(R[0]).dot(np.diag(diag_Y))
+                K_gradient = np.einsum("ijk,i,j->ijk", R[1], diag_X, diag_Y)
+                return K, K_gradient
+            else:
+                diag_X = super().diag(X) ** -0.5
+                diag_Y = super().diag(Y) ** -0.5
+                K = np.einsum("ij,i,j->ij", R, diag_X, diag_Y)
+                return K
+    '''
     def __call__(self, X, Y=None, *args, **kwargs):
         R = super().__call__(X, Y, *args, **kwargs)
         return self.__normalize(X, Y, R)
@@ -103,7 +140,7 @@ class PreCalcMarginalizedGraphKernel(MGK):
         self.graphs = graphs
         self.sort_by_inchi = sort_by_inchi
 
-    def PreCalculate(self, X, inchi=None, sort_by_inchi=False):
+    def PreCalculate(self, X, result_dir, inchi=None, sort_by_inchi=False):
         if sort_by_inchi:
             idx = np.argsort(inchi)
             self.inchi = inchi[idx]
@@ -112,6 +149,19 @@ class PreCalcMarginalizedGraphKernel(MGK):
         self.graphs = X[idx]
         self.K, self.K_gradient = self(self.graphs, eval_gradient=True)
         self.sort_by_inchi = sort_by_inchi
+        self.save(result_dir)
+
+    def save(self, result_dir):
+        f_kernel = os.path.join(result_dir, 'kernel.pkl')
+        store_dict = self.__dict__.copy()
+        for key in ['node_kernel', 'edge_kernel', 'p', 'q', 'q_bounds', 'element_dtype', 'backend']:
+            store_dict.pop(key, None)
+        pickle.dump(store_dict, open(f_kernel, 'wb'), protocol=4)
+
+    def load(self, result_dir):
+        f_kernel = os.path.join(result_dir, 'kernel.pkl')
+        store_dict = pickle.load(open(f_kernel, 'rb'))
+        self.__dict__.update(**store_dict)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if self.K is None or self.K_gradient is None:
@@ -154,7 +204,7 @@ class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
         self.graphs = graphs
         self.sort_by_inchi = sort_by_inchi
 
-    def PreCalculate(self, X, inchi=None, sort_by_inchi=False):
+    def PreCalculate(self, X, result_dir, inchi=None, sort_by_inchi=False):
         if sort_by_inchi:
             idx = np.argsort(inchi)
             self.inchi = inchi[idx]
@@ -163,6 +213,19 @@ class PreCalcNormalizedGraphKernel(NormalizedGraphKernel):
         self.graphs = X[idx]
         self.K, self.K_gradient = self(self.graphs, eval_gradient=True)
         self.sort_by_inchi = sort_by_inchi
+        self.save(result_dir)
+
+    def save(self, result_dir):
+        f_kernel = os.path.join(result_dir, 'kernel.pkl')
+        store_dict = self.__dict__.copy()
+        for key in ['node_kernel', 'edge_kernel', 'p', 'q', 'q_bounds', 'element_dtype', 'backend']:
+            store_dict.pop(key, None)
+        pickle.dump(store_dict, open(f_kernel, 'wb'), protocol=4)
+
+    def load(self, result_dir):
+        f_kernel = os.path.join(result_dir, 'kernel.pkl')
+        store_dict = pickle.load(open(f_kernel, 'rb'))
+        self.__dict__.update(**store_dict)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         if self.K is None or self.K_gradient is None:
@@ -234,15 +297,18 @@ class GraphKernelConfig:
                     edge_kernel=kedge,
                     q=stop_prob,
                     q_bounds=stop_prob_bound,
+                    p=Uniform(1.0, p_bounds='fixed'),
                 )
             else:
-                graph_kernel = PreCalcMarginalizedGraphKernel(
+                graph_kernel = MGK(
                     node_kernel=knode,
                     edge_kernel=kedge,
                     q=stop_prob,
                     q_bounds=stop_prob_bound,
+                    p=Uniform(1.0, p_bounds='fixed'),
                 )
         if add_features is not None and add_hyperparameters is not None:
+            graph_kernel.unique = True
             if len(add_features) != len(add_hyperparameters):
                 raise Exception('features and hyperparameters must be the same '
                                 'length')
