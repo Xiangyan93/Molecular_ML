@@ -37,7 +37,8 @@ def main():
     )
     args = parser.parse_args()
     if args.gpr == 'graphdot':
-        from graphdot.model.gaussian_process.gpr import GaussianProcessRegressor
+        from codes.GPRgraphdot.gpr import GPR
+        GaussianProcessRegressor = GPR
     elif args.gpr == 'sklearn':
         from codes.GPRsklearn.gpr import RobustFitGaussianProcessRegressor
         GaussianProcessRegressor = RobustFitGaussianProcessRegressor
