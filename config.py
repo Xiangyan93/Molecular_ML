@@ -13,7 +13,7 @@ from graphdot.microkernel import (
 class Config:
     CWD = os.path.dirname(os.path.abspath(__file__))
     DEBUG = False
-    # tensorproduct
+    # additive
     class Hyperpara:
         k = 0.90
         q = 0.01  # q is the stop probability in ramdom walk
@@ -51,7 +51,7 @@ class Config:
                 # symmetry=kDelta(k, k_bounds),
             )
         )
-    # additive
+    # tensorproduct
     class Hyperpara1:  # initial hyperparameter used in graph kernel
         k = 0.90
         q = 0.01  # q is the stop probability in ramdom walk
