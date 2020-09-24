@@ -35,6 +35,16 @@ class MGK(MarginalizedGraphKernel):
         diag = super().diag(X_unique, *args, **kwargs)
         return diag[np.searchsorted(X_unique, X)]
 
+    def get_params(self, deep=False):
+        return dict(
+            node_kernel=self.node_kernel,
+            edge_kernel=self.edge_kernel,
+            p=self.p,
+            q=self.q,
+            q_bounds=self.q_bounds,
+            backend=self.backend
+        )
+
 
 class NormalizedGraphKernel(MGK):
     def __normalize(self, X, Y, R, length=50000):
