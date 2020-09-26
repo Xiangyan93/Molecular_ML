@@ -82,7 +82,7 @@ def df_select(df, n=4, rule='uniform'):
     if rule == 'uniform':
         data = []
         for x in df.groupby('inchi'):
-            index = x[1].index[np.linspace(0, x[1].size, n, dtype=int)]
+            index = x[1].index[np.linspace(0, len(x[1])-1, n, dtype=int)]
             data.append(df[df.index.isin(index)])
     elif rule == 'random':
         data = [x[1].sample(n) if n < len(x[1]) else x[1]
