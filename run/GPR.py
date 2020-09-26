@@ -82,6 +82,7 @@ def df_select(df, n=4, rule='uniform'):
     if rule == 'uniform':
         data = []
         for x in df.groupby('inchi'):
+            x[1] = x[1].sort_values('T')
             index = x[1].index[np.linspace(0, len(x[1])-1, n, dtype=int)]
             data.append(df[df.index.isin(index)])
     elif rule == 'random':
