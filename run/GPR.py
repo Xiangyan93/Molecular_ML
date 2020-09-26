@@ -78,14 +78,23 @@ def get_df(csv, pkl, get_graph=True):
     return df
 
 
-def df_random_select(df, n=4):
-    data = [x[1].sample(n) if n < len(x[1]) else x[1]
-            for x in df.groupby('inchi')]
+def df_select(df, n=4, rule='uniform'):
+    if rule == 'uniform':
+        data = []
+        for x in df.groupby('inchi'):
+            index = x[1].index[np.linspace(0, x[1].size, n, dtype=int)]
+            data.append(df[df.index.isin(index)])
+    elif rule == 'random':
+        data = [x[1].sample(n) if n < len(x[1]) else x[1]
+                for x in df.groupby('inchi')]
+    else:
+        raise Exception('error rule')
     data = pd.concat(data).reset_index().drop(columns='index')
     return data
 
 
-def df_filter(df, train_ratio=None, train_size=None, seed=0, random_select=False):
+def df_filter(df, train_ratio=None, train_size=None, seed=0,
+              data_per_mol=None, select_rule='uniform'):
     np.random.seed(seed)
     unique_inchi_list = df.inchi.unique().tolist()
     if train_size is None:
@@ -94,13 +103,14 @@ def df_filter(df, train_ratio=None, train_size=None, seed=0, random_select=False
                                          replace=False)
     df_train = df[df.inchi.isin(random_inchi_list)]
     df_test = df[~df.inchi.isin(random_inchi_list)]
-    if random_select:
-        df_train = df_random_select(df_train, n=4)
+    if data_per_mol is not None:
+        df_train = df_select(df_train, n=data_per_mol, rule=select_rule)
     return df_train, df_test
 
 
-def read_input(result_dir, input, property, mode, seed, random_select, train_size,
-               train_ratio,
+def read_input(result_dir, input, property, mode, seed,
+               data_per_mol, select_rule,
+               train_size, train_ratio,
                kernel_config, get_graph, get_XY_from_df):
     print('***\tStart: Reading input.\t***')
     if not os.path.exists(result_dir):
@@ -117,7 +127,8 @@ def read_input(result_dir, input, property, mode, seed, random_select, train_siz
         seed=seed,
         train_ratio=train_ratio,
         train_size=train_size,
-        random_select=random_select
+        data_per_mol=data_per_mol,
+        select_rule=select_rule
     )
     # get X, Y of train and test sets
     train_X, train_Y, train_smiles = get_XY_from_df(
@@ -288,8 +299,12 @@ def main():
         help='read existed model.pkl',
     )
     parser.add_argument(
-        '--random_select', action='store_true',
-        help='select few data points of each molecule in training set',
+        '--data_per_mol', type=int, default=None,
+        help='select n data points of each molecule in training set',
+    )
+    parser.add_argument(
+        '--select_rule', type=str, default='uniform',
+        help='uniform or random',
     )
     parser.add_argument(
         '--train_size', type=int, default=None,
@@ -327,7 +342,7 @@ def main():
     df, df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
     test_smiles = read_input(
         result_dir, args.input, args.property, args.mode, args.seed,
-        args.random_select, args.train_size, args.train_ratio,
+        args.data_per_mol, args.select_rule, args.train_size, args.train_ratio,
         kernel_config, get_graph, get_XY_from_df
     )
     # gpr

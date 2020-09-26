@@ -143,7 +143,7 @@ def main():
         df, df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
         test_smiles = read_input(
             result_dir, args.input, args.property, 'train_test', args.seed,
-            False, args.train_size, args.train_ratio,
+            None, 'uniform', args.train_size, args.train_ratio,
             kernel_config, get_graph, get_XY_from_df
         )
         activelearner = ActiveLearner(
