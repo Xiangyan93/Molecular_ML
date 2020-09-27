@@ -2,6 +2,7 @@ import pickle
 import numpy as np
 import sklearn.gaussian_process as gp
 from graphdot.kernel.marginalized import MarginalizedGraphKernel
+from graphdot.kernel.marginalized._kernel import Uniform
 from codes.kernels.MultipleKernel import MultipleKernel
 from codes.smiles import inchi2smiles
 from config import *
@@ -9,31 +10,56 @@ from config import *
 
 class MGK(MarginalizedGraphKernel):
     """
-    remove repeated kernel calculations
+    X and Y could be 2-d numpy array.
+    make it compatible with sklearn.
+    remove repeated kernel calculations, if set unique=True.
     """
-    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
-        if X.__class__ == np.ndarray:
-            X = X.ravel()
-        if Y is not None and Y.__class__ == np.ndarray:
-            Y = Y.ravel()
+
+    def __init__(self, unique=False, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.unique = unique
+
+    def __unique(self, X):
         X_unique = np.sort(np.unique(X))
-        Y_unique = None if Y is None else np.sort(np.unique(Y))
         X_idx = np.searchsorted(X_unique, X)
-        Y_idx = X_idx if Y is None else np.searchsorted(Y_unique, Y)
-        if eval_gradient:
-            K, K_gradient = super().__call__(X_unique, Y_unique, True, *args,
-                                             **kwargs)
-            return K[X_idx][:, Y_idx], K_gradient[X_idx][:, Y_idx][:]
+        return X_unique, X_idx
+
+    def __graph(self, X):
+        if X.__class__ == np.ndarray:
+            return X.ravel()
         else:
-            K = super().__call__(X_unique, Y_unique, False, *args, **kwargs)
-            return K[X_idx][:, Y_idx]
+            return X
+
+    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
+        X = self.__graph(X)
+        Y = self.__graph(Y)
+        if self.unique:
+            X_unique, X_idx = self.__unique(X)
+            if Y is None:
+                Y_unique, Y_idx = X_unique, X_idx
+            else:
+                Y_unique, Y_idx = self.__unique(Y)
+            if eval_gradient:
+                K, K_gradient = super().__call__(
+                    X_unique, Y_unique, eval_gradient=True, *args, **kwargs
+                )
+                return K[X_idx][:, Y_idx], K_gradient[X_idx][:, Y_idx][:]
+            else:
+                K = super().__call__(X_unique, Y_unique, eval_gradient=False,
+                                     *args, **kwargs)
+                return K[X_idx][:, Y_idx]
+        else:
+            return super().__call__(X, Y, eval_gradient=eval_gradient, *args,
+                                    **kwargs)
 
     def diag(self, X, *args, **kwargs):
-        if X.__class__ == np.ndarray:
-            X = X.ravel()
-        X_unique = np.sort(np.unique(X))
-        diag = super().diag(X_unique, *args, **kwargs)
-        return diag[np.searchsorted(X_unique, X)]
+        X = self.__graph(X)
+        if self.unique:
+            X_unique, X_idx = self.__unique(X)
+            diag = super().diag(X_unique, *args, **kwargs)
+            return diag[X_idx]
+        else:
+            return super().diag(X, *args, **kwargs)
 
     def get_params(self, deep=False):
         return dict(
@@ -214,7 +240,7 @@ class ConvolutionGraphKernel:
 
 class GraphKernelConfig:
     def __init__(self, NORMALIZED=True, add_features=None,
-                 add_hyperparameters=None, theta=None, CONVOLUTION=False):
+                 add_hyperparameters=None, theta=None):
         self.features = add_features
         # define node and edge kernelets
         knode = Config.Hyperpara.knode
@@ -222,36 +248,24 @@ class GraphKernelConfig:
         stop_prob = Config.Hyperpara.q
         stop_prob_bound = Config.Hyperpara.q_bound
 
-        if CONVOLUTION:  # to be finished
-            if NORMALIZED:
-                graph_kernel = PreCalcNormalizedConvolutionGraphKernel(
-                    node_kernel=knode,
-                    edge_kernel=kedge,
-                    q=stop_prob,
-                    q_bounds=stop_prob_bound
-                )
-            else:
-                graph_kernel = PreCalcConvolutionGraphKernel(
-                    node_kernel=knode,
-                    edge_kernel=kedge,
-                    q=stop_prob,
-                    q_bounds=stop_prob_bound
-                )
+        if NORMALIZED:
+            graph_kernel = PreCalcNormalizedGraphKernel(
+                node_kernel=knode,
+                edge_kernel=kedge,
+                q=stop_prob,
+                q_bounds=stop_prob_bound,
+                p=Uniform(1.0, p_bounds='fixed'),
+                unique=add_features is not None
+            )
         else:
-            if NORMALIZED:
-                graph_kernel = PreCalcNormalizedGraphKernel(
-                    node_kernel=knode,
-                    edge_kernel=kedge,
-                    q=stop_prob,
-                    q_bounds=stop_prob_bound,
-                )
-            else:
-                graph_kernel = PreCalcMarginalizedGraphKernel(
-                    node_kernel=knode,
-                    edge_kernel=kedge,
-                    q=stop_prob,
-                    q_bounds=stop_prob_bound,
-                )
+            graph_kernel = PreCalcMarginalizedGraphKernel(
+                node_kernel=knode,
+                edge_kernel=kedge,
+                q=stop_prob,
+                q_bounds=stop_prob_bound,
+                p=Uniform(1.0, p_bounds='fixed'),
+                unique=add_features is not None
+            )
         if add_features is not None and add_hyperparameters is not None:
             if len(add_features) != len(add_hyperparameters):
                 raise Exception('features and hyperparameters must be the same '
