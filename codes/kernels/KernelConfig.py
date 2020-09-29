@@ -73,4 +73,4 @@ def get_XYid_from_df(df, kernel_config, properties=None):
     Y = df[properties].to_numpy()
     if len(properties) == 1:
         Y = Y.ravel()
-    return X, Y, df['id']
+    return X, Y, df['id'].to_numpy()
