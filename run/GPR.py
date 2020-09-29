@@ -6,9 +6,8 @@ import pandas as pd
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.graph.hashgraph import HashGraph
-from codes.kernels.KernelConfig import (
-    get_XYid_from_df,
-)
+from codes.kernels.KernelConfig import get_XYid_from_df
+from codes.kernels.MultipleKernel import _get_uniX
 
 
 def set_optimizer(optimizer, gpr):
@@ -62,6 +61,12 @@ def set_kernel_config(result_dir, kernel, normalized,
 
 def read_input(result_dir, input, kernel_config, properties, params):
     def get_df(csv, pkl, single_graph, multi_graph):
+        def single2graph(series):
+            unique_series = _get_uniX(series)
+            graphs = list(map(HashGraph.from_inchi_or_smiles, unique_series))
+            idx = np.searchsorted(unique_series, series)
+            return np.asarray(graphs)[idx]
+
         def multi_graph_transform(line):
             line[::2] = list(map(HashGraph.from_inchi_or_smiles, line[::2]))
 
@@ -70,10 +75,6 @@ def read_input(result_dir, input, kernel_config, properties, params):
             df = pd.read_pickle(pkl)
         else:
             df = pd.read_csv(csv, sep='\s+', header=0)
-            for sg in single_graph:
-                df[sg] = df[sg].apply(HashGraph.from_inchi_or_smiles)
-            for mg in multi_graph:
-                df[mg] = df[mg].apply(multi_graph_transform)
             groups = df.groupby(single_graph + multi_graph)
             df['group_id'] = 0
             for g in groups:
@@ -81,6 +82,10 @@ def read_input(result_dir, input, kernel_config, properties, params):
                 df.update(g[1])
             df['id'] = df['id'].astype(int)
             df['group_id'] = df['group_id'].astype(int)
+            for sg in single_graph:
+                df[sg] = single2graph(df[sg])# df[sg].apply(HashGraph.from_inchi_or_smiles)
+            for mg in multi_graph:
+                df[mg] = df[mg].apply(multi_graph_transform)
             df.to_pickle(pkl)
         return df
 
