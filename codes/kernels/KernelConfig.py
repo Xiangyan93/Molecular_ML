@@ -1,4 +1,3 @@
-from graphdot.kernel.marginalized._kernel import Uniform
 import sklearn.gaussian_process as gp
 from codes.kernels.GraphKernel import *
 from codes.kernels.MultipleKernel import *
@@ -61,6 +60,7 @@ class KernelConfig:
             theta = kernel_dict['theta']
             single_graph_kernel = PreCalcKernel(graphs, K, theta)
         else:
+            from graphdot.kernel.marginalized._kernel import Uniform
             self.type = 'graph'
             if params['NORMALIZED']:
                 KernelObject = PreCalcNormalizedGraphKernel
@@ -86,6 +86,7 @@ class KernelConfig:
             theta = kernel_dict['theta'][0],
             multi_graph_kernel = ConvolutionPreCalcKernel(graphs, K, theta)
         else:
+            from graphdot.kernel.marginalized._kernel import Uniform
             self.type = 'graph'
             if params['NORMALIZED']:
                 KernelObject = ConvolutionNormalizedGraphKernel
