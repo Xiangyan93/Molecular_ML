@@ -291,7 +291,7 @@ class RobustFitGaussianProcessRegressor(GPR):
         else:
             return result
 
-    def fit_robust(self, X, y, core_predict=True, cycle=1):
+    def fit_robust(self, X, y, cycle=1):
         self.fit(X, y)
         for i in range(cycle):
             try:

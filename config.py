@@ -13,7 +13,7 @@ from graphdot.microkernel import (
 class Config:
     CWD = os.path.dirname(os.path.abspath(__file__))
     DEBUG = False
-    class Hyperpara1:  # initial hyperparameter used in graph kernel
+    class Hyperpara:  # initial hyperparameter used in graph kernel
         k = 0.90
         q = 0.01  # q is the stop probability in ramdom walk
         k_bounds = (0.1, 1.0)
@@ -83,7 +83,7 @@ class Config:
             # symmetry=kDelta(k, k_bounds),
         )
 
-    class Hyperpara:
+    class Hyperpara1:
         k = 0.90
         q = 0.01  # q is the stop probability in ramdom walk
         k_bounds = (0.1, 1.0)
@@ -120,40 +120,3 @@ class Config:
                 # symmetry=kDelta(k, k_bounds),
             )
         )
-
-    class NystromPara:
-        off_diagonal_cutoff = 0.9
-        core_max = 1500
-        loop = 1
-        alpha = 1e-8
-
-    class TrainingSetSelectRule:
-        RANDOM = True  # random based on SMILES
-        RANDOM_Para = {
-            'ratio': 0.5
-        }
-
-        ACTIVE_LEARNING_Para = {
-            'ratio': 0.8
-        }
-
-    class VectorFingerprint:
-        '''
-        For MORGAN fingerprints set Para as:
-        MORGAN_Para = {
-            'radius': 2,
-            'nBits': None, #
-        }
-        For TOPOL fingerprints set Para as:
-        TOPOL_Para = {
-            'minPath': 1,
-            'maxPath': 3,
-            'nBits': None
-        }
-        '''
-        Para = {
-            'minPath': 1,
-            'maxPath': 7,
-            'nBits': 128,
-            'radius': 2,
-        }

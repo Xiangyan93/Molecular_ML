@@ -47,6 +47,13 @@ class HashGraph(Graph):
         return g
 
     @classmethod
+    def from_inchi_or_smiles(cls, input):
+        if input.startswith('InChI'):
+            return cls.from_inchi(input)
+        else:
+            return cls.from_smiles(input)
+
+    @classmethod
     def from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
                    set_ring_stereo=True):
         return _from_rdkit(cls, mol,

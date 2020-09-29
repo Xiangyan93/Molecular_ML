@@ -248,7 +248,7 @@ def IsSymmetric(mol, ij, depth=2):
 
 
 def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
-                set_ring_stereo=True, morgan_radius=3, depth=5):
+                set_ring_stereo=False, morgan_radius=3, depth=5):
     g = nx.Graph()
     morgan_info = dict()
     atomidx_hash_dict = dict()
@@ -296,7 +296,7 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
         if set_ring_stereo is True:
             g.edges[ij]['ring_stereo'] = 0.
 
-    if set_ring_stereo is True:
+    if set_ring_stereo:
         bond_orientation_dict = get_bond_orientation_dict(mol)
         for ring_idx in mol.GetRingInfo().AtomRings():
             atom_updown = []
