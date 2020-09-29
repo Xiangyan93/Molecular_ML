@@ -13,7 +13,10 @@ from sklearn.metrics import (
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.graph.hashgraph import HashGraph
-from codes.kernels.KernelConfig import *
+from codes.kernels.KernelConfig import (
+    KernelConfig,
+    get_XYid_from_df,
+)
 
 
 def set_optimizer(optimizer, gpr):
