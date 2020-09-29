@@ -1,8 +1,13 @@
 import pickle
 import numpy as np
 from graphdot.kernel.marginalized import MarginalizedGraphKernel
-from codes.kernels.PreCalcKernel import ConvolutionPreCalcKernel as CPCK
-from codes.kernels.PreCalcKernel import _Kc
+from graphdot.kernel.marginalized._kernel import Uniform
+from codes.kernels.PreCalcKernel import (
+    ConvolutionPreCalcKernel as CPCK,
+    _Kc,
+)
+from codes.kernels.MultipleKernel import _get_uniX
+from codes.kernels.KernelConfig import KernelConfig
 from config import *
 
 
@@ -137,10 +142,6 @@ class NormalizedGraphKernel(MGK):
         return np.ones(len(X))
 
 
-def _get_uniX(X):
-    return np.sort(np.unique(X))
-
-
 def _PreCalculate(self, X, result_dir, id=None):
     self.graphs = X
     self.K, self.K_gradient = self(self.graphs, eval_gradient=True)
@@ -267,4 +268,35 @@ class ConvolutionNormalizedGraphKernel(PreCalcNormalizedGraphKernel):
         self.save(result_dir, id=id)
 
 
+class GraphKernelConfig(KernelConfig):
+    def get_single_graph_kernel(self, kernel_pkl):
+        params = self.params
+        self.type = 'graph'
+        if params['NORMALIZED']:
+            KernelObject = PreCalcNormalizedGraphKernel
+        else:
+            KernelObject = PreCalcMarginalizedGraphKernel
+        return KernelObject(
+            node_kernel=Config.Hyperpara.knode,
+            edge_kernel=Config.Hyperpara.kedge,
+            q=Config.Hyperpara.q,
+            q_bounds=Config.Hyperpara.q_bound,
+            p=Uniform(1.0, p_bounds='fixed'),
+            unique=self.add_features is not None
+        )
 
+    def get_conv_graph_kernel(self, kernel_pkl):
+        params = self.params
+        self.type = 'graph'
+        if params['NORMALIZED']:
+            KernelObject = ConvolutionNormalizedGraphKernel
+        else:
+            raise Exception('not supported option')
+        return KernelObject(
+            node_kernel=Config.Hyperpara.knode,
+            edge_kernel=Config.Hyperpara.kedge,
+            q=Config.Hyperpara.q,
+            q_bounds=Config.Hyperpara.q_bound,
+            p=Uniform(1.0, p_bounds='fixed'),
+            unique=self.add_features is not None
+        )

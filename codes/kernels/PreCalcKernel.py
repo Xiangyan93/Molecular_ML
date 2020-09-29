@@ -1,6 +1,7 @@
+import pickle
 import copy
 import numpy as np
-import pickle
+from codes.kernels.KernelConfig import KernelConfig
 
 
 class PreCalcKernel:
@@ -135,6 +136,24 @@ class ConvolutionPreCalcKernel(PreCalcKernel):
     @staticmethod
     def x2weight(x):
         return x[1::2]
+
+
+class PreCalcKernelConfig(KernelConfig):
+    def get_single_graph_kernel(self, kernel_pkl):
+        self.type = 'preCalc'
+        kernel_dict = pickle.load(open(kernel_pkl, 'rb'))
+        graphs = kernel_dict['graphs']
+        K = kernel_dict['K']
+        theta = kernel_dict['theta']
+        return PreCalcKernel(graphs, K, theta)
+
+    def get_conv_graph_kernel(self, kernel_pkl):
+        self.type = 'preCalc'
+        kernel_dict = pickle.load(open(kernel_pkl, 'rb'))
+        graphs = kernel_dict['graphs'][0],
+        K = kernel_dict['K'][0],
+        theta = kernel_dict['theta'][0],
+        return ConvolutionPreCalcKernel(graphs, K, theta)
 
 '''
 def get_XY_from_df(df, kernel_config, properties=None):

@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
 import os
 import sys
-import pickle
 import numpy as np
 import pandas as pd
-from sklearn.metrics import (
-    r2_score,
-    explained_variance_score,
-    mean_squared_error
-)
-
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.graph.hashgraph import HashGraph
 from codes.kernels.KernelConfig import (
-    KernelConfig,
     get_XYid_from_df,
 )
 
@@ -51,15 +43,15 @@ def set_kernel_config(result_dir, kernel, normalized,
     if kernel == 'graph':
         params = {
             'NORMALIZED': normalized,
-            'PRECALC': False
         }
+        from codes.kernels.GraphKernel import GraphKernelConfig as KConfig
     else:
         params = {
             'NORMALIZED': normalized,
-            'PRECALC': True,
             'result_dir': result_dir
         }
-    return KernelConfig(
+        from codes.kernels.PreCalcKernel import PreCalcKernelConfig as KConfig
+    return KConfig(
         single_graph,
         multi_graph,
         add_features,

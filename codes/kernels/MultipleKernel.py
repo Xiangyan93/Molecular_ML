@@ -1,6 +1,9 @@
 import copy
 import numpy as np
-from codes.kernels.GraphKernel import _get_uniX
+
+
+def _get_uniX(X):
+    return np.sort(np.unique(X))
 
 
 class MultipleKernel:
@@ -34,11 +37,11 @@ class MultipleKernel:
                     covariance_matrix *= output[0]
                     for j in range(self.nkernel):
                         if j == i:
-                            gradient_matrix_list[j] = gradient_matrix_list[j] * \
-                                                      output[1]
+                            gradient_matrix_list[j] = \
+                                gradient_matrix_list[j] * output[1]
                         else:
                             shape = output[0].shape + (1,)
-                            gradient_matrix_list[j] = gradient_matrix_list[j] * \
+                            gradient_matrix_list[j] = gradient_matrix_list[j] *\
                                                       output[0].reshape(shape)
             gradient_matrix = gradient_matrix_list[0]
             for i, gm in enumerate(gradient_matrix_list):

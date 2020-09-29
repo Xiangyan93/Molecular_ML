@@ -1,8 +1,6 @@
 import os
 import sklearn.gaussian_process as gp
 from codes.kernels.MultipleKernel import *
-from codes.kernels.PreCalcKernel import *
-from config import Config
 
 
 class KernelConfig:
@@ -50,65 +48,6 @@ class KernelConfig:
         if params.get('theta') is not None:
             print('Reading Existed kernel parameter %s' % params.get('theta'))
             self.kernel = self.kernel.clone_with_theta(params.get('theta'))
-
-    def get_single_graph_kernel(self, kernel_pkl):
-        params = self.params
-        if params['PRECALC']:
-            self.type = 'preCalc'
-            kernel_dict = pickle.load(open(kernel_pkl, 'rb'))
-            graphs = kernel_dict['graphs']
-            K = kernel_dict['K']
-            theta = kernel_dict['theta']
-            single_graph_kernel = PreCalcKernel(graphs, K, theta)
-        else:
-            from graphdot.kernel.marginalized._kernel import Uniform
-            from codes.kernels.GraphKernel import (
-                PreCalcMarginalizedGraphKernel,
-                PreCalcNormalizedGraphKernel
-            )
-            self.type = 'graph'
-            if params['NORMALIZED']:
-                KernelObject = PreCalcNormalizedGraphKernel
-            else:
-                KernelObject = PreCalcMarginalizedGraphKernel
-            single_graph_kernel = KernelObject(
-                node_kernel=Config.Hyperpara.knode,
-                edge_kernel=Config.Hyperpara.kedge,
-                q=Config.Hyperpara.q,
-                q_bounds=Config.Hyperpara.q_bound,
-                p=Uniform(1.0, p_bounds='fixed'),
-                unique=self.add_features is not None
-            )
-        return single_graph_kernel
-
-    def get_conv_graph_kernel(self, kernel_pkl):
-        params = self.params
-        if params['PRECALC']:
-            self.type = 'preCalc'
-            kernel_dict = pickle.load(open(kernel_pkl, 'rb'))
-            graphs = kernel_dict['graphs'][0],
-            K = kernel_dict['K'][0],
-            theta = kernel_dict['theta'][0],
-            multi_graph_kernel = ConvolutionPreCalcKernel(graphs, K, theta)
-        else:
-            from graphdot.kernel.marginalized._kernel import Uniform
-            from codes.kernels.GraphKernel import (
-                ConvolutionNormalizedGraphKernel
-            )
-            self.type = 'graph'
-            if params['NORMALIZED']:
-                KernelObject = ConvolutionNormalizedGraphKernel
-            else:
-                raise Exception('not supported option')
-            multi_graph_kernel = KernelObject(
-                node_kernel=Config.Hyperpara.knode,
-                edge_kernel=Config.Hyperpara.kedge,
-                q=Config.Hyperpara.q,
-                q_bounds=Config.Hyperpara.q_bound,
-                p=Uniform(1.0, p_bounds='fixed'),
-                unique=self.add_features is not None
-            )
-        return multi_graph_kernel
 
     def get_rbf_kernel(self):
         if None not in [self.add_features, self.add_hyperparameters]:
