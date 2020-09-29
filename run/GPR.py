@@ -124,6 +124,7 @@ def read_input(result_dir, input, kernel_config, properties, params):
         train_ratio=params['train_ratio'],
         random_select=params['random_select'],
         seed=params['seed'],
+        bygroup=kernel_config.add_features is not None
     )
     # get X, Y of train and test sets
     train_X, train_Y, train_id = get_XYid_from_df(

@@ -49,7 +49,7 @@ class BaseLearner:
                 def round5(x):
                     return ',%.5f' % x
                 k = list(map(round5, K[i][index]))
-                id = list(map(str, self.train_id.to_numpy()[index].tolist()))
+                id = list(map(str, self.train_id[index].tolist()))
                 info = ';'.join(list(map(str.__add__, id, k)))
                 similar_info.append(info)
             out.loc[:, 'similar_mols'] = similar_info
