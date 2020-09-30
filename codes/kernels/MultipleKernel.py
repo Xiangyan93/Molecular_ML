@@ -77,7 +77,7 @@ class MultipleKernel:
 
     @property
     def n_dims_list(self):
-        return [kernel.n_dims for kernel in self.kernel_list]
+        return [len(kernel.theta) for kernel in self.kernel_list]
 
     @property
     def n_dims(self):
@@ -98,7 +98,7 @@ class MultipleKernel:
 
     @theta.setter
     def theta(self, value):
-        if len(value) != self.n_dims:
+        if len(value) != len(self.theta):
             raise Exception('The length of n_dims and theta must the same')
         s = 0
         e = 0

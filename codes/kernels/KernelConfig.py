@@ -69,7 +69,7 @@ def get_XYid_from_df(df, kernel_config, properties=None):
         X_name += kernel_config.add_features
     X = df[X_name].to_numpy()
     if properties is None:
-        return X
+        return X, None, None
     Y = df[properties].to_numpy()
     if len(properties) == 1:
         Y = Y.ravel()

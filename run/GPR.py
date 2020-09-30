@@ -28,6 +28,17 @@ def set_learner(gpr):
     return Learner
 
 
+def set_gpr(gpr):
+    if gpr == 'graphdot':
+        from graphdot.model.gaussian_process.gpr import GaussianProcessRegressor
+    elif gpr == 'sklearn':
+        from codes.GPRsklearn.gpr import RobustFitGaussianProcessRegressor as \
+            GaussianProcessRegressor
+    else:
+        raise Exception('Unknown GaussianProcessRegressor: %s' % gpr)
+    return GaussianProcessRegressor
+
+
 def set_kernel_config(result_dir, kernel, normalized,
                       single_graph, multi_graph,
                       add_features, add_hyperparameters):
@@ -111,6 +122,13 @@ def read_input(result_dir, input, kernel_config, properties, params):
         if random_select:
             df_train = df_random_select(df_train, n=4)
         return df_train, df_test
+    if params is None:
+        params = {
+            'train_size': None,
+            'train_ratio': 1.0,
+            'random_select': False,
+            'seed': 0,
+        }
     print('***\tStart: Reading input.\t***')
     if not os.path.exists(result_dir):
         os.mkdir(result_dir)
@@ -154,7 +172,7 @@ def pre_calculate(kernel_config, df, result_dir, load_K):
         if load_K:
             kernel.load(result_dir)
         else:
-            X = get_XYid_from_df(df, kernel_config)
+            X, _, _ = get_XYid_from_df(df, kernel_config)
             kernel.PreCalculate(X, result_dir=result_dir)
         print('***\tEnd: Graph kernels calculating\t***\n')
 

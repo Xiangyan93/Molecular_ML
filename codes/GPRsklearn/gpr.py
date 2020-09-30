@@ -144,7 +144,7 @@ class GPR(GaussianProcessRegressor):
         store_dict = pickle.load(open(f_model, 'rb'))
         kernel = kernel.clone_with_theta(store_dict.pop('theta'))
         kernel_ = kernel.clone_with_theta(store_dict.pop('theta_'))
-        model = cls(kernel)
+        model = cls(kernel=kernel)
         model.kernel_ = kernel_
         model.__dict__.update(**store_dict)
         return model
