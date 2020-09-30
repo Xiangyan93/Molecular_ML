@@ -294,7 +294,7 @@ class ActiveLearner:
     def evaluate(self, train_output=True, debug=True):
         # print('%s' % (time.asctime(time.localtime(time.time()))))
         r2, ex_var, mse, out = self.learner.evaluate_test(debug=debug)
-        print("R-square:%.3f\nMSE:%.3g\nexplained_variance:%.3f\n" %
+        print("R-square:%.3f\nMSE:%.5g\nexplained_variance:%.3f\n" %
               (r2, mse, ex_var))
         self.learning_log.loc[self.current_size] = (
             self.current_size, r2, mse,
@@ -343,11 +343,11 @@ class ActiveLearner:
     def load_checkpoint(cls, f_checkpoint, kernel_config):
         d = pickle.load(open(f_checkpoint, 'rb'))
         activelearner = cls(
-            d['train_X'], d['train_Y'], d['train_smiles'], d['init_alpha'],
+            d['train_X'], d['train_Y'], d['train_id'], d['init_alpha'],
             kernel_config, d['learning_mode'], d['add_mode'], 10,
             d['add_size'], d['max_size'], d['search_size'], d['pool_size'],
             d['result_dir'], d['Learner'], d['test_X'], d['test_Y'],
-            d['test_smiles'], d['optimizer'], d['stride'], d['seed'])
+            d['test_id'], d['optimizer'], d['stride'], d['seed'])
         # restore params
         for key in d.keys():
             setattr(activelearner, key, d[key])
