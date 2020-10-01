@@ -39,12 +39,6 @@ def main():
              'rel_T\n'
              'T,P'
     )
-    parser.add_argument(
-        '--add_hyperparameters', type=str, default=None,
-        help='The hyperparameters of additional features. examples:\n'
-             '100\n'
-             '100,100'
-    )
     parser.add_argument('-i', '--input', type=str, help='Input data in csv '
                                                         'format.')
     parser.add_argument('--property', type=str, help='Target property.')
@@ -57,7 +51,7 @@ def main():
     kernel_config = set_kernel_config(
         result_dir, 'graph', args.normalized,
         args.single_graph, args.multi_graph,
-        args.add_features, args.add_hyperparameters
+        args.add_features, ','.join(['0'] * len(args.add_features.split(',')))
     )
     params = {
         'train_size': None,
