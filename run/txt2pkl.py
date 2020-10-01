@@ -47,7 +47,7 @@ def main():
 
     # set kernel_config
     kernel_config = set_kernel_config(
-        result_dir, 'graph', args.normalized,
+        result_dir, 'preCalc', args.normalized,
         args.single_graph, args.multi_graph,
         args.add_features, ','.join(['0'] * len(args.add_features.split(',')))
     )
@@ -57,13 +57,9 @@ def main():
         'random_select': False,
         'seed': 0,
     }
-    df, df_train, df_test, train_X, train_Y, train_id, test_X, test_Y, \
-    test_id = read_input(
+    read_input(
         result_dir, args.input, kernel_config, args.property, params
     )
-    print('**\tCalculating kernel matrix\t**')
-    kernel_config.kernel.PreCalculate(train_X, result_dir=result_dir)
-    print('**\tEnd Calculating kernel matrix\t**')
 
 
 if __name__ == '__main__':
