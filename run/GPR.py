@@ -5,9 +5,8 @@ import numpy as np
 import pandas as pd
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from codes.graph.hashgraph import HashGraph
 from codes.kernels.KernelConfig import get_XYid_from_df
-from codes.kernels.MultipleKernel import _get_uniX
+from run.txt2pkl import get_df
 
 
 def set_optimizer(optimizer, gpr):
@@ -71,35 +70,6 @@ def set_kernel_config(result_dir, kernel, normalized,
 
 
 def read_input(result_dir, input, kernel_config, properties, params):
-    def get_df(csv, pkl, single_graph, multi_graph):
-        def single2graph(series):
-            unique_series = _get_uniX(series)
-            graphs = list(map(HashGraph.from_inchi_or_smiles, unique_series))
-            idx = np.searchsorted(unique_series, series)
-            return np.asarray(graphs)[idx]
-
-        def multi_graph_transform(line):
-            line[::2] = list(map(HashGraph.from_inchi_or_smiles, line[::2]))
-
-        if os.path.exists(pkl):
-            print('reading existing pkl file: %s' % pkl)
-            df = pd.read_pickle(pkl)
-        else:
-            df = pd.read_csv(csv, sep='\s+', header=0)
-            groups = df.groupby(single_graph + multi_graph)
-            df['group_id'] = 0
-            for g in groups:
-                g[1]['group_id'] = int(g[1]['id'].min())
-                df.update(g[1])
-            df['id'] = df['id'].astype(int)
-            df['group_id'] = df['group_id'].astype(int)
-            for sg in single_graph:
-                df[sg] = single2graph(df[sg])# df[sg].apply(HashGraph.from_inchi_or_smiles)
-            for mg in multi_graph:
-                df[mg] = df[mg].apply(multi_graph_transform)
-            df.to_pickle(pkl)
-        return df
-
     def df_filter(df, train_size=None, train_ratio=None, random_select=False,
                   bygroup=False, seed=0):
         def df_random_select(df, n=4):
