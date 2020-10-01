@@ -4,7 +4,6 @@ import sys
 import argparse
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from codes.kernels.GraphKernel import *
 from run.GPR import (
     set_kernel_config,
     read_input

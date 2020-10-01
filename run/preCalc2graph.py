@@ -3,7 +3,6 @@ import os
 import sys
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from codes.graph.hashgraph import HashGraph
 from run.GPR import (
     set_gpr,
     set_kernel_config
