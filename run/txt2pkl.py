@@ -19,10 +19,6 @@ def main():
         help='The path where all the output saved.',
     )
     parser.add_argument(
-        '--normalized', action='store_true',
-        help='use normalized kernel.',
-    )
-    parser.add_argument(
         '--single_graph', type=str, default=None,
         help='Pure compounds\n'
     )
@@ -30,15 +26,8 @@ def main():
         '--multi_graph', type=str, default=None,
         help='Mixture\n'
     )
-    parser.add_argument(
-        '--add_features', type=str, default=None,
-        help='Additional features. examples:\n'
-             'rel_T\n'
-             'T,P'
-    )
     parser.add_argument('-i', '--input', type=str, help='Input data in csv '
                                                         'format.')
-    parser.add_argument('--property', type=str, help='Target property.')
     args = parser.parse_args()
 
     # set result directory
@@ -46,9 +35,9 @@ def main():
 
     # set kernel_config
     kernel_config = set_kernel_config(
-        result_dir, 'preCalc', args.normalized,
+        result_dir, 'preCalc', True,
         args.single_graph, args.multi_graph,
-        args.add_features, ','.join(['0'] * len(args.add_features.split(',')))
+        None, None
     )
     params = {
         'train_size': None,
@@ -57,7 +46,7 @@ def main():
         'seed': 0,
     }
     read_input(
-        result_dir, args.input, kernel_config, args.property, params
+        result_dir, args.input, kernel_config, None, params
     )
 
 
