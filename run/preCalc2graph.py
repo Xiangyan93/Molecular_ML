@@ -50,7 +50,9 @@ def main():
     kernel_config = set_kernel_config(
         result_dir, 'graph', args.normalized,
         args.single_graph, args.multi_graph,
-        args.add_features, ','.join(['0'] * len(args.add_features.split(',')))
+        args.add_features,
+        None if args.add_features is None else ','.join(
+            ['0'] * len(args.add_features.split(',')))
     )
     f_model = os.path.join(result_dir, 'model.pkl')
     model = GPR.load_cls(f_model, kernel_config.kernel)

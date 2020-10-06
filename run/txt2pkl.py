@@ -20,7 +20,7 @@ def get_df(csv, pkl, single_graph, multi_graph):
     def multi_graph_transform(line):
         line[::2] = list(map(HashGraph.from_inchi_or_smiles, line[::2]))
 
-    if os.path.exists(pkl):
+    if pkl is not None and os.path.exists(pkl):
         print('reading existing pkl file: %s' % pkl)
         df = pd.read_pickle(pkl)
     else:
@@ -37,7 +37,8 @@ def get_df(csv, pkl, single_graph, multi_graph):
                 df[sg])  # df[sg].apply(HashGraph.from_inchi_or_smiles)
         for mg in multi_graph:
             df[mg] = df[mg].apply(multi_graph_transform)
-        df.to_pickle(pkl)
+        if pkl is not None:
+            df.to_pickle(pkl)
     return df
 
 

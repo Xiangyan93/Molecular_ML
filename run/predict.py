@@ -2,12 +2,14 @@
 import os
 import sys
 import argparse
+import pandas as pd
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from run.GPR import (
     set_gpr,
     set_kernel_config,
-    read_input
+    get_df,
+    get_XYid_from_df
 )
 
 
@@ -60,18 +62,17 @@ def main():
     kernel_config = set_kernel_config(
         result_dir, 'graph', args.normalized,
         args.single_graph, args.multi_graph,
-        args.add_features, ','.join(['0'] * len(args.add_features.split(',')))
+        args.add_features,
+        None if args.add_features is None else ','.join(['0'] * len(args.add_features.split(',')))
     )
     model = GPR.load_cls(args.f_model, kernel_config.kernel)
     # read input
-    df, df_train, df_test, train_X, train_Y, train_id, test_X, test_Y, \
-    test_id = read_input(
-        result_dir, args.input, kernel_config, args.property, None
-    )
+    df = get_df(args.input, None, kernel_config.single_graph, kernel_config.multi_graph)
+    X, _, _ = get_XYid_from_df(df, kernel_config)
     if args.smiles is not None:
         df = df[df.SMILES == args.smiles]
-        train_X = train_X[df.index]
-    y, y_std = model.predict(train_X, return_std=True)
+        X = X[df.index]
+    y, y_std = model.predict(X, return_std=True)
     df['predict'] = y
     df['uncertainty'] = y_std
     df.to_csv('predict.csv', sep=' ', index=False)
