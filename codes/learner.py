@@ -5,9 +5,12 @@ import pandas as pd
 from collections import defaultdict
 from sklearn.cluster import KMeans
 from sklearn.manifold import SpectralEmbedding
-from sklearn.metrics import explained_variance_score
-from sklearn.metrics import mean_squared_error
-from sklearn.metrics import r2_score
+from sklearn.metrics import (
+    explained_variance_score,
+    mean_squared_error,
+    mean_absolute_error,
+    r2_score,
+)
 
 
 class BaseLearner:
@@ -29,6 +32,7 @@ class BaseLearner:
         r2 = r2_score(y, y_pred, multioutput='raw_values')
         ex_var = explained_variance_score(y, y_pred, multioutput='raw_values')
         mse = mean_squared_error(y, y_pred, multioutput='raw_values')
+        mae = mean_absolute_error(y, y_pred, multioutput='raw_values')
         out = pd.DataFrame({
             '#target': y,
             'predict': y_pred,
@@ -53,7 +57,7 @@ class BaseLearner:
                 info = ';'.join(list(map(str.__add__, id, k)))
                 similar_info.append(info)
             out.loc[:, 'similar_mols'] = similar_info
-        return r2, ex_var, mse, out.sort_values(by='abs_dev', ascending=False)
+        return r2, ex_var, mse, mae, out.sort_values(by='abs_dev', ascending=False)
 
     def evaluate_test(self, debug=True, alpha=None):
         x = self.test_X
@@ -139,7 +143,8 @@ class ActiveLearner:
         )
         self.stride = stride
         self.learning_log = pd.DataFrame({
-            '#size': [], 'r2': [], 'mse': [], 'ex-var': [], 'search_size': []
+            '#size': [], 'r2': [], 'mse': [], 'mae': [], 'ex-var': [],
+            'search_size': []
         })
 
     def stop_sign(self):
@@ -293,11 +298,11 @@ class ActiveLearner:
 
     def evaluate(self, train_output=True, debug=True):
         # print('%s' % (time.asctime(time.localtime(time.time()))))
-        r2, ex_var, mse, out = self.learner.evaluate_test(debug=debug)
+        r2, ex_var, mse, mae, out = self.learner.evaluate_test(debug=debug)
         print("R-square:%.3f\nMSE:%.5g\nexplained_variance:%.3f\n" %
               (r2, mse, ex_var))
         self.learning_log.loc[self.current_size] = (
-            self.current_size, r2, mse,
+            self.current_size, r2, mse, mae,
             ex_var,
             self.search_size
         )
@@ -309,7 +314,7 @@ class ActiveLearner:
         )
 
         if train_output:
-            r2, ex_var, mse, out = self.learner.evaluate_train(debug=debug)
+            r2, ex_var, mse, mae, out = self.learner.evaluate_train(debug=debug)
             out.to_csv(
                 '%s/%i-train.log' % (self.result_dir, self.current_size),
                 sep='\t',
