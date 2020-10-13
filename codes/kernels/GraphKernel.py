@@ -269,7 +269,7 @@ class ConvolutionNormalizedGraphKernel(PreCalcNormalizedGraphKernel):
 
 
 class GraphKernelConfig(KernelConfig):
-    def get_single_graph_kernel(self, kernel_pkl):
+    def get_single_graph_kernel(self, kernel_pkl):  # dont delete kernel_pkl
         params = self.params
         self.type = 'graph'
         if params['NORMALIZED']:
@@ -285,7 +285,7 @@ class GraphKernelConfig(KernelConfig):
             unique=self.add_features is not None
         )
 
-    def get_conv_graph_kernel(self, kernel_pkl):
+    def get_conv_graph_kernel(self, kernel_pkl):  # dont delete kernel_pkl
         params = self.params
         self.type = 'graph'
         if params['NORMALIZED']:

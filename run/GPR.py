@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import os
 import sys
+import pickle
 import numpy as np
 import pandas as pd
+
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.kernels.KernelConfig import get_XYid_from_df
@@ -40,7 +42,7 @@ def set_gpr(gpr):
 
 def set_kernel_config(result_dir, kernel, normalized,
                       single_graph, multi_graph,
-                      add_features, add_hyperparameters):
+                      add_features, add_hyperparameters, theta):
     if single_graph is None:
         single_graph = []
     elif type(single_graph) == str:
@@ -52,12 +54,14 @@ def set_kernel_config(result_dir, kernel, normalized,
     if kernel == 'graph':
         params = {
             'NORMALIZED': normalized,
+            'theta': theta
         }
         from codes.kernels.GraphKernel import GraphKernelConfig as KConfig
     else:
         params = {
             'NORMALIZED': normalized,
-            'result_dir': result_dir
+            'result_dir': result_dir,
+            'theta': theta
         }
         from codes.kernels.PreCalcKernel import PreCalcKernelConfig as KConfig
     return KConfig(
@@ -92,6 +96,7 @@ def read_input(result_dir, input, kernel_config, properties, params):
         if random_select:
             df_train = df_random_select(df_train, n=4)
         return df_train, df_test
+
     if params is None:
         params = {
             'train_size': None,
@@ -226,7 +231,7 @@ def main():
         help='The path where all the output saved.',
     )
     parser.add_argument(
-        '--kernel',  type=str, default="graph",
+        '--kernel', type=str, default="graph",
         help='Kernel type.\n'
              'options: graph or preCalc.\n'
              'For preCalc kernel, run KernelCalc.py first.'
@@ -296,6 +301,10 @@ def main():
         help='size for training set.\n'
              'This option is effective only when train_size is None',
     )
+    parser.add_argument(
+        '--theta', type=str, default=None,
+        help='Reading hyperparameter file.\n'
+    )
     args = parser.parse_args()
 
     # set result directory
@@ -307,11 +316,14 @@ def main():
     # set optimizer
     optimizer = set_optimizer(args.optimizer, args.gpr)
 
+    theta = pickle.load(open(args.theta, 'rb')) \
+        if args.theta is not None else None
     # set kernel_config
     kernel_config = set_kernel_config(
         result_dir, args.kernel, args.normalized,
         args.single_graph, args.multi_graph,
-        args.add_features, args.add_hyperparameters
+        args.add_features, args.add_hyperparameters,
+        theta
     )
 
     # read input

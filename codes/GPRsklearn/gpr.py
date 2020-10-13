@@ -134,6 +134,8 @@ class GPR(GaussianProcessRegressor):
         store_dict['theta_'] = self.kernel_.theta
         store_dict.pop('kernel_', None)
         pickle.dump(store_dict, open(f_model, 'wb'), protocol=4)
+        f_theta = os.path.join(dir, 'theta.pkl')
+        pickle.dump(self.kernel_.theta, open(f_theta, 'wb'), protocol=4)
 
     def load(self, dir):
         f_model = os.path.join(dir, 'model.pkl')

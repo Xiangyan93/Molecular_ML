@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Adaptor for RDKit's Molecule objects"""
+import os
+CWD = os.path.dirname(os.path.abspath(__file__))
 import re
 import networkx as nx
+import pandas as pd
 import numpy as np
 from treelib import Tree
 from rdkit.Chem import AllChem as Chem
@@ -288,6 +291,7 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
                 set_ring_stereo=False, add_hydrogen=False,
                 morgan_radius=3, depth=5):
     g = nx.Graph()
+    emode = pd.read_csv(os.path.join(CWD, 'emodes.dat'), sep='\s+')
     # calculate morgan substrcutre hasing value
     if add_hydrogen:
         mol = Chem.AddHs(mol)
@@ -307,7 +311,12 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
 
     for i, atom in enumerate(mol.GetAtoms()):
         g.add_node(i)
-        g.nodes[i]['atomic_number'] = atom.GetAtomicNum()
+        an = atom.GetAtomicNum()
+        g.nodes[i]['atomic_number'] = an
+        g.nodes[i]['em1'] = emode[emode.an == an].em1.ravel()[0]
+        g.nodes[i]['em2'] = emode[emode.an == an].em2.ravel()[0]
+        g.nodes[i]['em3'] = emode[emode.an == an].em3.ravel()[0]
+        g.nodes[i]['em4'] = emode[emode.an == an].em4.ravel()[0]
         g.nodes[i]['charge'] = atom.GetFormalCharge()
         g.nodes[i]['hcount'] = atom.GetTotalNumHs()
         g.nodes[i]['hybridization'] = atom.GetHybridization()

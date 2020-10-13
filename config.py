@@ -21,6 +21,14 @@ class Config:
         q_bound = (1e-4, 1.0)
         knode = TensorProduct(
             atomic_number=kDelta(0.75, k_bounds),
+            em1=SquareExponential(
+                length_scale=2.0,
+                length_scale_bounds=s_bounds
+            ),
+            em2=SquareExponential(
+                length_scale=3.0,
+                length_scale_bounds=s_bounds
+            ),
             aromatic=kDelta(k, k_bounds),
             charge=SquareExponential(
                 length_scale=2.5,
@@ -34,14 +42,14 @@ class Config:
             ring_list=kConv(kDelta(k, k_bounds)),
             morgan_hash=kDelta(k, k_bounds),
             ring_number=kDelta(k, k_bounds),
-            # hybridization=kDelta(k, k_bounds),
+            hybridization=kDelta(k, k_bounds),
         )
         kedge = TensorProduct(
             order=SquareExponential(
                 length_scale=1.5,
                 length_scale_bounds=s_bounds
             ),
-            # aromatic=kDelta(k, k_bounds),
+            aromatic=kDelta(k, k_bounds),
             stereo=kDelta(k, k_bounds),
             conjugated=kDelta(k, k_bounds),
             ring_stereo=kDelta(k, k_bounds),
