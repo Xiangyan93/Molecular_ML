@@ -12,5 +12,5 @@ class Learner(BaseLearner):
                          alpha=self.alpha)
 
     def train(self):
-        self.model.fit_loocv(self.train_X, self.train_Y)
+        self.model.fit_loocv(self.train_X, self.train_Y, verbose=True, repeat=1)
         print('hyperparameter: ', self.model.kernel.hyperparameters)

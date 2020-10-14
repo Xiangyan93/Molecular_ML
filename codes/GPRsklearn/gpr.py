@@ -134,6 +134,8 @@ class GPR(GaussianProcessRegressor):
         store_dict['theta_'] = self.kernel_.theta
         store_dict.pop('kernel_', None)
         pickle.dump(store_dict, open(f_model, 'wb'), protocol=4)
+        f_theta = os.path.join(dir, 'theta.pkl')
+        pickle.dump(self.kernel_.theta, open(f_theta, 'wb'), protocol=4)
 
     def load(self, dir):
         f_model = os.path.join(dir, 'model.pkl')
@@ -144,7 +146,7 @@ class GPR(GaussianProcessRegressor):
         store_dict = pickle.load(open(f_model, 'rb'))
         kernel = kernel.clone_with_theta(store_dict.pop('theta'))
         kernel_ = kernel.clone_with_theta(store_dict.pop('theta_'))
-        model = cls(kernel)
+        model = cls(kernel=kernel)
         model.kernel_ = kernel_
         model.__dict__.update(**store_dict)
         return model
@@ -291,7 +293,7 @@ class RobustFitGaussianProcessRegressor(GPR):
         else:
             return result
 
-    def fit_robust(self, X, y, core_predict=True, cycle=1):
+    def fit_robust(self, X, y, cycle=1):
         self.fit(X, y)
         for i in range(cycle):
             try:

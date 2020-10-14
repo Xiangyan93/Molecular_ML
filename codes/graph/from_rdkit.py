@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """Adaptor for RDKit's Molecule objects"""
+import os
+CWD = os.path.dirname(os.path.abspath(__file__))
+import re
 import networkx as nx
+import pandas as pd
 import numpy as np
 from treelib import Tree
 from rdkit.Chem import AllChem as Chem
@@ -110,12 +114,12 @@ class FunctionalGroup:
 
 def get_bond_orientation_dict(mol):
     bond_orientation_dict = {}
-    for line in Chem.MolToMolBlock(mol).split('\n'):
-        if len(line.split()) == 4:
-            a, b, _, d = line.split()
-            ij = (int(a) - 1, int(b) - 1)
-            ij = (min(ij), max(ij))
-            bond_orientation_dict[ij] = int(d)
+    mb = Chem.MolToMolBlock(mol, includeStereo=True, kekulize=False)
+    for info in re.findall(r'^\s+\d+\s+\d+\s+\d+\s+\d+$', mb, re.MULTILINE):
+        _, i, j, _, d = re.split(r'\s+', info)
+        i, j, d = int(i) - 1, int(j) - 1, int(d)
+        i, j = min(i, j), max(i, j)
+        bond_orientation_dict[(i, j)] = d
     return bond_orientation_dict
 
 
@@ -247,9 +251,50 @@ def IsSymmetric(mol, ij, depth=2):
         return False
 
 
+def get_chiral_tag(mol, atom, depth=5):
+    """
+
+    Parameters
+    ----------
+    mol:
+    atom
+    depth
+
+    Returns
+    -------
+    0: non-chiral
+    1: clockwise, CW
+    -1: anticlockwise, CCW
+    """
+    if atom.GetHybridization() == 4 and atom.GetDegree() >= 3:
+        fg = []
+        for a in atom.GetNeighbors():
+            fg_ = FunctionalGroup(mol, atom, a, depth=depth)
+            if fg_ in fg:
+                return 0
+            else:
+                fg.append(fg_)
+        if atom.GetChiralTag() == 1:
+            return 1
+        elif atom.GetChiralTag() == 2:
+            return -1
+        else:
+            return 0
+    else:
+        if atom.GetChiralTag() == 0:
+            return 0
+        else:
+            raise Exception('chiral tag error')
+
+
 def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
-                set_ring_stereo=True, morgan_radius=3, depth=5):
+                set_ring_stereo=False, add_hydrogen=False,
+                morgan_radius=3, depth=5):
     g = nx.Graph()
+    emode = pd.read_csv(os.path.join(CWD, 'emodes.dat'), sep='\s+')
+    # calculate morgan substrcutre hasing value
+    if add_hydrogen:
+        mol = Chem.AddHs(mol)
     morgan_info = dict()
     atomidx_hash_dict = dict()
     radius = morgan_radius
@@ -266,12 +311,17 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
 
     for i, atom in enumerate(mol.GetAtoms()):
         g.add_node(i)
-        g.nodes[i]['atomic_number'] = atom.GetAtomicNum()
+        an = atom.GetAtomicNum()
+        g.nodes[i]['atomic_number'] = an
+        g.nodes[i]['em1'] = emode[emode.an == an].em1.ravel()[0]
+        g.nodes[i]['em2'] = emode[emode.an == an].em2.ravel()[0]
+        g.nodes[i]['em3'] = emode[emode.an == an].em3.ravel()[0]
+        g.nodes[i]['em4'] = emode[emode.an == an].em4.ravel()[0]
         g.nodes[i]['charge'] = atom.GetFormalCharge()
         g.nodes[i]['hcount'] = atom.GetTotalNumHs()
         g.nodes[i]['hybridization'] = atom.GetHybridization()
         g.nodes[i]['aromatic'] = atom.GetIsAromatic()
-        g.nodes[i]['chiral'] = 0 if atom.IsInRing() else atom.GetChiralTag()
+        g.nodes[i]['chiral'] = get_chiral_tag(mol, atom)
         g.nodes[i]['morgan_hash'] = atomidx_hash_dict[atom.GetIdx()]
 
     if set_ring_list:
@@ -296,7 +346,7 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
         if set_ring_stereo is True:
             g.edges[ij]['ring_stereo'] = 0.
 
-    if set_ring_stereo is True:
+    if set_ring_stereo:
         bond_orientation_dict = get_bond_orientation_dict(mol)
         for ring_idx in mol.GetRingInfo().AtomRings():
             atom_updown = []
@@ -318,7 +368,7 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
             for j in range(len(ring_idx)):
                 b = j
                 e = j + 1 if j != len(ring_idx) - 1 else 0
-                StereoOfRingBond = float(atom_updown[b] * atom_updown[e] /
+                StereoOfRingBond = float(atom_updown[b] * atom_updown[e] *
                                          len(ring_idx))
                 if ring_idx[b] < ring_idx[e]:
                     ij = (ring_idx[b], ring_idx[e])

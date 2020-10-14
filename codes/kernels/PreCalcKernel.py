@@ -1,8 +1,7 @@
+import pickle
 import copy
 import numpy as np
-import sklearn.gaussian_process as gp
-from codes.kernels.MultipleKernel import MultipleKernel
-from codes.smiles import inchi2smiles
+from codes.kernels.KernelConfig import KernelConfig
 
 
 class PreCalcKernel:
@@ -10,14 +9,11 @@ class PreCalcKernel:
         self.X = X
         self.K = K
         self.theta_ = theta
-        self.exptheta = np.exp(theta)
+        self.exptheta = np.exp(self.theta_)
 
     def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
         X_idx = np.searchsorted(self.X, X).ravel()
-        if Y is not None:
-            Y_idx = np.searchsorted(self.X, Y).ravel()
-        else:
-            Y_idx = X_idx
+        Y_idx = np.searchsorted(self.X, Y).ravel() if Y is not None else X_idx
         if eval_gradient:
             return self.K[X_idx][:, Y_idx], \
                    np.zeros((len(X_idx), len(Y_idx), 1))
@@ -27,8 +23,7 @@ class PreCalcKernel:
     def diag(self, X, eval_gradient=False):
         X_idx = np.searchsorted(self.X, X).ravel()
         if eval_gradient:
-            return np.diag(self.K)[X_idx], \
-                   np.zeros((len(X_idx), 1))
+            return np.diag(self.K)[X_idx], np.zeros((len(X_idx), 1))
         else:
             return np.diag(self.K)[X_idx]
 
@@ -71,28 +66,96 @@ class PreCalcKernel:
         )
 
 
-class PreCalcKernelConfig:
-    def __init__(self, X, K, theta, add_features=None,
-                 add_hyperparameters=None):
-        self.features = add_features
-        graph_kernel = PreCalcKernel(X=X, K=K, theta=theta)
-        if add_features is not None and add_hyperparameters is not None:
-            if len(add_features) != len(add_hyperparameters):
-                raise Exception('features and hyperparameters must be the same '
-                                'length')
-            add_kernel = gp.kernels.ConstantKernel(1.0, (1e-3, 1e3)) * \
-                         gp.kernels.RBF(length_scale=add_hyperparameters)
-            composition = [
-                (0,),
-                tuple(np.arange(1, len(add_features) + 1))
-            ]
-            self.kernel = MultipleKernel(
-                [graph_kernel, add_kernel], composition, 'product'
-            )
-        else:
-            self.kernel = graph_kernel
+def _Kc(self, super, x, y, eval_gradient=False):
+    x, x_weight = self.x2graph(x), self.x2weight(x)
+    y, y_weight = self.x2graph(y), self.x2weight(y)
+    Kxy, dKxy = super.__call__(x, Y=y, eval_gradient=True)
+    Kxx, dKxx = super.__call__(x, eval_gradient=True)
+    Kyy, dKyy = super.__call__(y, eval_gradient=True)
+    Fxy = np.einsum("i,j,ij", x_weight, y_weight, Kxy)
+    dFxy = np.einsum("i,j,ijk->k", x_weight, y_weight, dKxy)
+    Fxx = np.einsum("i,j,ij", x_weight, x_weight, Kxx)
+    dFxx = np.einsum("i,j,ijk->k", x_weight, x_weight, dKxx)
+    Fyy = np.einsum("i,j,ij", y_weight, y_weight, Kyy)
+    dFyy = np.einsum("i,j,ijk->k", y_weight, y_weight, dKyy)
+    sqrtFxxFyy = np.sqrt(Fxx * Fyy)
+    if eval_gradient:
+        return Fxy / sqrtFxxFyy
+    else:
+        return Fxy / sqrtFxxFyy, \
+               (dFxy - 0.5 * dFxx / Fxx - 0.5 * dFyy / Fyy) / sqrtFxxFyy
 
 
+def _call(self, X, Y=None, eval_gradient=False, *args, **kwargs):
+    if Y is None:
+        Xidx, Yidx = np.triu_indices(len(X), k=1)
+        Xidx, Yidx = Xidx.astype(np.uint32), Yidx.astype(np.uint32)
+        Y = X
+        symmetric = True
+    else:
+        Xidx, Yidx = np.indices((len(X), len(Y)), dtype=np.uint32)
+        Xidx = Xidx.ravel()
+        Yidx = Yidx.ravel()
+        symmetric = False
+
+    K = np.zeros((len(X), len(Y)))
+    if eval_gradient:
+        K_gradient = np.zeros((len(X), len(Y), self.theta.shape[0]))
+        for i in Xidx:
+            for j in Yidx:
+                K[i][j], K_gradient[i][j] = self.Kc(X[i], Y[j],
+                                                    eval_gradient=True)
+    else:
+        for i in Xidx:
+            for j in Yidx:
+                K[i][j] = self.Kc(X[i], Y[j])
+    if symmetric:
+        K = K + K.T
+        K[np.diag_indices_from(K)] += 1.0
+        if eval_gradient:
+            K_gradient = K_gradient + K_gradient.transpose([1, 0, 2])
+
+    if eval_gradient:
+        return K, K_gradient
+    else:
+        return K
+
+
+class ConvolutionPreCalcKernel(PreCalcKernel):
+    def __call__(self, X, Y=None, eval_gradient=False, *args, **kwargs):
+        return _call(self, X, Y=None, eval_gradient=eval_gradient,
+                     *args, **kwargs)
+
+    def Kc(self, x, y, eval_gradient=False):
+        return _Kc(self, super(), x, y, eval_gradient=eval_gradient)
+
+    @staticmethod
+    def x2graph(x):
+        return x[::2]
+
+    @staticmethod
+    def x2weight(x):
+        return x[1::2]
+
+
+class PreCalcKernelConfig(KernelConfig):
+    def get_single_graph_kernel(self, kernel_pkl):
+        self.type = 'preCalc'
+        kernel_dict = pickle.load(open(kernel_pkl, 'rb'))
+        graphs = kernel_dict['graphs']
+        K = kernel_dict['K']
+        theta = kernel_dict['theta']
+        return PreCalcKernel(graphs, K, theta)
+
+    def get_conv_graph_kernel(self, kernel_pkl):
+        self.type = 'preCalc'
+        kernel_dict = pickle.load(open(kernel_pkl, 'rb'))
+        graphs = kernel_dict['graphs'][0],
+        K = kernel_dict['K'][0],
+        theta = kernel_dict['theta'][0],
+        return ConvolutionPreCalcKernel(graphs, K, theta)
+
+'''
 def get_XY_from_df(df, kernel_config, properties=None):
     if df.size == 0:
         return None, None, None
@@ -105,3 +168,4 @@ def get_XY_from_df(df, kernel_config, properties=None):
     if len(properties) == 1:
         Y = Y.ravel()
     return [X, Y, smiles]
+'''

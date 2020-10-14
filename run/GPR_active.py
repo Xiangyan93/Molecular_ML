@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 import os
 import sys
-import pickle
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.learner import ActiveLearner
 from run.GPR import (
+    set_learner,
+    set_optimizer,
+    set_kernel_config,
     read_input,
-    get_kernel_config
+    pre_calculate
 )
 
 
@@ -23,29 +25,26 @@ def main():
              'options: graphdot or sklearn.'
     )
     parser.add_argument(
-        '--optimizer', type=str, default="L-BFGS-B",
-        help='Optimizer used in GPR. options:\n' 
-             'L-BFGS-B: graphdot GPR that minimize LOOCV error.\n'
-             'fmin_l_bfgs_b: sklearn GPR that maximize marginalized log '
-             'likelihood.'
-    )
-    parser.add_argument(
-        '--kernel',  type=str, default="graph",
-        help='Kernel type.\n'
-             'options: graph, vector or preCalc.\n'
-             'For preCalc kernel, run KernelCalc.py first.'
-    )
-    parser.add_argument('-i', '--input', type=str, help='Input data in csv '
-                                                        'format.')
-    parser.add_argument('--property', type=str, help='Target property.')
-    parser.add_argument('--seed', type=int, help='random seed', default=0)
-    parser.add_argument(
         '--result_dir', type=str, default='default',
         help='The path where all the output saved.',
     )
     parser.add_argument(
-        '--alpha', type=float, default=0.5,
-        help='Initial alpha value.'
+        '--kernel',  type=str, default="graph",
+        help='Kernel type.\n'
+             'options: graph or preCalc.\n'
+             'For preCalc kernel, run KernelCalc.py first.'
+    )
+    parser.add_argument(
+        '--normalized', action='store_true',
+        help='use normalized kernel.',
+    )
+    parser.add_argument(
+        '--single_graph', type=str, default=None,
+        help='Pure compounds\n'
+    )
+    parser.add_argument(
+        '--multi_graph', type=str, default=None,
+        help='Mixture\n'
     )
     parser.add_argument(
         '--add_features', type=str, default=None,
@@ -59,9 +58,24 @@ def main():
              '100\n'
              '100,100'
     )
+    parser.add_argument('-i', '--input', type=str, help='Input data in csv '
+                                                        'format.')
+    parser.add_argument('--property', type=str, help='Target property.')
     parser.add_argument(
-        '--normalized', action='store_true',
-        help='use normalized kernel.',
+        '--optimizer', type=str, default="L-BFGS-B",
+        help='Optimizer used in GPR. options:\n'
+             'L-BFGS-B: graphdot GPR that minimize LOOCV error.\n'
+             'fmin_l_bfgs_b: sklearn GPR that maximize marginalized log '
+             'likelihood.'
+    )
+    parser.add_argument(
+        '--load_K', action='store_true',
+        help='read existed K.pkl',
+    )
+    parser.add_argument('--seed', type=int, help='random seed', default=0)
+    parser.add_argument(
+        '--alpha', type=float, default=0.5,
+        help='Initial alpha value.'
     )
     parser.add_argument(
         '--train_size', type=int, default=None,
@@ -71,12 +85,6 @@ def main():
         '--train_ratio', type=float, default=0.8,
         help='size for training set.\n'
              'This option is effective only when train_size is None',
-    )
-    parser.add_argument(
-        '--vectorFPparams', type=str, default='morgan,2,64,0',
-        help='parameters for vector fingerprints. examples:\n'
-             'morgan,2,128,0\n'
-             'morgan,2,0,200\n'
     )
     parser.add_argument(
         '--learning_mode', type=str, default='unsupervised',
@@ -114,12 +122,15 @@ def main():
         help='whether continue training'
     )
     args = parser.parse_args()
+
     # set result directory
     result_dir = os.path.join(CWD, args.result_dir)
+
     # set kernel_config
-    kernel_config, get_graph, get_XY_from_df = get_kernel_config(
-        args.kernel, args.add_features, args.add_hyperparameters, args.normalized,
-        args.vectorFPparams, result_dir
+    kernel_config = set_kernel_config(
+        result_dir, args.kernel, args.normalized,
+        args.single_graph, args.multi_graph,
+        args.add_features, args.add_hyperparameters
     )
 
     if args.continued:
@@ -131,27 +142,28 @@ def main():
         print("model continued from checkpoint")
     else:
         # set Gaussian process regressor
-        if args.gpr == 'graphdot':
-            from codes.GPRgraphdot.learner import Learner
-        elif args.gpr == 'sklearn':
-            from codes.GPRsklearn.learner import Learner
-        else:
-            raise Exception('Unknown GaussianProcessRegressor: %s' % args.gpr)
+        Learner = set_learner(args.gpr)
         # set optimizer
-        optimizer = None if args.optimizer == 'None' else args.optimizer
+        optimizer = set_optimizer(args.optimizer, args.gpr)
         # read input
-        df, df_train, df_test, train_X, train_Y, train_smiles, test_X, test_Y, \
-        test_smiles = read_input(
-            result_dir, args.input, args.property, 'train_test', args.seed,
-            False, args.train_size, args.train_ratio,
-            kernel_config, get_graph, get_XY_from_df
+        params = {
+            'train_size': args.train_size,
+            'train_ratio': args.train_ratio,
+            'random_select': None,
+            'seed': args.seed,
+        }
+        df, df_train, df_test, train_X, train_Y, train_id, test_X, test_Y, \
+        test_id = read_input(
+            result_dir, args.input, kernel_config, args.property, params
         )
+        if optimizer is None:
+            pre_calculate(kernel_config, df, result_dir, args.load_K)
         activelearner = ActiveLearner(
-            train_X, train_Y, train_smiles, args.alpha, kernel_config,
+            train_X, train_Y, train_id, args.alpha, kernel_config,
             args.learning_mode, args.add_mode, args.init_size, args.add_size,
             args.max_size, args.search_size, args.pool_size,  args.result_dir,
             Learner,
-            test_X=test_X, test_Y=test_Y, test_smiles=test_smiles,
+            test_X=test_X, test_Y=test_Y, test_id=test_id,
             optimizer=optimizer, seed=args.seed, stride=args.stride
         )
 
