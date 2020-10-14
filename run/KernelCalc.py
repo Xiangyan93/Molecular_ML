@@ -5,10 +5,7 @@ import argparse
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.kernels.GraphKernel import *
-from run.GPR import (
-    set_kernel_config,
-    read_input
-)
+from run.GPR import *
 
 
 def main():
@@ -40,6 +37,10 @@ def main():
     parser.add_argument('-i', '--input', type=str, help='Input data in csv '
                                                         'format.')
     parser.add_argument('--property', type=str, help='Target property.')
+    parser.add_argument(
+        '--json_hyper', type=str, default=None,
+        help='Reading hyperparameter file.\n'
+    )
     args = parser.parse_args()
 
     # set result directory
@@ -51,7 +52,8 @@ def main():
     kernel_config = set_kernel_config(
         result_dir, 'graph', args.normalized,
         args.single_graph, args.multi_graph,
-        args.add_features, add_hyperparameters
+        args.add_features, add_hyperparameters,
+        json.loads(open(args.json_hyper, 'r').readline())
     )
     params = {
         'train_size': None,

@@ -288,8 +288,8 @@ def get_chiral_tag(mol, atom, depth=5):
 
 
 def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
-                set_ring_stereo=False, add_hydrogen=False,
-                morgan_radius=3, depth=5):
+                set_ring_stereo=False, add_hydrogen=False, set_weight='uniform',
+                weight_atoms_idx=None, morgan_radius=3, depth=5):
     g = nx.Graph()
     emode = pd.read_csv(os.path.join(CWD, 'emodes.dat'), sep='\s+')
     # calculate morgan substrcutre hasing value
@@ -308,30 +308,30 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
                 if a[0] not in atomidx_hash_dict:
                     atomidx_hash_dict[a[0]] = key
         radius -= 1
-
+    # set atomic attributes
     for i, atom in enumerate(mol.GetAtoms()):
         g.add_node(i)
         an = atom.GetAtomicNum()
         g.nodes[i]['atomic_number'] = an
-        g.nodes[i]['em1'] = emode[emode.an == an].em1.ravel()[0]
-        g.nodes[i]['em2'] = emode[emode.an == an].em2.ravel()[0]
-        g.nodes[i]['em3'] = emode[emode.an == an].em3.ravel()[0]
-        g.nodes[i]['em4'] = emode[emode.an == an].em4.ravel()[0]
+        g.nodes[i]['elemental_mode1'] = emode[emode.an == an].em1.ravel()[0]
+        g.nodes[i]['elemental_mode2'] = emode[emode.an == an].em2.ravel()[0]
+        # g.nodes[i]['elemental_mode3'] = emode[emode.an == an].em3.ravel()[0]
+        # g.nodes[i]['elemental_mode4'] = emode[emode.an == an].em4.ravel()[0]
         g.nodes[i]['charge'] = atom.GetFormalCharge()
         g.nodes[i]['hcount'] = atom.GetTotalNumHs()
         g.nodes[i]['hybridization'] = atom.GetHybridization()
         g.nodes[i]['aromatic'] = atom.GetIsAromatic()
         g.nodes[i]['chiral'] = get_chiral_tag(mol, atom)
         g.nodes[i]['morgan_hash'] = atomidx_hash_dict[atom.GetIdx()]
-
+    # set ring information
     if set_ring_list:
         for i, rings in enumerate(get_ringlist(mol)):
-            g.nodes[i]['ring_list'] = rings
+            g.nodes[i]['ring_membership'] = rings
             if rings == [0]:
                 g.nodes[i]['ring_number'] = 0
             else:
                 g.nodes[i]['ring_number'] = len(rings)
-
+    # set bond attributes
     for bond in mol.GetBonds():
         ij = (bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
         g.add_edge(*ij)
@@ -345,13 +345,13 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
         g.edges[ij]['symmetry'] = IsSymmetric(mol, ij)
         if set_ring_stereo is True:
             g.edges[ij]['ring_stereo'] = 0.
-
+    # set ring stereo
     if set_ring_stereo:
         bond_orientation_dict = get_bond_orientation_dict(mol)
         for ring_idx in mol.GetRingInfo().AtomRings():
             atom_updown = []
             for idx in ring_idx:
-                if len(g.nodes[idx]['ring_list']) != 1:
+                if g.nodes[idx]['ring_number'] != 1:
                     atom_updown.append(0)
                 else:
                     atom = mol.GetAtomWithIdx(idx)
@@ -379,4 +379,14 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
                                     StereoOfRingBond)
                 else:
                     g.edges[ij]['ring_stereo'] = StereoOfRingBond
+    # set weight
+    if set_weight == 'assigned':
+        for i, node in g.nodes:
+            node['weight_species'] = 1 if i in weight_atoms_idx else 0
+    elif set_weight == 'element':
+        for i, node in g.nodes:
+            node['weight_species'] = node['atomic_number']
+    else:
+        for i, node in g.nodes:
+            node['weight_species'] = 1
     return _from_networkx(cls, g)
