@@ -30,7 +30,7 @@ class KernelConfig:
         elif ns == 0 and nm == 1 and self.add_features is None:
             kernel_pkl = None if params.get('result_dir') is None \
                 else os.path.join(params['result_dir'], 'kernel.pkl')
-            self.kernel = self.get_single_graph_kernel(kernel_pkl)
+            self.kernel = self.get_conv_graph_kernel(kernel_pkl)
         else:
             kernels = []
             for i in range(ns):

@@ -381,12 +381,12 @@ def _from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
                     g.edges[ij]['ring_stereo'] = StereoOfRingBond
     # set weight
     if set_weight == 'assigned':
-        for i, node in g.nodes:
-            node['weight_species'] = 1 if i in weight_atoms_idx else 0
+        for i in range(len(g.nodes)):
+            g.nodes[i]['group_id'] = 1 if i in weight_atoms_idx else 0
     elif set_weight == 'element':
-        for i, node in g.nodes:
-            node['weight_species'] = node['atomic_number']
+        for i in range(len(g.nodes)):
+            g.nodes[i]['group_id'] = g.nodes[i]['atomic_number']
     else:
-        for i, node in g.nodes:
-            node['weight_species'] = 1
+        for i in range(len(g.nodes)):
+            g.nodes[i]['group_id'] = 1
     return _from_networkx(cls, g)

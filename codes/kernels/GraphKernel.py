@@ -291,10 +291,11 @@ class GraphKernelConfig(KernelConfig):
             edge_kernel=kedge,
             q=self.hyper_dict['q'][0],
             q_bounds=self.hyper_dict['q'][1],
-            p=(
-                lambda ns: np.where(ns.weight_species == 0, 0.0, 1.0),
-                'n.weight_species == 0 ? 0.f : 1.f'
-            ),
+            p=Uniform(1.0, p_bounds='fixed'),
+            #(
+               # lambda ns: np.where(ns.weight_species == 0, 0.0, 1.0),
+               # 'n.weight_species == 0 ? 0.f : 1.f'
+            #),
             unique=self.add_features is not None
         )
 

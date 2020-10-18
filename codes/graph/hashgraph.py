@@ -55,11 +55,13 @@ class HashGraph(Graph):
 
     @classmethod
     def from_rdkit(cls, mol, bond_type='order', set_ring_list=True,
-                   set_ring_stereo=True, add_hydrogen=False):
+                   set_ring_stereo=True, add_hydrogen=False,
+                   set_weight='uniform'):
         return _from_rdkit(cls, mol,
                            bond_type=bond_type,
                            set_ring_list=set_ring_list,
                            set_ring_stereo=set_ring_stereo,
                            add_hydrogen=add_hydrogen,
+                           set_weight=set_weight,
                            morgan_radius=3,
                            depth=5)
