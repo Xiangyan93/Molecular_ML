@@ -2,10 +2,10 @@ import os
 import pickle
 import numpy as np
 from graphdot.kernel.marginalized import MarginalizedGraphKernel
-from graphdot.kernel.marginalized._kernel import Uniform
-from codes.kernels.PreCalcKernel import (
-    ConvolutionPreCalcKernel as CPCK,
-    _Kc,
+from graphdot.microprobability import (
+    UniformProbability,
+    Constant as Constant_p,
+    Additive as Additive_p
 )
 from graphdot.microkernel import (
     Additive,
@@ -14,6 +14,10 @@ from graphdot.microkernel import (
     SquareExponential as sExp,
     KroneckerDelta as kDelta,
     Convolution as kConv,
+)
+from codes.kernels.PreCalcKernel import (
+    ConvolutionPreCalcKernel as CPCK,
+    _Kc,
 )
 from codes.kernels.MultipleKernel import _get_uniX
 from codes.kernels.KernelConfig import KernelConfig
@@ -285,17 +289,13 @@ class GraphKernelConfig(KernelConfig):
             KernelObject = PreCalcNormalizedGraphKernel
         else:
             KernelObject = PreCalcMarginalizedGraphKernel
-        knode, kedge = self.get_knode_edge()
+        knode, kedge, p = self.get_knode_kedge_p()
         return KernelObject(
             node_kernel=knode,
             edge_kernel=kedge,
             q=self.hyper_dict['q'][0],
             q_bounds=self.hyper_dict['q'][1],
-            p=Uniform(1.0, p_bounds='fixed'),
-            #(
-               # lambda ns: np.where(ns.weight_species == 0, 0.0, 1.0),
-               # 'n.weight_species == 0 ? 0.f : 1.f'
-            #),
+            p=p,
             unique=self.add_features is not None
         )
 
@@ -306,47 +306,55 @@ class GraphKernelConfig(KernelConfig):
             KernelObject = ConvolutionNormalizedGraphKernel
         else:
             raise Exception('not supported option')
-        knode, kedge = self.get_knode_edge()
+        knode, kedge, p = self.get_knode_kedge_p()
         return KernelObject(
             node_kernel=knode,
             edge_kernel=kedge,
             q=self.hyper_dict['q'][0],
             q_bounds=self.hyper_dict['q'][1],
-            p=Uniform(1.0, p_bounds='fixed'),
+            p=p,
             unique=self.add_features is not None
         )
 
-    def get_knode_edge(self):
+    def get_knode_kedge_p(self):
         def get_microk(microk):
+            if microk[2] != 'fixed':
+                microk[2] = tuple(microk[2])
             if microk[0] == 'kDelta':
-                return kDelta(microk[1], tuple(microk[2]))
+                return kDelta(microk[1], microk[2])
             elif microk[0] == 'sExp':
-                return sExp(microk[1], tuple(microk[2]))
+                # if microk[2] == 'fixed':
+                    # microk[2] = (microk[1], microk[1])
+                return sExp(microk[1], length_scale_bounds=microk[2])
             elif microk[0] == 'kConv':
-                return kConv(kDelta(microk[1], tuple(microk[2])))
+                return kConv(kDelta(microk[1], microk[2]))
             elif microk[0] == 'kC':
-                return kC(microk[1], tuple(microk[2]))
+                return kC(microk[1], microk[2])
+            elif microk[0] == 'uniform':
+                return UniformProbability(microk[1], microk[2])
+            elif microk[0] == 'constant':
+                return Constant_p(1.0)
             else:
                 raise Exception('unknown microkernel type')
 
         knode_dict = {}
         kedge_dict = {}
-        for key in self.hyper_dict:
+        p_dict = {}
+        for key, microk_list in self.hyper_dict.items():
             if key.startswith('atom_'):
-                microk_list = self.hyper_dict[key]
                 microk = [get_microk(mk) for mk in microk_list]
-                knode_dict.update({
-                    key[5:]: np.product(microk)
-                })
+                knode_dict.update({key[5:]: np.product(microk)})
             elif key.startswith('bond_'):
-                microk_list = self.hyper_dict[key]
                 microk = [get_microk(mk) for mk in microk_list]
-                kedge_dict.update({
-                    key[5:]: np.product(microk)
-                })
-        if self.hyper_dict['type'] == 'Tensorproduct':
-            return TensorProduct(**knode_dict), TensorProduct(**kedge_dict)
-        elif self.hyper_dict['type'] == 'Additive':
-            return Additive(**knode_dict), Additive(**kedge_dict)
-        else:
-            raise Exception('Use Tensorproduct or Additive')
+                kedge_dict.update({key[5:]: np.product(microk)})
+            elif key.startswith('probability_'):
+                microk = [get_microk(mk) for mk in microk_list]
+                p_dict.update({key[12:]: np.product(microk)})
+        composite_type = {
+            'Tensorproduct': TensorProduct,
+            'Additive': Additive,
+            'Additive_p': Additive_p,
+        }
+        return composite_type[self.hyper_dict['a_type']](**knode_dict), \
+               composite_type[self.hyper_dict['b_type']](**kedge_dict), \
+               composite_type[self.hyper_dict['p_type']](**p_dict),
