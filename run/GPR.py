@@ -2,6 +2,7 @@
 import os
 import sys
 import pickle
+import json
 import numpy as np
 import pandas as pd
 
@@ -42,7 +43,7 @@ def set_gpr(gpr):
 
 def set_kernel_config(result_dir, kernel, normalized,
                       single_graph, multi_graph,
-                      add_features, add_hyperparameters, theta):
+                      add_features, add_hyperparameters, hyperdict):
     if single_graph is None:
         single_graph = []
     elif type(single_graph) == str:
@@ -54,17 +55,16 @@ def set_kernel_config(result_dir, kernel, normalized,
     if kernel == 'graph':
         params = {
             'NORMALIZED': normalized,
-            'theta': theta
         }
         from codes.kernels.GraphKernel import GraphKernelConfig as KConfig
     else:
         params = {
             'NORMALIZED': normalized,
             'result_dir': result_dir,
-            'theta': theta
         }
         from codes.kernels.PreCalcKernel import PreCalcKernelConfig as KConfig
     return KConfig(
+        hyperdict,
         single_graph,
         multi_graph,
         add_features,
@@ -182,6 +182,7 @@ def gpr_run(data, result_dir, kernel_config, params,
         else:
             learner.train()
             learner.model.save(result_dir)
+            learner.kernel_config.save(result_dir, learner.model)
         r2, ex_var, mse, mae, out = learner.evaluate_loocv()
         print('LOOCV:')
         print('score: %.5f' % r2)
@@ -196,6 +197,7 @@ def gpr_run(data, result_dir, kernel_config, params,
                           optimizer=optimizer)
         learner.train()
         learner.model.save(result_dir)
+        learner.kernel_config.save(result_dir, learner.model)
         print('***\tEnd: hyperparameters optimization.\t***\n')
         r2, ex_var, mse, mae, out = learner.evaluate_train()
         print('Training set:')
@@ -302,7 +304,7 @@ def main():
              'This option is effective only when train_size is None',
     )
     parser.add_argument(
-        '--theta', type=str, default=None,
+        '--json_hyper', type=str, default=None,
         help='Reading hyperparameter file.\n'
     )
     args = parser.parse_args()
@@ -316,14 +318,12 @@ def main():
     # set optimizer
     optimizer = set_optimizer(args.optimizer, args.gpr)
 
-    theta = pickle.load(open(args.theta, 'rb')) \
-        if args.theta is not None else None
     # set kernel_config
     kernel_config = set_kernel_config(
         result_dir, args.kernel, args.normalized,
         args.single_graph, args.multi_graph,
         args.add_features, args.add_hyperparameters,
-        theta
+        json.loads(open(args.json_hyper, 'r').readline())
     )
 
     # read input

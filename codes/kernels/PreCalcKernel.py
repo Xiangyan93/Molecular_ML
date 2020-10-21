@@ -80,10 +80,10 @@ def _Kc(self, super, x, y, eval_gradient=False):
     dFyy = np.einsum("i,j,ijk->k", y_weight, y_weight, dKyy)
     sqrtFxxFyy = np.sqrt(Fxx * Fyy)
     if eval_gradient:
-        return Fxy / sqrtFxxFyy
-    else:
         return Fxy / sqrtFxxFyy, \
                (dFxy - 0.5 * dFxx / Fxx - 0.5 * dFyy / Fyy) / sqrtFxxFyy
+    else:
+        return Fxy / sqrtFxxFyy
 
 
 def _call(self, X, Y=None, eval_gradient=False, *args, **kwargs):

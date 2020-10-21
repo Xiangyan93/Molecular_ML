@@ -1,11 +1,15 @@
 import os
+import json
 import sklearn.gaussian_process as gp
 from codes.kernels.MultipleKernel import *
 
 
 class KernelConfig:
-    def __init__(self, single_graph, multi_graph, add_features,
+    def __init__(self, hyper_dict, single_graph, multi_graph, add_features,
                  add_hyperparameters, params):
+        if self.__class__ == KernelConfig:
+            raise Exception('The class KernelConfig cannot be instantiated')
+        self.hyper_dict = hyper_dict
         self.single_graph = single_graph
         self.multi_graph = multi_graph
         self.params = params
@@ -26,7 +30,7 @@ class KernelConfig:
         elif ns == 0 and nm == 1 and self.add_features is None:
             kernel_pkl = None if params.get('result_dir') is None \
                 else os.path.join(params['result_dir'], 'kernel.pkl')
-            self.kernel = self.get_single_graph_kernel(kernel_pkl)
+            self.kernel = self.get_conv_graph_kernel(kernel_pkl)
         else:
             kernels = []
             for i in range(ns):
@@ -45,9 +49,10 @@ class KernelConfig:
                 composition=composition,
                 combined_rule='product',
             )
-        if params.get('theta') is not None:
-            print('Reading Existed kernel parameter %s' % params.get('theta'))
-            self.kernel = self.kernel.clone_with_theta(params.get('theta'))
+        if hyper_dict.get('theta') is not None:
+            print('Reading Existed kernel parameter %s'
+                  % hyper_dict.get('theta'))
+            self.kernel = self.kernel.clone_with_theta(hyper_dict.get('theta'))
 
     def get_rbf_kernel(self):
         if None not in [self.add_features, self.add_hyperparameters]:
@@ -59,6 +64,19 @@ class KernelConfig:
             return [add_kernel]
         else:
             return []
+
+    def save(self, result_dir, model):
+        if hasattr(model, 'kernel_'):
+            theta = model.kernel_.theta
+        else:
+            theta = model.kernel.theta
+        self.hyper_dict.update({
+            'theta': theta.tolist()
+        })
+        print(self.hyper_dict)
+        open(os.path.join(result_dir, 'hyperparameters.json'), 'w').write(
+            json.dumps(self.hyper_dict)
+        )
 
 
 def get_XYid_from_df(df, kernel_config, properties=None):
