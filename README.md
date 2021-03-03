@@ -1,7 +1,2 @@
 # Molecular_ML
-Machine learning for properties of chemical compounds.  
-
-Valid model:  
-Gaussian Process Regression using graph kernel
-
-to be done.
+Move to [Chem-Graph-Kernel-Machine](https://github.com/Xiangyan93/Chem-Graph-Kernel-Machine).
