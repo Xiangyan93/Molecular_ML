@@ -3,10 +3,7 @@ import os
 import sys
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from run.GPR import (
-    set_gpr,
-    set_kernel_config
-)
+from run.GPR import *
 
 
 def main():
@@ -39,6 +36,10 @@ def main():
              'rel_T\n'
              'T,P'
     )
+    parser.add_argument(
+        '--json_hyper', type=str, default=None,
+        help='Reading hyperparameter file.\n'
+    )
     args = parser.parse_args()
     # set result directory
     result_dir = os.path.join(CWD, args.result_dir)
@@ -52,7 +53,8 @@ def main():
         args.single_graph, args.multi_graph,
         args.add_features,
         None if args.add_features is None else ','.join(
-            ['0'] * len(args.add_features.split(',')))
+            ['0'] * len(args.add_features.split(','))),
+        json.loads(open(args.json_hyper, 'r').readline())
     )
     f_model = os.path.join(result_dir, 'model.pkl')
     model = GPR.load_cls(f_model, kernel_config.kernel)

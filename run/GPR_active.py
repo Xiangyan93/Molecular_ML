@@ -4,13 +4,7 @@ import sys
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
 from codes.learner import ActiveLearner
-from run.GPR import (
-    set_learner,
-    set_optimizer,
-    set_kernel_config,
-    read_input,
-    pre_calculate
-)
+from run.GPR import *
 
 
 def main():
@@ -121,6 +115,10 @@ def main():
         '--continued', action='store_true',
         help='whether continue training'
     )
+    parser.add_argument(
+        '--json_hyper', type=str, default=None,
+        help='Reading hyperparameter file.\n'
+    )
     args = parser.parse_args()
 
     # set result directory
@@ -130,7 +128,8 @@ def main():
     kernel_config = set_kernel_config(
         result_dir, args.kernel, args.normalized,
         args.single_graph, args.multi_graph,
-        args.add_features, args.add_hyperparameters
+        args.add_features, args.add_hyperparameters,
+        json.loads(open(args.json_hyper, 'r').readline())
     )
 
     if args.continued:

@@ -2,15 +2,9 @@
 import os
 import sys
 import argparse
-import pandas as pd
 CWD = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(CWD, '..'))
-from run.GPR import (
-    set_gpr,
-    set_kernel_config,
-    get_df,
-    get_XYid_from_df
-)
+from run.GPR import *
 
 
 def main():
@@ -46,6 +40,10 @@ def main():
         '--f_model', type=str,
         help='model.pkl',
     )
+    parser.add_argument(
+        '--json_hyper', type=str, default=None,
+        help='Reading hyperparameter file.\n'
+    )
     parser.add_argument('-i', '--input', type=str, help='Input data in csv '
                                                         'format.')
     parser.add_argument('--smiles', type=str, help='', default=None)
@@ -63,7 +61,8 @@ def main():
         result_dir, 'graph', args.normalized,
         args.single_graph, args.multi_graph,
         args.add_features,
-        None if args.add_features is None else ','.join(['0'] * len(args.add_features.split(',')))
+        None if args.add_features is None else ','.join(['0'] * len(args.add_features.split(','))),
+        json.loads(open(args.json_hyper, 'r').readline())
     )
     model = GPR.load_cls(args.f_model, kernel_config.kernel)
     # read input
